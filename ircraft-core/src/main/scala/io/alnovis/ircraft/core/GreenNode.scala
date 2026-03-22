@@ -18,3 +18,10 @@ trait GreenNode:
 
   /** Width of this node in the source representation. Used for computing absolute positions in Red Tree. */
   def width: Int
+
+  /** Node identity derived from content hash. */
+  final def nodeId: NodeId = NodeId(contentHash)
+
+  /** Structural equality check. */
+  def structurallyEquals(other: GreenNode): Boolean =
+    other != null && this.contentHash == other.contentHash
