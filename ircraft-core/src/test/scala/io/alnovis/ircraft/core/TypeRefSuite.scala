@@ -16,18 +16,18 @@ class TypeRefSuite extends munit.FunSuite:
     val h = summon[ContentHashable[TypeRef]]
     assertNotEquals(
       h.contentHash(NamedType("com.example.Foo")),
-      h.contentHash(NamedType("com.example.Bar")),
+      h.contentHash(NamedType("com.example.Bar"))
     )
 
   test("ListType hash depends on element type"):
     val h = summon[ContentHashable[TypeRef]]
     assertNotEquals(
       h.contentHash(ListType(PrimitiveType.Int32)),
-      h.contentHash(ListType(PrimitiveType.Int64)),
+      h.contentHash(ListType(PrimitiveType.Int64))
     )
 
   test("MapType hash depends on both key and value"):
-    val h = summon[ContentHashable[TypeRef]]
+    val h  = summon[ContentHashable[TypeRef]]
     val m1 = MapType(PrimitiveType.StringType, PrimitiveType.Int32)
     val m2 = MapType(PrimitiveType.StringType, PrimitiveType.Int64)
     assertNotEquals(h.contentHash(m1), h.contentHash(m2))
@@ -43,7 +43,7 @@ class TypeRefSuite extends munit.FunSuite:
       EnumType("Status", List(EnumValue("OK", 0), EnumValue("ERROR", 1))),
       UnionType(List(PrimitiveType.Int32, PrimitiveType.StringType)),
       ParameterizedType(NamedType("List"), List(PrimitiveType.Int32)),
-      WildcardType(Some(NamedType("Foo"))),
+      WildcardType(Some(NamedType("Foo")))
     )
 
     val h = summon[ContentHashable[TypeRef]]

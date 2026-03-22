@@ -2,7 +2,8 @@ package io.alnovis.ircraft.dialect.java
 
 import io.alnovis.ircraft.core.*
 
-/** Java Code Dialect: low-level Java-specific code operations ready for emission.
+/**
+  * Java Code Dialect: low-level Java-specific code operations ready for emission.
   *
   * Operations: JavaFileOp, JavaClassOp, JavaInterfaceOp, JavaEnumOp, JavaMethodOp, JavaAnnotationOp
   */
@@ -21,10 +22,16 @@ object JavaDialect extends Dialect:
     val Annotation: NodeKind = NodeKind(namespace, "annotation")
 
   val operationKinds: Set[NodeKind] = Set(
-    Kinds.File, Kinds.Class, Kinds.Interface, Kinds.Enum,
-    Kinds.Method, Kinds.Field, Kinds.Annotation,
+    Kinds.File,
+    Kinds.Class,
+    Kinds.Interface,
+    Kinds.Enum,
+    Kinds.Method,
+    Kinds.Field,
+    Kinds.Annotation
   )
 
   def verify(op: Operation): List[DiagnosticMessage] =
-    if !owns(op) then List(DiagnosticMessage.error(s"Operation ${op.qualifiedName} does not belong to java.code dialect"))
+    if !owns(op) then
+      List(DiagnosticMessage.error(s"Operation ${op.qualifiedName} does not belong to java.code dialect"))
     else Nil

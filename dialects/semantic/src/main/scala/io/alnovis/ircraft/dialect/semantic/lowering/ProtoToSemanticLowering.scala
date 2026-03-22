@@ -7,7 +7,8 @@ import io.alnovis.ircraft.dialect.semantic.SemanticDialect
 import io.alnovis.ircraft.dialect.semantic.ops.*
 import io.alnovis.ircraft.dialect.semantic.expr.*
 
-/** Lowers Proto Dialect IR to Semantic Dialect IR.
+/**
+  * Lowers Proto Dialect IR to Semantic Dialect IR.
   *
   * Transforms:
   *   - SchemaOp → List[FileOp]
@@ -17,10 +18,10 @@ import io.alnovis.ircraft.dialect.semantic.expr.*
   */
 class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
 
-  val name: String            = "proto-to-semantic"
-  val description: String     = "Lowers proto schema to language-agnostic OOP types"
-  val sourceDialect: Dialect  = ProtoDialect
-  val targetDialect: Dialect  = SemanticDialect
+  val name: String           = "proto-to-semantic"
+  val description: String    = "Lowers proto schema to language-agnostic OOP types"
+  val sourceDialect: Dialect = ProtoDialect
+  val targetDialect: Dialect = SemanticDialect
 
   def run(module: Module, context: PassContext): PassResult =
     val ops = module.topLevel.flatMap:
@@ -29,9 +30,9 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
     PassResult(module.copy(topLevel = ops))
 
   private def lowerSchema(schema: SchemaOp): Vector[Operation] =
-    val enumFiles = schema.enums.map(lowerEnum)
+    val enumFiles         = schema.enums.map(lowerEnum)
     val conflictEnumFiles = schema.conflictEnums.map(lowerConflictEnum)
-    val messageFiles = schema.messages.flatMap(m => lowerMessage(m, schema.versions))
+    val messageFiles      = schema.messages.flatMap(m => lowerMessage(m, schema.versions))
     enumFiles ++ conflictEnumFiles ++ messageFiles
 
   // ── Enum lowering ──────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
     val valueField = FieldDeclOp("value", TypeRef.INT, Set(Modifier.Private, Modifier.Final))
     val constructor = ConstructorOp(
       parameters = List(Parameter("value", TypeRef.INT)),
-      modifiers = Set(Modifier.Private),
+      modifiers = Set(Modifier.Private)
     )
     val getter = MethodOp("getValue", TypeRef.INT, modifiers = Set(Modifier.Public))
 
@@ -51,7 +52,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       constants = constants,
       fields = Vector(valueField),
       constructors = Vector(constructor),
-      methods = Vector(getter),
+      methods = Vector(getter)
     )
     FileOp(config.apiPackage, Vector(enumClass))
 
@@ -62,11 +63,13 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       name = c.enumName,
       constants = constants,
       fields = Vector(FieldDeclOp("value", TypeRef.INT, Set(Modifier.Private, Modifier.Final))),
-      constructors = Vector(ConstructorOp(
-        parameters = List(Parameter("value", TypeRef.INT)),
-        modifiers = Set(Modifier.Private),
-      )),
-      methods = Vector(MethodOp("getValue", TypeRef.INT, modifiers = Set(Modifier.Public))),
+      constructors = Vector(
+        ConstructorOp(
+          parameters = List(Parameter("value", TypeRef.INT)),
+          modifiers = Set(Modifier.Private)
+        )
+      ),
+      methods = Vector(MethodOp("getValue", TypeRef.INT, modifiers = Set(Modifier.Public)))
     )
     FileOp(config.apiPackage, Vector(enumClass))
 
@@ -74,7 +77,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
 
   private def lowerMessage(msg: MessageOp, versions: List[String]): Vector[FileOp] =
     val interfaceFile = lowerToInterface(msg)
-    val abstractFile = lowerToAbstractClass(msg)
+    val abstractFile  = lowerToAbstractClass(msg)
     val implFiles = versions
       .filter(v => msg.presentInVersions.contains(v))
       .map(v => lowerToImplClass(msg, v))
@@ -84,19 +87,20 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
     val getters = msg.fields.map(fieldToGetter)
 
     val nestedEnums = msg.nestedEnums.map: e =>
-      val constants = e.values.map(v => EnumConstantOp(v.name, List(Expression.Literal(v.number.toString, TypeRef.INT))))
+      val constants =
+        e.values.map(v => EnumConstantOp(v.name, List(Expression.Literal(v.number.toString, TypeRef.INT))))
       EnumClassOp(e.name, constants = constants)
 
     val oneofEnums = msg.oneofs.map: o =>
       val constants = o.fields.map(f => EnumConstantOp(f.javaName.capitalize, Nil))
-      val notSet = EnumConstantOp(s"${o.javaName.capitalize}_NOT_SET".toUpperCase, Nil)
+      val notSet    = EnumConstantOp(s"${o.javaName.capitalize}_NOT_SET".toUpperCase, Nil)
       EnumClassOp(o.caseEnumName, constants = constants :+ notSet)
 
     val oneofDiscriminators = msg.oneofs.map: o =>
       MethodOp(
         s"get${o.caseEnumName}",
         TypeRef.NamedType(o.caseEnumName),
-        modifiers = Set(Modifier.Public, Modifier.Abstract),
+        modifiers = Set(Modifier.Public, Modifier.Abstract)
       )
 
     val nestedInterfaces = msg.nestedMessages.map: nested =>
@@ -105,7 +109,10 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
     val iface = InterfaceOp(
       name = msg.name,
       methods = getters ++ oneofDiscriminators,
-      nestedTypes = nestedEnums.map(_.asInstanceOf[Operation]) ++ oneofEnums.map(_.asInstanceOf[Operation]) ++ nestedInterfaces.map(_.asInstanceOf[Operation]),
+      nestedTypes =
+        nestedEnums.map(_.asInstanceOf[Operation]) ++ oneofEnums.map(_.asInstanceOf[Operation]) ++ nestedInterfaces.map(
+          _.asInstanceOf[Operation]
+        )
     )
     FileOp(config.apiPackage, Vector(iface))
 
@@ -115,24 +122,26 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
 
   private def lowerToAbstractClass(msg: MessageOp): FileOp =
     val protoTypeParam = TypeParam("PROTO", upperBounds = List(TypeRef.NamedType("com.google.protobuf.Message")))
-    val protoField = FieldDeclOp("proto", TypeRef.NamedType("PROTO"), Set(Modifier.Protected, Modifier.Final))
+    val protoField     = FieldDeclOp("proto", TypeRef.NamedType("PROTO"), Set(Modifier.Protected, Modifier.Final))
 
     val constructor = ConstructorOp(
       parameters = List(Parameter("proto", TypeRef.NamedType("PROTO"))),
       modifiers = Set(Modifier.Protected),
-      body = Some(Block.of(
-        Statement.Assignment(
-          Expression.FieldAccess(Expression.ThisRef, "proto"),
-          Expression.Identifier("proto"),
-        ),
-      )),
+      body = Some(
+        Block.of(
+          Statement.Assignment(
+            Expression.FieldAccess(Expression.ThisRef, "proto"),
+            Expression.Identifier("proto")
+          )
+        )
+      )
     )
 
     val extractMethods = msg.fields.map: f =>
       MethodOp(
         s"extract${f.javaName.capitalize}",
         resolveGetterType(f),
-        modifiers = Set(Modifier.Protected, Modifier.Abstract),
+        modifiers = Set(Modifier.Protected, Modifier.Abstract)
       )
 
     val getterImpls = msg.fields.map: f =>
@@ -140,9 +149,11 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
         s"get${f.javaName.capitalize}",
         resolveGetterType(f),
         modifiers = Set(Modifier.Public, Modifier.Override),
-        body = Some(Block.of(
-          Statement.ReturnStmt(Some(Expression.MethodCall(None, s"extract${f.javaName.capitalize}"))),
-        )),
+        body = Some(
+          Block.of(
+            Statement.ReturnStmt(Some(Expression.MethodCall(None, s"extract${f.javaName.capitalize}")))
+          )
+        )
       )
 
     val cls = ClassOp(
@@ -152,7 +163,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       implementsTypes = List(TypeRef.NamedType(msg.name)),
       fields = Vector(protoField),
       constructors = Vector(constructor),
-      methods = extractMethods ++ getterImpls,
+      methods = extractMethods ++ getterImpls
     )
     FileOp(config.implSubPackage, Vector(cls))
 
@@ -163,11 +174,13 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
     val constructor = ConstructorOp(
       parameters = List(Parameter("proto", TypeRef.NamedType(protoTypeName))),
       modifiers = Set(Modifier.Public),
-      body = Some(Block.of(
-        Statement.ExpressionStmt(
-          Expression.MethodCall(Some(Expression.SuperRef), "this", List(Expression.Identifier("proto"))),
-        ),
-      )),
+      body = Some(
+        Block.of(
+          Statement.ExpressionStmt(
+            Expression.MethodCall(Some(Expression.SuperRef), "this", List(Expression.Identifier("proto")))
+          )
+        )
+      )
     )
 
     val extractImpls = msg.fields
@@ -177,22 +190,28 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
           s"extract${f.javaName.capitalize}",
           resolveGetterType(f),
           modifiers = Set(Modifier.Protected, Modifier.Override),
-          body = Some(Block.of(
-            Statement.ReturnStmt(Some(
-              Expression.MethodCall(Some(Expression.Identifier("proto")), s"get${f.javaName.capitalize}"),
-            )),
-          )),
+          body = Some(
+            Block.of(
+              Statement.ReturnStmt(
+                Some(
+                  Expression.MethodCall(Some(Expression.Identifier("proto")), s"get${f.javaName.capitalize}")
+                )
+              )
+            )
+          )
         )
 
     val cls = ClassOp(
       name = s"${msg.name}$versionSuffix",
       modifiers = Set(Modifier.Public),
-      superClass = Some(TypeRef.ParameterizedType(
-        TypeRef.NamedType(s"${config.abstractClassPrefix}${msg.name}"),
-        List(TypeRef.NamedType(protoTypeName)),
-      )),
+      superClass = Some(
+        TypeRef.ParameterizedType(
+          TypeRef.NamedType(s"${config.abstractClassPrefix}${msg.name}"),
+          List(TypeRef.NamedType(protoTypeName))
+        )
+      ),
       constructors = Vector(constructor),
-      methods = extractImpls,
+      methods = extractImpls
     )
     FileOp(config.implPackage(version), Vector(cls))
 
@@ -204,7 +223,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       s"get${f.javaName.capitalize}",
       returnType,
       modifiers = Set(Modifier.Public, Modifier.Abstract),
-      javadoc = Some(s"Returns the ${f.name} value."),
+      javadoc = Some(s"Returns the ${f.name} value.")
     )
 
   private def resolveGetterType(f: FieldOp): TypeRef =

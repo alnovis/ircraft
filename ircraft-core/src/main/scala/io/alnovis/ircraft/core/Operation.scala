@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.core
 
-/** An Operation is the fundamental unit of the IR, inspired by MLIR.
+/**
+  * An Operation is the fundamental unit of the IR, inspired by MLIR.
   *
   * Operations:
   *   - Belong to a Dialect (identified by kind)
@@ -47,7 +48,15 @@ trait Operation extends GreenNode:
   /** All child operations across all regions. */
   final def children: Vector[Operation] = regions.flatMap(_.operations)
 
+  /** Rebuild this operation with transformed children. Override in container operations. Leaf operations return this. */
+  def mapChildren(f: Operation => Operation): Operation = this
+
+  /** Extract typed operations from a named region. */
+  final protected def regionOps[A <: Operation](name: String): Vector[A] =
+    region(name).map(_.operations.collect { case a: A @unchecked => a }).getOrElse(Vector.empty)
+
 object Operation:
+
   /** ContentHashable instance for Operation, usable by Region and others. */
   given operationHashable: ContentHashable[Operation] with
     def contentHash(a: Operation): Int = a.contentHash

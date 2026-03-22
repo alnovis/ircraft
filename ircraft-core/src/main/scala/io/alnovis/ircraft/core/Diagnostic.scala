@@ -6,9 +6,9 @@ enum Severity:
 
 /** A diagnostic message produced during verification or transformation. */
 case class DiagnosticMessage(
-    severity: Severity,
-    message: String,
-    span: Option[Span] = None,
+  severity: Severity,
+  message: String,
+  span: Option[Span] = None
 ):
   def isError: Boolean   = severity == Severity.Error
   def isWarning: Boolean = severity == Severity.Warning
@@ -18,6 +18,7 @@ case class DiagnosticMessage(
     s"[$severity]$loc $message"
 
 object DiagnosticMessage:
+
   def error(msg: String, span: Option[Span] = None): DiagnosticMessage =
     DiagnosticMessage(Severity.Error, msg, span)
 

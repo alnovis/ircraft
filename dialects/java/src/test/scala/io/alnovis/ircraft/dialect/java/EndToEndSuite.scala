@@ -12,7 +12,7 @@ class EndToEndSuite extends munit.FunSuite:
 
   val config: LoweringConfig = LoweringConfig(
     apiPackage = "com.example.api",
-    implPackagePattern = "com.example.%s",
+    implPackagePattern = "com.example.%s"
   )
 
   val pipeline: ProtoToJavaPipeline = ProtoToJavaPipeline(config)
@@ -46,8 +46,8 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result = pipeline.execute(Module("test", Vector(schema)))
-    val files = result.toOption.get
+    val result      = pipeline.execute(Module("test", Vector(schema)))
+    val files       = result.toOption.get
     val ifaceSource = files.find(_._1.endsWith("Money.java")).get._2
 
     assert(ifaceSource.contains("package com.example.api;"), s"Missing package:\n$ifaceSource")
@@ -63,13 +63,16 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result = pipeline.execute(Module("test", Vector(schema)))
-    val files = result.toOption.get
+    val result         = pipeline.execute(Module("test", Vector(schema)))
+    val files          = result.toOption.get
     val abstractSource = files.find(_._1.endsWith("AbstractOrder.java")).get._2
 
     assert(abstractSource.contains("public abstract class AbstractOrder"), s"Missing abstract class:\n$abstractSource")
     assert(abstractSource.contains("protected abstract long extractId()"), s"Missing extractId:\n$abstractSource")
-    assert(abstractSource.contains("protected abstract double extractTotal()"), s"Missing extractTotal:\n$abstractSource")
+    assert(
+      abstractSource.contains("protected abstract double extractTotal()"),
+      s"Missing extractTotal:\n$abstractSource"
+    )
     assert(abstractSource.contains("public long getId()"), s"Missing getId:\n$abstractSource")
 
   test("generated impl class overrides extract methods"):
@@ -79,8 +82,8 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result = pipeline.execute(Module("test", Vector(schema)))
-    val files = result.toOption.get
+    val result     = pipeline.execute(Module("test", Vector(schema)))
+    val files      = result.toOption.get
     val implSource = files.find(_._1.endsWith("FooV1.java")).get._2
 
     assert(implSource.contains("package com.example.v1;"), s"Wrong package:\n$implSource")
@@ -96,8 +99,8 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result = pipeline.execute(Module("test", Vector(schema)))
-    val files = result.toOption.get
+    val result     = pipeline.execute(Module("test", Vector(schema)))
+    val files      = result.toOption.get
     val enumSource = files.find(_._1.endsWith("Status.java")).get._2
 
     assert(enumSource.contains("public enum Status"), s"Missing enum:\n$enumSource")
@@ -117,8 +120,8 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result = pipeline.execute(Module("test", Vector(schema)))
-    val files = result.toOption.get
+    val result      = pipeline.execute(Module("test", Vector(schema)))
+    val files       = result.toOption.get
     val ifaceSource = files.find(_._1.endsWith("Event.java")).get._2
 
     assert(ifaceSource.contains("PayloadCase"), s"Missing PayloadCase:\n$ifaceSource")
@@ -132,8 +135,8 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result = pipeline.execute(Module("test", Vector(schema)))
-    val files = result.toOption.get
+    val result   = pipeline.execute(Module("test", Vector(schema)))
+    val files    = result.toOption.get
     val v1Source = files.find(_._1.endsWith("ItemV1.java")).get._2
     val v2Source = files.find(_._1.endsWith("ItemV2.java")).get._2
 
@@ -141,7 +144,7 @@ class EndToEndSuite extends munit.FunSuite:
     assert(v2Source.contains("extractDescription"), s"V2 should have extractDescription:\n$v2Source")
 
   test("pipeline rejects invalid schema"):
-    val schema = ProtoSchema.build() { _ => () } // empty versions
+    val schema = ProtoSchema.build()(_ => ()) // empty versions
     val result = pipeline.execute(Module("test", Vector(schema)))
     assert(result.isLeft, "Should fail for empty schema")
 
@@ -149,10 +152,12 @@ class EndToEndSuite extends munit.FunSuite:
     val emitter = DirectJavaEmitter()
     val file = FileOp(
       "com.example",
-      Vector(InterfaceOp(
-        "Greeter",
-        methods = Vector(MethodOp("greet", TypeRef.STRING, modifiers = Set(Modifier.Public, Modifier.Abstract))),
-      )),
+      Vector(
+        InterfaceOp(
+          "Greeter",
+          methods = Vector(MethodOp("greet", TypeRef.STRING, modifiers = Set(Modifier.Public, Modifier.Abstract)))
+        )
+      )
     )
     val module = Module("test", Vector(file))
     val result = emitter.emit(module)

@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.core
 
-/** Base trait for all immutable, content-addressable IR nodes.
+/**
+  * Base trait for all immutable, content-addressable IR nodes.
   *
   * Green nodes form the "Green" part of Red-Green trees (Roslyn):
   *   - Immutable (implemented as Scala 3 case classes)

@@ -10,7 +10,7 @@ class LoweringSuite extends munit.FunSuite:
 
   val config: LoweringConfig = LoweringConfig(
     apiPackage = "com.example.api",
-    implPackagePattern = "com.example.%s",
+    implPackagePattern = "com.example.%s"
   )
   val lowering: ProtoToSemanticLowering = ProtoToSemanticLowering(config)
   val ctx: PassContext                  = PassContext()
@@ -42,10 +42,12 @@ class LoweringSuite extends munit.FunSuite:
     assertEquals(iface.methods(1).name, "getCurrency")
 
     // Abstract class
-    val abstractFile = files.find(f => f.types.exists {
-      case c: ClassOp => c.isAbstract
-      case _          => false
-    })
+    val abstractFile = files.find(f =>
+      f.types.exists {
+        case c: ClassOp => c.isAbstract
+        case _          => false
+      }
+    )
     assert(abstractFile.isDefined, "Should have an abstract class file")
     val absCls = abstractFile.get.types.head.asInstanceOf[ClassOp]
     assertEquals(absCls.name, "AbstractMoney")
@@ -54,10 +56,12 @@ class LoweringSuite extends munit.FunSuite:
     assertEquals(absCls.methods.size, 4)
 
     // Impl classes
-    val implFiles = files.filter(f => f.types.exists {
-      case c: ClassOp => !c.isAbstract
-      case _          => false
-    })
+    val implFiles = files.filter(f =>
+      f.types.exists {
+        case c: ClassOp => !c.isAbstract
+        case _          => false
+      }
+    )
     assertEquals(implFiles.size, 2)
 
     val v1Impl = implFiles.flatMap(_.types).collect { case c: ClassOp => c }.find(_.name == "MoneyV1")
@@ -101,9 +105,9 @@ class LoweringSuite extends munit.FunSuite:
     val result = lowering.run(module, ctx)
     assert(result.isSuccess)
 
-    val files = result.module.topLevel.collect { case f: FileOp => f }
+    val files     = result.module.topLevel.collect { case f: FileOp => f }
     val ifaceFile = files.find(_.types.exists(_.isInstanceOf[InterfaceOp])).get
-    val iface = ifaceFile.types.head.asInstanceOf[InterfaceOp]
+    val iface     = ifaceFile.types.head.asInstanceOf[InterfaceOp]
 
     // Should have getter for id + discriminator for payload case
     assert(iface.methods.exists(_.name == "getId"))
@@ -125,7 +129,7 @@ class LoweringSuite extends munit.FunSuite:
     val result = lowering.run(module, ctx)
     assert(result.isSuccess)
 
-    val files = result.module.topLevel.collect { case f: FileOp => f }
+    val files  = result.module.topLevel.collect { case f: FileOp => f }
     val v1Impl = files.flatMap(_.types).collect { case c: ClassOp if c.name == "OrderV1" => c }.head
     val v2Impl = files.flatMap(_.types).collect { case c: ClassOp if c.name == "OrderV2" => c }.head
 
@@ -143,10 +147,7 @@ class LoweringSuite extends munit.FunSuite:
       }
     }
 
-    val pipeline = Pipeline("proto-to-semantic",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
-      lowering,
-    )
+    val pipeline = Pipeline("proto-to-semantic", io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering)
 
     val result = pipeline.run(Module("test", Vector(schema)), ctx)
     assert(result.isSuccess)
@@ -163,7 +164,7 @@ class LoweringSuite extends munit.FunSuite:
 
     val module = Module("test", Vector(schema))
     val result = lowering.run(module, ctx)
-    val files = result.module.topLevel.collect { case f: FileOp => f }
+    val files  = result.module.topLevel.collect { case f: FileOp => f }
 
     val packages = files.map(_.packageName).toSet
     assert(packages.contains("com.example.api"), s"Expected api package, got: $packages")

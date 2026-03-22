@@ -12,7 +12,8 @@ trait EmitterUtils:
   def indentBlock(level: Int, text: String): String =
     text.linesIterator.map(indent(level, _)).mkString("\n")
 
-  /** Format a block with header and braces:
+  /**
+    * Format a block with header and braces:
     * {{{
     * header {
     *   body
@@ -20,9 +21,9 @@ trait EmitterUtils:
     * }}}
     */
   def block(header: String, level: Int)(body: => String): String =
-    val open = indent(level, s"$header {")
+    val open    = indent(level, s"$header {")
     val content = body
-    val close = indent(level, "}")
+    val close   = indent(level, "}")
     if content.trim.isEmpty then s"$open\n$close"
     else s"$open\n$content\n$close"
 
@@ -36,10 +37,10 @@ trait EmitterUtils:
     else
       style match
         case CommentStyle.JavaDoc | CommentStyle.KDoc | CommentStyle.ScalaDoc =>
-          val lines = text.linesIterator.toList
+          val lines  = text.linesIterator.toList
           val prefix = indent(level, " * ")
-          val open = indent(level, "/**")
-          val close = indent(level, " */")
+          val open   = indent(level, "/**")
+          val close  = indent(level, " */")
           (open +: lines.map(l => if l.isEmpty then indent(level, " *") else s"$prefix$l") :+ close).mkString("\n")
         case CommentStyle.LineComment =>
           text.linesIterator.map(l => indent(level, s"// $l")).mkString("\n")

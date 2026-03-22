@@ -8,6 +8,7 @@ enum Modifier:
   case Synchronized, Volatile, Transient, Native
 
 object Modifier:
+
   given ContentHashable[Modifier] with
     def contentHash(a: Modifier): Int = a.ordinal
 

@@ -1,11 +1,47 @@
 package io.alnovis.ircraft.dialect.semantic.ops
 
+import scala.annotation.targetName
+
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.semantic.SemanticDialect
 import io.alnovis.ircraft.dialect.semantic.expr.Expression
 
 /** Enum class declaration. */
 case class EnumClassOp(
+  name: String,
+  modifiers: Set[Modifier],
+  implementsTypes: List[TypeRef],
+  regions: Vector[Region],
+  javadoc: Option[String],
+  annotations: List[String],
+  attributes: AttributeMap,
+  span: Option[Span]
+) extends Operation:
+
+  val kind: NodeKind = SemanticDialect.Kinds.EnumClass
+
+  lazy val constants: Vector[EnumConstantOp]   = regionOps("constants")
+  lazy val fields: Vector[FieldDeclOp]         = regionOps("fields")
+  lazy val constructors: Vector[ConstructorOp] = regionOps("constructors")
+  lazy val methods: Vector[MethodOp]           = regionOps("methods")
+
+  override def mapChildren(f: Operation => Operation): EnumClassOp =
+    copy(regions = regions.map(r => Region(r.name, r.operations.map(f))))
+
+  lazy val contentHash: Int =
+    ContentHash.combine(
+      ContentHash.ofString(name),
+      ContentHash.ofSet(modifiers),
+      ContentHash.ofList(constants.toList)(using Operation.operationHashable),
+      ContentHash.ofList(methods.toList)(using Operation.operationHashable)
+    )
+
+  lazy val width: Int = 1 + constants.size + methods.map(_.width).sum
+
+object EnumClassOp:
+
+  @targetName("create")
+  def apply(
     name: String,
     modifiers: Set[Modifier] = Set(Modifier.Public),
     implementsTypes: List[TypeRef] = Nil,
@@ -16,35 +52,30 @@ case class EnumClassOp(
     javadoc: Option[String] = None,
     annotations: List[String] = Nil,
     attributes: AttributeMap = AttributeMap.empty,
-    span: Option[Span] = None,
-) extends Operation:
-
-  val kind: NodeKind = SemanticDialect.Kinds.EnumClass
-
-  val regions: Vector[Region] = Vector(
-    Region("constants", constants),
-    Region("fields", fields),
-    Region("constructors", constructors),
-    Region("methods", methods),
+    span: Option[Span] = None
+  ): EnumClassOp = new EnumClassOp(
+    name,
+    modifiers,
+    implementsTypes,
+    regions = Vector(
+      Region("constants", constants),
+      Region("fields", fields),
+      Region("constructors", constructors),
+      Region("methods", methods)
+    ),
+    javadoc,
+    annotations,
+    attributes,
+    span
   )
-
-  lazy val contentHash: Int =
-    ContentHash.combine(
-      ContentHash.ofString(name),
-      ContentHash.ofSet(modifiers),
-      ContentHash.ofList(constants.toList)(using Operation.operationHashable),
-      ContentHash.ofList(methods.toList)(using Operation.operationHashable),
-    )
-
-  lazy val width: Int = 1 + constants.size + methods.map(_.width).sum
 
 /** Enum constant (e.g., OK(0), ERROR(1)). */
 case class EnumConstantOp(
-    name: String,
-    arguments: List[Expression] = Nil,
-    javadoc: Option[String] = None,
-    attributes: AttributeMap = AttributeMap.empty,
-    span: Option[Span] = None,
+  name: String,
+  arguments: List[Expression] = Nil,
+  javadoc: Option[String] = None,
+  attributes: AttributeMap = AttributeMap.empty,
+  span: Option[Span] = None
 ) extends Operation:
 
   val kind: NodeKind          = SemanticDialect.Kinds.EnumConstant

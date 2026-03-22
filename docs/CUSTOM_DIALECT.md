@@ -19,11 +19,11 @@ flowchart LR
     V --> T["Write Passes"]
     T --> P["Compose Pipeline"]
 
-    style D fill:#0277bd,color:#fff
-    style O fill:#0277bd,color:#fff
-    style V fill:#7b1fa2,color:#fff
-    style T fill:#7b1fa2,color:#fff
-    style P fill:#2e7d32,color:#fff
+    style D fill:#4a9eff,color:#fff
+    style O fill:#4a9eff,color:#fff
+    style V fill:#f59e0b,color:#fff
+    style T fill:#f59e0b,color:#fff
+    style P fill:#10b981,color:#fff
 ```
 
 ## Step 1: Define the Dialect

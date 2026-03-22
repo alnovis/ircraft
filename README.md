@@ -12,9 +12,9 @@ Define your domain as a **Dialect** (set of Operations), transform through **Pas
 flowchart LR
     A["Your Dialect"] -->|Pass| B["Semantic IR"] -->|Emit| C["Source Code"]
 
-    style A fill:#e65100,color:#fff
-    style B fill:#7b1fa2,color:#fff
-    style C fill:#2e7d32,color:#fff
+    style A fill:#4a9eff,color:#fff
+    style B fill:#f59e0b,color:#fff
+    style C fill:#10b981,color:#fff
 ```
 
 Each abstraction level is a Dialect. Lowerings transform between them. Passes transform within.
@@ -141,10 +141,10 @@ A Pass transforms a `Module` (IR tree root) into a new `Module`. Passes are comp
 flowchart LR
     P1["Validate"] --> P2["Transform"] --> P3["Lower"] --> P4["Emit"]
 
-    style P1 fill:#0277bd,color:#fff
-    style P2 fill:#0277bd,color:#fff
-    style P3 fill:#7b1fa2,color:#fff
-    style P4 fill:#2e7d32,color:#fff
+    style P1 fill:#4a9eff,color:#fff
+    style P2 fill:#4a9eff,color:#fff
+    style P3 fill:#f59e0b,color:#fff
+    style P4 fill:#10b981,color:#fff
 ```
 
 Passes are stateless and testable in isolation. Pipelines support conditional passes, fail-fast and collect-all error modes.

@@ -4,7 +4,8 @@ import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.proto.ProtoDialect
 import io.alnovis.ircraft.dialect.proto.types.ConflictType
 
-/** Protobuf field declaration. Maps to MergedField.
+/**
+  * Protobuf field declaration. Maps to MergedField.
   *
   * @param name
   *   proto field name (snake_case)
@@ -28,18 +29,18 @@ import io.alnovis.ircraft.dialect.proto.types.ConflictType
   *   the original proto type string per version (for conflict detection)
   */
 case class FieldOp(
-    name: String,
-    javaName: String,
-    number: Int,
-    fieldType: TypeRef,
-    conflictType: ConflictType = ConflictType.None,
-    presentInVersions: Set[String] = Set.empty,
-    isOptional: Boolean = false,
-    isRepeated: Boolean = false,
-    isMap: Boolean = false,
-    typesPerVersion: Map[String, String] = Map.empty,
-    attributes: AttributeMap = AttributeMap.empty,
-    span: Option[Span] = None,
+  name: String,
+  javaName: String,
+  number: Int,
+  fieldType: TypeRef,
+  conflictType: ConflictType = ConflictType.None,
+  presentInVersions: Set[String] = Set.empty,
+  isOptional: Boolean = false,
+  isRepeated: Boolean = false,
+  isMap: Boolean = false,
+  typesPerVersion: Map[String, String] = Map.empty,
+  attributes: AttributeMap = AttributeMap.empty,
+  span: Option[Span] = None
 ) extends Operation:
 
   val kind: NodeKind = ProtoDialect.Kinds.Field
@@ -55,7 +56,7 @@ case class FieldOp(
       ContentHash.ofSet(presentInVersions),
       ContentHash.ofBoolean(isOptional),
       ContentHash.ofBoolean(isRepeated),
-      ContentHash.ofBoolean(isMap),
+      ContentHash.ofBoolean(isMap)
     )
 
   val width: Int = 1

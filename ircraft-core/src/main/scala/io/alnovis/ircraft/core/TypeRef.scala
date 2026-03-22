@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.core
 
-/** Reference to a type in the IR.
+/**
+  * Reference to a type in the IR.
   *
   * TypeRef is language-agnostic: it bridges proto-level types (int32, string, bytes) and language-specific types (Java
   * int/Integer, Kotlin Int/Int?). Concrete mapping happens during lowering to Code Dialects.
@@ -56,22 +57,25 @@ object TypeRef:
   val VOID: TypeRef   = VoidType
 
   given ContentHashable[TypeRef] with
+
     def contentHash(a: TypeRef): Int = a match
-      case p: PrimitiveType     => ContentHash.combine(1, p.ordinal)
-      case VoidType             => 2
-      case NamedType(fqn)       => ContentHash.combine(3, ContentHash.ofString(fqn))
-      case ListType(e)          => ContentHash.combine(4, contentHash(e))
-      case MapType(k, v)        => ContentHash.combine(5, contentHash(k), contentHash(v))
-      case OptionalType(i)      => ContentHash.combine(6, contentHash(i))
-      case EnumType(fqn, vs)    => ContentHash.combine(7, ContentHash.ofString(fqn), vs.map(v => v.hashCode).sum)
-      case UnionType(alts)      => ContentHash.combine(8, alts.map(contentHash).sum)
+      case p: PrimitiveType           => ContentHash.combine(1, p.ordinal)
+      case VoidType                   => 2
+      case NamedType(fqn)             => ContentHash.combine(3, ContentHash.ofString(fqn))
+      case ListType(e)                => ContentHash.combine(4, contentHash(e))
+      case MapType(k, v)              => ContentHash.combine(5, contentHash(k), contentHash(v))
+      case OptionalType(i)            => ContentHash.combine(6, contentHash(i))
+      case EnumType(fqn, vs)          => ContentHash.combine(7, ContentHash.ofString(fqn), vs.map(v => v.hashCode).sum)
+      case UnionType(alts)            => ContentHash.combine(8, alts.map(contentHash).sum)
       case ParameterizedType(b, args) => ContentHash.combine(9, contentHash(b), args.map(contentHash).sum)
-      case WildcardType(bound)  => ContentHash.combine(10, bound.map(contentHash).getOrElse(0))
+      case WildcardType(bound)        => ContentHash.combine(10, bound.map(contentHash).getOrElse(0))
 
 /** A single enum value. */
 case class EnumValue(name: String, number: Int)
 
 object EnumValue:
+
   given ContentHashable[EnumValue] with
+
     def contentHash(a: EnumValue): Int =
       ContentHash.combine(ContentHash.ofString(a.name), a.number)

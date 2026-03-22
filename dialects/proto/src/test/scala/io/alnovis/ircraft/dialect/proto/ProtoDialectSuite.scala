@@ -88,7 +88,13 @@ class ProtoDialectSuite extends munit.FunSuite:
     assert(result.isSuccess, s"Expected success but got: ${result.diagnostics}")
 
   test("verifier catches empty versions"):
-    val schema = SchemaOp(versions = Nil)
+    val schema = SchemaOp(
+      versions = Nil,
+      versionSyntax = Map.empty,
+      regions = Vector.empty,
+      attributes = AttributeMap.empty,
+      span = None
+    )
     val module = Module("test", Vector(schema))
     val result = ProtoVerifierPass.run(module, ctx)
     assert(result.hasErrors)
@@ -97,7 +103,9 @@ class ProtoDialectSuite extends munit.FunSuite:
   test("verifier catches empty message name"):
     val schema = SchemaOp(
       versions = List("v1"),
-      messages = Vector(MessageOp("", Set("v1"), fields = Vector(FieldOp("f", "f", 1, TypeRef.INT, presentInVersions = Set("v1"))))),
+      messages = Vector(
+        MessageOp("", Set("v1"), fields = Vector(FieldOp("f", "f", 1, TypeRef.INT, presentInVersions = Set("v1"))))
+      )
     )
     val module = Module("test", Vector(schema))
     val result = ProtoVerifierPass.run(module, ctx)
@@ -134,9 +142,9 @@ class ProtoDialectSuite extends munit.FunSuite:
         MessageOp(
           "Foo",
           Set("v1"),
-          oneofs = Vector(OneofOp("empty_oneof", "emptyOneof", "EmptyOneofCase", Set("v1"), fields = Vector.empty)),
+          oneofs = Vector(OneofOp("empty_oneof", "emptyOneof", "EmptyOneofCase", Set("v1"), fields = Vector.empty))
         )
-      ),
+      )
     )
     val module = Module("test", Vector(schema))
     val result = ProtoVerifierPass.run(module, ctx)
@@ -145,25 +153,25 @@ class ProtoDialectSuite extends munit.FunSuite:
 
   test("content hash is deterministic"):
     val s1 = ProtoSchema.build("v1") { s =>
-      s.message("Foo") { m => m.field("bar", 1, TypeRef.STRING) }
+      s.message("Foo")(m => m.field("bar", 1, TypeRef.STRING))
     }
     val s2 = ProtoSchema.build("v1") { s =>
-      s.message("Foo") { m => m.field("bar", 1, TypeRef.STRING) }
+      s.message("Foo")(m => m.field("bar", 1, TypeRef.STRING))
     }
     assertEquals(s1.contentHash, s2.contentHash)
 
   test("content hash changes when field changes"):
     val s1 = ProtoSchema.build("v1") { s =>
-      s.message("Foo") { m => m.field("bar", 1, TypeRef.STRING) }
+      s.message("Foo")(m => m.field("bar", 1, TypeRef.STRING))
     }
     val s2 = ProtoSchema.build("v1") { s =>
-      s.message("Foo") { m => m.field("bar", 1, TypeRef.INT) }
+      s.message("Foo")(m => m.field("bar", 1, TypeRef.INT))
     }
     assertNotEquals(s1.contentHash, s2.contentHash)
 
   test("ProtoDialect owns proto operations"):
     val schema = ProtoSchema.build("v1") { s =>
-      s.message("Foo") { m => m.field("bar", 1, TypeRef.STRING) }
+      s.message("Foo")(m => m.field("bar", 1, TypeRef.STRING))
     }
     assert(ProtoDialect.owns(schema))
     assert(ProtoDialect.owns(schema.messages.head))
@@ -186,5 +194,5 @@ class ProtoDialectSuite extends munit.FunSuite:
     }
 
     val pipeline = Pipeline("proto-validation", ProtoVerifierPass)
-    val result = pipeline.run(Module("test", Vector(schema)), ctx)
+    val result   = pipeline.run(Module("test", Vector(schema)), ctx)
     assert(result.isSuccess)

@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.core
 
-/** A single transformation pass in the compilation pipeline (Nanopass concept).
+/**
+  * A single transformation pass in the compilation pipeline (Nanopass concept).
   *
   * Each pass performs one focused transformation:
   *   - Has well-defined input and output (Module → PassResult)
@@ -36,20 +37,20 @@ trait Lowering extends Pass:
 
 /** Result of running a Pass. */
 case class PassResult(
-    module: Module,
-    diagnostics: List[DiagnosticMessage] = Nil,
+  module: Module,
+  diagnostics: List[DiagnosticMessage] = Nil
 ):
   def hasErrors: Boolean = diagnostics.exists(_.isError)
   def isSuccess: Boolean = !hasErrors
 
 /** Context passed to passes during pipeline execution. */
 case class PassContext(
-    config: Map[String, String] = Map.empty,
-    logger: PassLogger = PassLogger.noop,
+  config: Map[String, String] = Map.empty,
+  logger: PassLogger = PassLogger.noop
 ):
-  def get(key: String): Option[String]            = config.get(key)
+  def get(key: String): Option[String]                = config.get(key)
   def getOrElse(key: String, default: String): String = config.getOrElse(key, default)
-  def getBool(key: String): Boolean               = config.get(key).exists(_.toBoolean)
+  def getBool(key: String): Boolean                   = config.get(key).exists(_.toBoolean)
 
 /** Simple logger interface for pass execution. */
 trait PassLogger:
@@ -59,6 +60,7 @@ trait PassLogger:
   def debug(msg: String): Unit
 
 object PassLogger:
+
   val noop: PassLogger = new PassLogger:
     def info(msg: String): Unit  = ()
     def warn(msg: String): Unit  = ()

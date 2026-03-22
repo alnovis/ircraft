@@ -2,7 +2,8 @@ package io.alnovis.ircraft.dialect.proto
 
 import io.alnovis.ircraft.core.*
 
-/** Proto Dialect: high-level protobuf schema representation.
+/**
+  * Proto Dialect: high-level protobuf schema representation.
   *
   * Operations:
   *   - SchemaOp: top-level schema container
@@ -34,7 +35,7 @@ object ProtoDialect extends Dialect:
     Kinds.Enum,
     Kinds.EnumValue,
     Kinds.Oneof,
-    Kinds.ConflictEnum,
+    Kinds.ConflictEnum
   )
 
   def verify(op: Operation): List[DiagnosticMessage] =

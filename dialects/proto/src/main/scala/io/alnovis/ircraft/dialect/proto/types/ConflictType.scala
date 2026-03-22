@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.dialect.proto.types
 
-/** Type of conflict between field types across proto versions.
+/**
+  * Type of conflict between field types across proto versions.
   *
   * Maps directly to proto-wrapper-plugin's MergedField.ConflictType.
   */

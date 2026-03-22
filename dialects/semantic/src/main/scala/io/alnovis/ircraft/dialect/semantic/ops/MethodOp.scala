@@ -6,16 +6,16 @@ import io.alnovis.ircraft.dialect.semantic.expr.Block
 
 /** Method declaration. */
 case class MethodOp(
-    name: String,
-    returnType: TypeRef,
-    parameters: List[Parameter] = Nil,
-    modifiers: Set[Modifier] = Set(Modifier.Public),
-    typeParams: List[TypeParam] = Nil,
-    body: Option[Block] = None,
-    javadoc: Option[String] = None,
-    annotations: List[String] = Nil,
-    attributes: AttributeMap = AttributeMap.empty,
-    span: Option[Span] = None,
+  name: String,
+  returnType: TypeRef,
+  parameters: List[Parameter] = Nil,
+  modifiers: Set[Modifier] = Set(Modifier.Public),
+  typeParams: List[TypeParam] = Nil,
+  body: Option[Block] = None,
+  javadoc: Option[String] = None,
+  annotations: List[String] = Nil,
+  attributes: AttributeMap = AttributeMap.empty,
+  span: Option[Span] = None
 ) extends Operation:
 
   val kind: NodeKind          = SemanticDialect.Kinds.Method
@@ -26,7 +26,7 @@ case class MethodOp(
       ContentHash.ofString(name),
       summon[ContentHashable[TypeRef]].contentHash(returnType),
       ContentHash.ofList(parameters)(using Parameter.given_ContentHashable_Parameter),
-      ContentHash.ofSet(modifiers),
+      ContentHash.ofSet(modifiers)
     )
 
   val width: Int = 1

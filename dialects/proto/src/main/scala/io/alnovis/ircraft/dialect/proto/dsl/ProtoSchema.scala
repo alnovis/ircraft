@@ -4,7 +4,8 @@ import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.proto.ops.*
 import io.alnovis.ircraft.dialect.proto.types.*
 
-/** DSL for building Proto Dialect IR.
+/**
+  * DSL for building Proto Dialect IR.
   *
   * Usage:
   * {{{
@@ -28,22 +29,22 @@ object ProtoSchema:
     builder.build()
 
 class SchemaBuilder(versions: List[String]):
-  private var messages = Vector.empty[MessageOp]
-  private var enums = Vector.empty[EnumOp]
+  private var messages      = Vector.empty[MessageOp]
+  private var enums         = Vector.empty[EnumOp]
   private var conflictEnums = Vector.empty[ConflictEnumOp]
-  private var syntaxMap = Map.empty[String, ProtoSyntax]
+  private var syntaxMap     = Map.empty[String, ProtoSyntax]
 
   def syntax(version: String, s: ProtoSyntax): Unit =
     syntaxMap = syntaxMap + (version -> s)
 
   def message(name: String, presentIn: String*)(f: MessageBuilder => Unit): Unit =
-    val vers = if presentIn.isEmpty then versions.toSet else presentIn.toSet
+    val vers    = if presentIn.isEmpty then versions.toSet else presentIn.toSet
     val builder = MessageBuilder(name, vers)
     f(builder)
     messages = messages :+ builder.build()
 
   def enum_(name: String, presentIn: String*)(f: EnumBuilder => Unit): Unit =
-    val vers = if presentIn.isEmpty then versions.toSet else presentIn.toSet
+    val vers    = if presentIn.isEmpty then versions.toSet else presentIn.toSet
     val builder = EnumBuilder(name, vers)
     f(builder)
     enums = enums :+ builder.build()
@@ -56,39 +57,39 @@ class SchemaBuilder(versions: List[String]):
   def build(): SchemaOp = SchemaOp(versions, syntaxMap, messages, enums, conflictEnums)
 
 class MessageBuilder(name: String, presentInVersions: Set[String]):
-  private var fields = Vector.empty[FieldOp]
-  private var oneofs = Vector.empty[OneofOp]
+  private var fields         = Vector.empty[FieldOp]
+  private var oneofs         = Vector.empty[OneofOp]
   private var nestedMessages = Vector.empty[MessageOp]
-  private var nestedEnums = Vector.empty[EnumOp]
+  private var nestedEnums    = Vector.empty[EnumOp]
 
   def field(
-      name: String,
-      number: Int,
-      fieldType: TypeRef,
-      conflictType: ConflictType = ConflictType.None,
-      presentIn: Set[String] = Set.empty,
-      optional: Boolean = false,
-      repeated: Boolean = false,
-      map: Boolean = false,
+    name: String,
+    number: Int,
+    fieldType: TypeRef,
+    conflictType: ConflictType = ConflictType.None,
+    presentIn: Set[String] = Set.empty,
+    optional: Boolean = false,
+    repeated: Boolean = false,
+    map: Boolean = false
   ): Unit =
-    val vers = if presentIn.isEmpty then presentInVersions else presentIn
+    val vers     = if presentIn.isEmpty then presentInVersions else presentIn
     val javaName = snakeToCamel(name)
     fields = fields :+ FieldOp(name, javaName, number, fieldType, conflictType, vers, optional, repeated, map)
 
   def oneof(protoName: String, presentIn: String*)(f: OneofBuilder => Unit): Unit =
-    val vers = if presentIn.isEmpty then presentInVersions else presentIn.toSet
+    val vers    = if presentIn.isEmpty then presentInVersions else presentIn.toSet
     val builder = OneofBuilder(protoName, vers)
     f(builder)
     oneofs = oneofs :+ builder.build()
 
   def nestedMessage(name: String, presentIn: String*)(f: MessageBuilder => Unit): Unit =
-    val vers = if presentIn.isEmpty then presentInVersions else presentIn.toSet
+    val vers    = if presentIn.isEmpty then presentInVersions else presentIn.toSet
     val builder = MessageBuilder(name, vers)
     f(builder)
     nestedMessages = nestedMessages :+ builder.build()
 
   def nestedEnum(name: String, presentIn: String*)(f: EnumBuilder => Unit): Unit =
-    val vers = if presentIn.isEmpty then presentInVersions else presentIn.toSet
+    val vers    = if presentIn.isEmpty then presentInVersions else presentIn.toSet
     val builder = EnumBuilder(name, vers)
     f(builder)
     nestedEnums = nestedEnums :+ builder.build()
@@ -104,12 +105,12 @@ class OneofBuilder(protoName: String, presentInVersions: Set[String]):
   private var fields = Vector.empty[FieldOp]
 
   def field(name: String, number: Int, fieldType: TypeRef, presentIn: Set[String] = Set.empty): Unit =
-    val vers = if presentIn.isEmpty then presentInVersions else presentIn
+    val vers     = if presentIn.isEmpty then presentInVersions else presentIn
     val javaName = snakeToCamel(name)
     fields = fields :+ FieldOp(name, javaName, number, fieldType, presentInVersions = vers)
 
   def build(): OneofOp =
-    val javaName = snakeToCamel(protoName)
+    val javaName     = snakeToCamel(protoName)
     val caseEnumName = protoName.split("_").map(_.capitalize).mkString + "Case"
     OneofOp(protoName, javaName, caseEnumName, presentInVersions, fields)
 

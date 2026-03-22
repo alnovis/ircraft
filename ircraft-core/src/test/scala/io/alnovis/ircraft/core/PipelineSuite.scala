@@ -4,7 +4,7 @@ class PipelineSuite extends munit.FunSuite:
 
   // A simple test Operation
   case class TestOp(value: String) extends Operation:
-    val kind: NodeKind         = NodeKind("test", "op")
+    val kind: NodeKind           = NodeKind("test", "op")
     val attributes: AttributeMap = AttributeMap(Attribute.StringAttr("value", value))
     val regions: Vector[Region]  = Vector.empty
     val span: Option[Span]       = None
@@ -15,8 +15,8 @@ class PipelineSuite extends munit.FunSuite:
 
   test("identity pass returns module unchanged"):
     val identityPass = new Pass:
-      val name        = "identity"
-      val description = "does nothing"
+      val name                                                  = "identity"
+      val description                                           = "does nothing"
       def run(module: Module, context: PassContext): PassResult = PassResult(module)
 
     val module = Module("test", Vector(TestOp("hello")))
@@ -64,7 +64,7 @@ class PipelineSuite extends munit.FunSuite:
         PassResult(module)
 
     val pipeline = Pipeline("test", Vector(passOk, passFail, passAfter), failFast = true)
-    val result = pipeline.run(Module.empty("test"), ctx)
+    val result   = pipeline.run(Module.empty("test"), ctx)
 
     assert(result.hasErrors)
     assertEquals(executed, Vector("ok", "fail"))
@@ -80,8 +80,8 @@ class PipelineSuite extends munit.FunSuite:
         PassResult(module)
 
     val disabledPass = new Pass:
-      val name        = "disabled"
-      val description = "skipped"
+      val name                                              = "disabled"
+      val description                                       = "skipped"
       override def isEnabled(context: PassContext): Boolean = false
       def run(module: Module, context: PassContext): PassResult =
         executed = executed :+ name
@@ -106,14 +106,14 @@ class PipelineSuite extends munit.FunSuite:
         PassResult(module, List(DiagnosticMessage.warning("w2")))
 
     val pipeline = Pipeline("test", Vector(pass1, pass2))
-    val result = pipeline.run(Module.empty("test"), ctx)
+    val result   = pipeline.run(Module.empty("test"), ctx)
 
     assert(result.isSuccess)
     assertEquals(result.warnings.size, 2)
 
   test("Module.collect finds operations recursively"):
-    val op1 = TestOp("a")
-    val op2 = TestOp("b")
+    val op1    = TestOp("a")
+    val op2    = TestOp("b")
     val module = Module("test", Vector(op1, op2))
 
     val found = module.collect { case t: TestOp => t }
@@ -123,8 +123,8 @@ class PipelineSuite extends munit.FunSuite:
   test("pipeline andThen composes"):
     val p1 = Pipeline("first", Vector.empty)
     val pass = new Pass:
-      val name        = "x"
-      val description = "x"
+      val name                                                  = "x"
+      val description                                           = "x"
       def run(module: Module, context: PassContext): PassResult = PassResult(module)
 
     val p2 = p1.andThen(pass)

@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.core
 
-/** A Dialect defines a set of operations at a specific abstraction level.
+/**
+  * A Dialect defines a set of operations at a specific abstraction level.
   *
   * Inspired by MLIR's dialect system:
   *   - Each dialect has a unique namespace

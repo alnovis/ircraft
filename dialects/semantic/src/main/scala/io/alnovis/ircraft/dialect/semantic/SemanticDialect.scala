@@ -2,7 +2,8 @@ package io.alnovis.ircraft.dialect.semantic
 
 import io.alnovis.ircraft.core.*
 
-/** Semantic Dialect: mid-level language-agnostic OOP constructs.
+/**
+  * Semantic Dialect: mid-level language-agnostic OOP constructs.
   *
   * This dialect contains abstractions common to Java, Kotlin, Scala, and most OOP languages. It does NOT include
   * language-specific features (checked exceptions, extension functions, data classes, etc.).
@@ -15,13 +16,13 @@ object SemanticDialect extends Dialect:
   val description: String = "Mid-level language-agnostic type declarations"
 
   object Kinds:
-    val File: NodeKind        = NodeKind(namespace, "file")
-    val Interface: NodeKind   = NodeKind(namespace, "interface")
-    val Class: NodeKind       = NodeKind(namespace, "class")
-    val EnumClass: NodeKind   = NodeKind(namespace, "enum_class")
-    val FieldDecl: NodeKind   = NodeKind(namespace, "field_decl")
-    val Method: NodeKind      = NodeKind(namespace, "method")
-    val Constructor: NodeKind = NodeKind(namespace, "constructor")
+    val File: NodeKind         = NodeKind(namespace, "file")
+    val Interface: NodeKind    = NodeKind(namespace, "interface")
+    val Class: NodeKind        = NodeKind(namespace, "class")
+    val EnumClass: NodeKind    = NodeKind(namespace, "enum_class")
+    val FieldDecl: NodeKind    = NodeKind(namespace, "field_decl")
+    val Method: NodeKind       = NodeKind(namespace, "method")
+    val Constructor: NodeKind  = NodeKind(namespace, "constructor")
     val EnumConstant: NodeKind = NodeKind(namespace, "enum_constant")
 
   val operationKinds: Set[NodeKind] = Set(
@@ -32,9 +33,10 @@ object SemanticDialect extends Dialect:
     Kinds.FieldDecl,
     Kinds.Method,
     Kinds.Constructor,
-    Kinds.EnumConstant,
+    Kinds.EnumConstant
   )
 
   def verify(op: Operation): List[DiagnosticMessage] =
-    if !owns(op) then List(DiagnosticMessage.error(s"Operation ${op.qualifiedName} does not belong to semantic dialect"))
+    if !owns(op) then
+      List(DiagnosticMessage.error(s"Operation ${op.qualifiedName} does not belong to semantic dialect"))
     else Nil
