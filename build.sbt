@@ -59,7 +59,7 @@ lazy val dialectProto = (project in file("dialects/proto"))
   )
 
 lazy val dialectSemantic = (project in file("dialects/semantic"))
-  .dependsOn(core)
+  .dependsOn(core, dialectProto)
   .settings(commonSettings)
   .settings(
     name := "ircraft-dialect-semantic",
