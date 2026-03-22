@@ -74,7 +74,6 @@ lazy val dialectJava = (project in file("dialects/java"))
   .settings(
     name := "ircraft-dialect-java",
     libraryDependencies ++= Seq(
-      "com.squareup" % "javapoet" % "1.13.0",
       "org.scalameta" %% "munit" % munitVersion % Test,
     ),
   )

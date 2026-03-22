@@ -242,13 +242,16 @@ io.alnovis.ircraft.dialect.java/
     JavaDocPass            — Javadoc from IR metadata
 ```
 
-### 4C: Emitter
+### 4C: Emitter (DirectEmitter — no external dependencies)
 
 ```
   emit/
     JavaEmitter       — trait: emit(Module) → Map[String, String] (filename → source)
-    JavaPoetEmitter   — implementation via JavaPoet 1.13.0
+    DirectJavaEmitter — implementation via string templates (no JavaPoet dependency)
 ```
+
+**Key decision:** ircraft does not depend on JavaPoet. A custom emitter provides full control over
+formatting and eliminates the external dependency. JavaPoet remains in proto-wrapper 2.x only.
 
 ### 4D: End-to-End Pipeline
 
@@ -257,7 +260,7 @@ io.alnovis.ircraft.dialect.java/
     ProtoToJavaPipeline — assembled pipeline:
       ProtoVerifierPass → ProtoToSemanticLowering → ConflictResolutionPass
       → SemanticToJavaLowering → JavaImportResolverPass → JavaAnnotationPass
-      → JavaDocPass → JavaPoetEmitter
+      → JavaDocPass → DirectJavaEmitter
 ```
 
 **Tests:** Golden tests — take proto schemas from proto-wrapper-plugin, run through the pipeline, compare with proto-wrapper's current output. Must be semantically equivalent.
