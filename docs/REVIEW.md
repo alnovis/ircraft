@@ -337,7 +337,7 @@ Before extending to Kotlin/Scala dialects:
 3. ~~**Fix contentHash for body/arguments**~~ (P0) — Done (2026-03-23): `ContentHashable` for Expression, Statement, Block, CatchClause. Included in MethodOp, ConstructorOp, EnumConstantOp hashes
 4. ~~**Remove asInstanceOf in lowering**~~ (P1) — Done (2026-03-23): replaced with type ascription
 5. ~~**Fix nestedTypes accessor consistency**~~ (P2) — Done (2026-03-23): ClassOp + InterfaceOp now use `regionOps`
-6. **Resolve Block/Statement problem** — add `StmtVisitor` trait for uniform traversal of method bodies
+6. ~~**Resolve Block/Statement problem**~~ — Done (2026-03-23): `ExprTraversal.scala` (Expression.walk/collectAll/transform, Statement.walkExprs/collectExprs/transformExprs, Block extensions) + `BodyTraversal.scala` (Module.collectFromBodies, Module.transformBodies bridge)
 7. **Extract `LanguageTypeMapping` trait** into core
 8. **Clean up `width`** — rename to `estimatedSize`
 9. **Fix ContentHashable consistency** — all instances via given in companions
@@ -357,7 +357,7 @@ After fixes, before 1.0.0:
 - Generic deep transforms via `mapChildren` + `Module.transform`
 - Good use of Scala 3 features (sealed traits, enums, opaque types, pattern matching, `@targetName`)
 - Idiomatic builder DSL with smart constructors
-- Solid test coverage (78 tests)
+- Solid test coverage (96 tests)
 - Zero external dependencies
 - Content-addressable identity infrastructure ready for incremental builds
 - Well-documented (README, ARCHITECTURE, CUSTOM_DIALECT, IMPLEMENTATION_PLAN, REVIEW)
