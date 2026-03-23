@@ -185,7 +185,8 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
           Block.of(
             Statement.ReturnStmt(Some(Expression.MethodCall(None, s"extract${f.javaName.capitalize}")))
           )
-        )
+        ),
+        attributes = fieldAttributes(f)
       )
 
     val nestedAbstractClasses: Vector[Operation] = msg.nestedMessages.map: nested =>
@@ -355,6 +356,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
     )
 
   private def fieldAttributes(f: FieldOp): AttributeMap =
+    val wkt = detectWellKnownType(f.fieldType)
     AttributeMap(
       Attribute.StringAttr(PA.ConflictType, f.conflictType.toString),
       Attribute.StringAttr(PA.ProtoFieldName, f.name),
@@ -363,4 +365,15 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       Attribute.BoolAttr(PA.IsOptional, f.isOptional),
       Attribute.BoolAttr(PA.IsRepeated, f.isRepeated),
       Attribute.BoolAttr(PA.IsMap, f.isMap),
+      Attribute.StringAttr(PA.WellKnownType, wkt),
     )
+
+  private def detectWellKnownType(ref: TypeRef): String = ref match
+    case TypeRef.NamedType(fqn) =>
+      val simple = fqn.split('.').last
+      simple match
+        case "Timestamp" | "Duration" | "Struct" | "Value" | "ListValue" => simple
+        case "Int32Value" | "Int64Value" | "UInt32Value" | "UInt64Value" => simple
+        case "FloatValue" | "DoubleValue" | "BoolValue" | "StringValue" | "BytesValue" => simple
+        case _ => ""
+    case _ => ""

@@ -44,5 +44,8 @@ object ProtoAttributes:
   /** Proto field number. */
   val FieldNumber = "proto.fieldNumber"
 
+  /** Well-known type identifier (e.g., "Timestamp", "Duration", "Struct"). Empty if not a WKT. */
+  val WellKnownType = "proto.wellKnownType"
+
   /** Versions where this field exists (subset of message versions). */
   val FieldPresentInVersions = "proto.fieldPresentInVersions"
