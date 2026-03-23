@@ -99,14 +99,14 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
   // ── Message lowering ───────────────────────────────────────────────────
 
   private def lowerMessage(msg: MessageOp, versions: List[String]): Vector[FileOp] =
-    val interfaceFile = lowerToInterface(msg)
-    val abstractFile  = lowerToAbstractClass(msg)
+    val interfaceFile = lowerToInterface(msg, versions)
+    val abstractFile  = lowerToAbstractClass(msg, versions)
     val implFiles = versions
       .filter(v => msg.presentInVersions.contains(v))
       .map(v => lowerToImplClass(msg, v))
     Vector(interfaceFile, abstractFile) ++ implFiles
 
-  private def lowerToInterface(msg: MessageOp): FileOp =
+  private def lowerToInterface(msg: MessageOp, versions: List[String]): FileOp =
     val getters = msg.fields.map(fieldToGetter)
 
     val nestedEnums = msg.nestedEnums.map: e =>
@@ -133,7 +133,8 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       name = msg.name,
       methods = getters ++ oneofDiscriminators,
       nestedTypes =
-        (nestedEnums: Vector[Operation]) ++ (oneofEnums: Vector[Operation]) ++ (nestedInterfaces: Vector[Operation])
+        (nestedEnums: Vector[Operation]) ++ (oneofEnums: Vector[Operation]) ++ (nestedInterfaces: Vector[Operation]),
+      attributes = messageAttributes(msg, versions)
     )
     FileOp(config.apiPackage, Vector(iface))
 
@@ -141,7 +142,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
     val getters = msg.fields.map(fieldToGetter)
     InterfaceOp(name = msg.name, methods = getters)
 
-  private def lowerToAbstractClass(msg: MessageOp): FileOp =
+  private def lowerToAbstractClass(msg: MessageOp, versions: List[String]): FileOp =
     val protoTypeParam = TypeParam("PROTO", upperBounds = List(TypeRef.NamedType("com.google.protobuf.Message")))
     val protoField     = FieldDeclOp("proto", TypeRef.NamedType("PROTO"), Set(Modifier.Protected, Modifier.Final))
 
@@ -162,7 +163,8 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       MethodOp(
         s"extract${f.javaName.capitalize}",
         resolveGetterType(f),
-        modifiers = Set(Modifier.Protected, Modifier.Abstract)
+        modifiers = Set(Modifier.Protected, Modifier.Abstract),
+        attributes = fieldAttributes(f)
       )
 
     val getterImpls = msg.fields.map: f =>
@@ -184,7 +186,8 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       implementsTypes = List(TypeRef.NamedType(msg.name)),
       fields = Vector(protoField),
       constructors = Vector(constructor),
-      methods = extractMethods ++ getterImpls
+      methods = extractMethods ++ getterImpls,
+      attributes = messageAttributes(msg, versions)
     )
     FileOp(config.implSubPackage, Vector(cls))
 
@@ -232,7 +235,8 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
         )
       ),
       constructors = Vector(constructor),
-      methods = extractImpls
+      methods = extractImpls,
+      attributes = implAttributes(msg, version)
     )
     FileOp(config.implPackage(version), Vector(cls))
 
@@ -244,10 +248,39 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       s"get${f.javaName.capitalize}",
       returnType,
       modifiers = Set(Modifier.Public, Modifier.Abstract),
-      javadoc = Some(s"Returns the ${f.name} value.")
+      javadoc = Some(s"Returns the ${f.name} value."),
+      attributes = fieldAttributes(f)
     )
 
   private def resolveGetterType(f: FieldOp): TypeRef =
     if f.isRepeated then TypeRef.ListType(f.fieldType)
     else if f.isMap then f.fieldType // MapType already encoded in fieldType
     else f.fieldType
+
+  // ── Attribute helpers ──────────────────────────────────────────────────
+
+  import ProtoAttributes as PA
+
+  private def messageAttributes(msg: MessageOp, versions: List[String]): AttributeMap =
+    AttributeMap(
+      Attribute.StringListAttr(PA.PresentInVersions, msg.presentInVersions.toList),
+      Attribute.StringListAttr(PA.SchemaVersions, versions),
+    )
+
+  private def implAttributes(msg: MessageOp, version: String): AttributeMap =
+    AttributeMap(
+      Attribute.StringAttr(PA.ImplVersion, version),
+      Attribute.StringAttr(PA.ProtoClassName, s"${msg.name}Proto"),
+      Attribute.StringListAttr(PA.PresentInVersions, msg.presentInVersions.toList),
+    )
+
+  private def fieldAttributes(f: FieldOp): AttributeMap =
+    AttributeMap(
+      Attribute.StringAttr(PA.ConflictType, f.conflictType.toString),
+      Attribute.StringAttr(PA.ProtoFieldName, f.name),
+      Attribute.IntAttr(PA.FieldNumber, f.number),
+      Attribute.StringListAttr(PA.FieldPresentInVersions, f.presentInVersions.toList),
+      Attribute.BoolAttr(PA.IsOptional, f.isOptional),
+      Attribute.BoolAttr(PA.IsRepeated, f.isRepeated),
+      Attribute.BoolAttr(PA.IsMap, f.isMap),
+    )
