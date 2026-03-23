@@ -21,7 +21,7 @@ object ProtoVerifierPass extends Pass:
     case v: EnumValueOp    => verifyEnumValue(v)
     case o: OneofOp        => verifyOneof(o)
     case c: ConflictEnumOp => verifyConflictEnum(c)
-    case _                 => Nil
+    case other => List(DiagnosticMessage.warning(s"Unverified operation type: ${other.qualifiedName}", other.span))
 
   private def verifySchema(s: SchemaOp): List[DiagnosticMessage] =
     val diags = List.newBuilder[DiagnosticMessage]

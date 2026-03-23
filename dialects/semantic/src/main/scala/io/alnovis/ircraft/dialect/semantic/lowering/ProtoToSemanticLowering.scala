@@ -24,16 +24,39 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
   val targetDialect: Dialect = SemanticDialect
 
   def run(module: Module, context: PassContext): PassResult =
-    val ops = module.topLevel.flatMap:
-      case s: SchemaOp => lowerSchema(s)
-      case other       => Vector(other)
-    PassResult(module.copy(topLevel = ops))
+    val allOps   = Vector.newBuilder[Operation]
+    val allDiags = List.newBuilder[DiagnosticMessage]
 
-  private def lowerSchema(schema: SchemaOp): Vector[Operation] =
-    val enumFiles         = schema.enums.map(lowerEnum)
-    val conflictEnumFiles = schema.conflictEnums.map(lowerConflictEnum)
-    val messageFiles      = schema.messages.flatMap(m => lowerMessage(m, schema.versions))
-    enumFiles ++ conflictEnumFiles ++ messageFiles
+    for op <- module.topLevel do
+      op match
+        case s: SchemaOp =>
+          val (ops, diags) = lowerSchema(s)
+          allOps ++= ops
+          allDiags ++= diags
+        case other => allOps += other
+
+    PassResult(module.copy(topLevel = allOps.result()), allDiags.result())
+
+  private def lowerSchema(schema: SchemaOp): (Vector[Operation], List[DiagnosticMessage]) =
+    val ops   = Vector.newBuilder[Operation]
+    val diags = List.newBuilder[DiagnosticMessage]
+
+    for e <- schema.enums do
+      scala.util.Try(lowerEnum(e)) match
+        case scala.util.Success(file) => ops += file
+        case scala.util.Failure(ex)   => diags += DiagnosticMessage.error(s"Failed to lower enum '${e.name}': ${ex.getMessage}")
+
+    for c <- schema.conflictEnums do
+      scala.util.Try(lowerConflictEnum(c)) match
+        case scala.util.Success(file) => ops += file
+        case scala.util.Failure(ex)   => diags += DiagnosticMessage.error(s"Failed to lower conflict enum '${c.enumName}': ${ex.getMessage}")
+
+    for m <- schema.messages do
+      scala.util.Try(lowerMessage(m, schema.versions)) match
+        case scala.util.Success(files) => ops ++= files
+        case scala.util.Failure(ex)    => diags += DiagnosticMessage.error(s"Failed to lower message '${m.name}': ${ex.getMessage}")
+
+    (ops.result(), diags.result())
 
   // ── Enum lowering ──────────────────────────────────────────────────────
 

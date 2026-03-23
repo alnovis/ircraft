@@ -344,10 +344,10 @@ Before extending to Kotlin/Scala dialects:
 
 After fixes, before 1.0.0:
 
-10. Error recovery in lowering passes
-11. Reduce Operation boilerplate (macros or base class)
-12. Exhaustive matching enforcement in passes
-13. Region name validation (debug mode)
+10. ~~**Error recovery in lowering**~~ — Done (2026-03-23): Try-wrapped lowering helpers, collect diagnostics, skip failed ops, continue with valid ones
+11. **Reduce Operation boilerplate** — Accepted as-is. Boilerplate is explicit, readable, grep-able. 14 operations is manageable. Macros add complexity without proportional benefit.
+12. ~~**Exhaustive matching in passes**~~ — Done (2026-03-23): ProtoVerifierPass warns on unknown ops, DirectJavaEmitter emits WARNING comments
+13. ~~**Region name validation**~~ — Done (2026-03-23): regionOps() logs warning to stderr if region not found on non-leaf operation
 
 ---
 

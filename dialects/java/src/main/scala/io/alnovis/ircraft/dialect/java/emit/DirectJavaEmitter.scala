@@ -41,7 +41,7 @@ class DirectJavaEmitter extends Emitter with EmitterUtils:
     case i: InterfaceOp => emitInterface(i, level)
     case c: ClassOp     => emitClass(c, level)
     case e: EnumClassOp => emitEnum(e, level)
-    case _              => s"// unsupported: ${op.qualifiedName}"
+    case other => s"// WARNING: unsupported operation type: ${other.qualifiedName}"
 
   private def emitInterface(i: InterfaceOp, level: Int): String =
     val doc    = i.javadoc.map(d => wrapComment(CommentStyle.JavaDoc, d, level) + "\n").getOrElse("")

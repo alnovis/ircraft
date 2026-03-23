@@ -51,9 +51,16 @@ trait Operation extends GreenNode:
   /** Rebuild this operation with transformed children. Override in container operations. Leaf operations return this. */
   def mapChildren(f: Operation => Operation): Operation = this
 
-  /** Extract typed operations from a named region. */
+  /** Extract typed operations from a named region. Warns if region not found on a non-leaf operation. */
   final protected def regionOps[A <: Operation](name: String): Vector[A] =
-    region(name).map(_.operations.collect { case a: A @unchecked => a }).getOrElse(Vector.empty)
+    region(name) match
+      case Some(r) => r.operations.collect { case a: A @unchecked => a }
+      case None =>
+        if regions.nonEmpty then
+          System.err.println(
+            s"[ircraft] WARNING: regionOps('$name') on ${kind.qualifiedName} — region not found. Available: ${regions.map(_.name).mkString(", ")}"
+          )
+        Vector.empty
 
 object Operation:
 
