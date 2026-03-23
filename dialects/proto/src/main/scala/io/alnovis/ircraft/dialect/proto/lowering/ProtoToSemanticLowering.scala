@@ -140,7 +140,16 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
 
   private def lowerToInterfaceOp(msg: MessageOp): InterfaceOp =
     val getters = msg.fields.map(fieldToGetter)
-    InterfaceOp(name = msg.name, methods = getters)
+    val nestedEnums = msg.nestedEnums.map: e =>
+      val constants = e.values.map(v => EnumConstantOp(v.name, List(Expression.Literal(v.number.toString, TypeRef.INT))))
+      EnumClassOp(e.name, constants = constants)
+    val nestedInterfaces = msg.nestedMessages.map(lowerToInterfaceOp)
+    InterfaceOp(
+      name = msg.name,
+      methods = getters,
+      nestedTypes = (nestedEnums: Vector[Operation]) ++ (nestedInterfaces: Vector[Operation]),
+      attributes = messageAttributes(msg, msg.presentInVersions.toList)
+    )
 
   private def lowerToAbstractClass(msg: MessageOp, versions: List[String]): FileOp =
     val protoTypeParam = TypeParam("PROTO", upperBounds = List(TypeRef.NamedType("com.google.protobuf.Message")))
@@ -179,6 +188,9 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
         )
       )
 
+    val nestedAbstractClasses: Vector[Operation] = msg.nestedMessages.map: nested =>
+      lowerToAbstractClassOp(nested, versions)
+
     val cls = ClassOp(
       name = s"${config.abstractClassPrefix}${msg.name}",
       modifiers = Set(Modifier.Public, Modifier.Abstract),
@@ -187,6 +199,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       fields = Vector(protoField),
       constructors = Vector(constructor),
       methods = extractMethods ++ getterImpls,
+      nestedTypes = nestedAbstractClasses,
       attributes = messageAttributes(msg, versions)
     )
     FileOp(config.implSubPackage, Vector(cls))
@@ -225,6 +238,10 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
           )
         )
 
+    val nestedImplClasses: Vector[Operation] = msg.nestedMessages
+      .filter(_.presentInVersions.contains(version))
+      .map(nested => lowerToImplClassOp(nested, version))
+
     val cls = ClassOp(
       name = s"${msg.name}$versionSuffix",
       modifiers = Set(Modifier.Public),
@@ -236,9 +253,72 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       ),
       constructors = Vector(constructor),
       methods = extractImpls,
+      nestedTypes = nestedImplClasses,
       attributes = implAttributes(msg, version)
     )
     FileOp(config.implPackage(version), Vector(cls))
+
+  // ── Nested message helpers (return ClassOp, not FileOp) ─────────────────
+
+  private def lowerToAbstractClassOp(msg: MessageOp, versions: List[String]): ClassOp =
+    val protoTypeParam = TypeParam("PROTO", upperBounds = List(TypeRef.NamedType("com.google.protobuf.Message")))
+    val protoField     = FieldDeclOp("proto", TypeRef.NamedType("PROTO"), Set(Modifier.Protected, Modifier.Final))
+    val constructor = ConstructorOp(
+      parameters = List(Parameter("proto", TypeRef.NamedType("PROTO"))),
+      modifiers = Set(Modifier.Protected),
+      body = Some(Block.of(
+        Statement.Assignment(Expression.FieldAccess(Expression.ThisRef, "proto"), Expression.Identifier("proto"))
+      ))
+    )
+    val extractMethods = msg.fields.map: f =>
+      MethodOp(s"extract${f.javaName.capitalize}", resolveGetterType(f),
+        modifiers = Set(Modifier.Protected, Modifier.Abstract), attributes = fieldAttributes(f))
+    val getterImpls = msg.fields.map: f =>
+      MethodOp(s"get${f.javaName.capitalize}", resolveGetterType(f),
+        modifiers = Set(Modifier.Public, Modifier.Override),
+        body = Some(Block.of(Statement.ReturnStmt(Some(Expression.MethodCall(None, s"extract${f.javaName.capitalize}"))))))
+    val nestedAbstract = msg.nestedMessages.map(n => lowerToAbstractClassOp(n, versions))
+
+    ClassOp(
+      name = s"${config.abstractClassPrefix}${msg.name}",
+      modifiers = Set(Modifier.Public, Modifier.Abstract, Modifier.Static),
+      typeParams = List(protoTypeParam),
+      implementsTypes = List(TypeRef.NamedType(msg.name)),
+      fields = Vector(protoField),
+      constructors = Vector(constructor),
+      methods = extractMethods ++ getterImpls,
+      nestedTypes = (nestedAbstract: Vector[Operation]),
+      attributes = messageAttributes(msg, versions)
+    )
+
+  private def lowerToImplClassOp(msg: MessageOp, version: String): ClassOp =
+    val versionSuffix = version.capitalize
+    val protoTypeName = s"${msg.name}Proto"
+    val constructor = ConstructorOp(
+      parameters = List(Parameter("proto", TypeRef.NamedType(protoTypeName))),
+      modifiers = Set(Modifier.Public),
+      body = Some(Block.of(
+        Statement.ExpressionStmt(Expression.MethodCall(Some(Expression.SuperRef), "this", List(Expression.Identifier("proto"))))
+      ))
+    )
+    val extractImpls = msg.fields.filter(_.presentInVersions.contains(version)).map: f =>
+      MethodOp(s"extract${f.javaName.capitalize}", resolveGetterType(f),
+        modifiers = Set(Modifier.Protected, Modifier.Override),
+        body = Some(Block.of(Statement.ReturnStmt(Some(
+          Expression.MethodCall(Some(Expression.Identifier("proto")), s"get${f.javaName.capitalize}"))))))
+    val nestedImpls = msg.nestedMessages.filter(_.presentInVersions.contains(version))
+      .map(n => lowerToImplClassOp(n, version))
+
+    ClassOp(
+      name = s"${msg.name}$versionSuffix",
+      modifiers = Set(Modifier.Public, Modifier.Static),
+      superClass = Some(TypeRef.ParameterizedType(
+        TypeRef.NamedType(s"${config.abstractClassPrefix}${msg.name}"), List(TypeRef.NamedType(protoTypeName)))),
+      constructors = Vector(constructor),
+      methods = extractImpls,
+      nestedTypes = (nestedImpls: Vector[Operation]),
+      attributes = implAttributes(msg, version)
+    )
 
   // ── Field helpers ──────────────────────────────────────────────────────
 
