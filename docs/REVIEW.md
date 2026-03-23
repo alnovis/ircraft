@@ -340,7 +340,7 @@ Before extending to Kotlin/Scala dialects:
 6. ~~**Resolve Block/Statement problem**~~ — Done (2026-03-23): `ExprTraversal.scala` (Expression.walk/collectAll/transform, Statement.walkExprs/collectExprs/transformExprs, Block extensions) + `BodyTraversal.scala` (Module.collectFromBodies, Module.transformBodies bridge)
 7. ~~**Extract `LanguageTypeMapping` trait**~~ — Done (2026-03-23): trait in core, JavaTypeMapping extends it, legacy aliases preserved
 8. ~~**Clean up `width`**~~ — Done (2026-03-23): renamed to `estimatedSize` across 14 files
-9. **Fix ContentHashable consistency** — all instances via given in companions
+9. ~~**Fix ContentHashable consistency**~~ — Done (2026-03-23): replaced explicit given refs with summon[], Module uses attributes.contentHash directly
 
 After fixes, before 1.0.0:
 

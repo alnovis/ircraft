@@ -25,9 +25,9 @@ case class MethodOp(
     ContentHash.combine(
       ContentHash.ofString(name),
       summon[ContentHashable[TypeRef]].contentHash(returnType),
-      ContentHash.ofList(parameters)(using Parameter.given_ContentHashable_Parameter),
+      ContentHash.ofList(parameters)(using summon[ContentHashable[Parameter]]),
       ContentHash.ofSet(modifiers),
-      ContentHash.ofOption(body)(using io.alnovis.ircraft.dialect.semantic.expr.Block.given_ContentHashable_Block)
+      ContentHash.ofOption(body)(using summon[ContentHashable[Block]])
     )
 
   val estimatedSize: Int = 1

@@ -84,7 +84,7 @@ case class EnumConstantOp(
   lazy val contentHash: Int =
     ContentHash.combine(
       ContentHash.ofString(name),
-      ContentHash.ofList(arguments)(using Expression.given_ContentHashable_Expression)
+      ContentHash.ofList(arguments)(using summon[ContentHashable[Expression]])
     )
 
   val estimatedSize: Int = 1

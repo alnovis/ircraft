@@ -20,7 +20,7 @@ case class Module(
   lazy val contentHash: Int =
     ContentHash.combine(
       ContentHash.ofString(name),
-      summon[ContentHashable[AttributeMap]].contentHash(attributes),
+      attributes.contentHash,
       ContentHash.ofList(topLevel.toList)(using Operation.operationHashable)
     )
 
