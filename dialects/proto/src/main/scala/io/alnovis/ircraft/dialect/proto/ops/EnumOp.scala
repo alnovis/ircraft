@@ -28,7 +28,7 @@ case class EnumOp(
       ContentHash.ofList(values.toList)(using Operation.operationHashable)
     )
 
-  lazy val width: Int = 1 + values.size
+  lazy val estimatedSize: Int = 1 + values.size
 
 object EnumOp:
 
@@ -66,4 +66,4 @@ case class EnumValueOp(
       ContentHash.ofSet(presentInVersions)
     )
 
-  val width: Int = 1
+  val estimatedSize: Int = 1

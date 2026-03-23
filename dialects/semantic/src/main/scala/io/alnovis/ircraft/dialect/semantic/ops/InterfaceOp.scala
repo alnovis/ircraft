@@ -34,7 +34,7 @@ case class InterfaceOp(
       ContentHash.ofList(nestedTypes.toList)(using Operation.operationHashable)
     )
 
-  lazy val width: Int = 1 + methods.map(_.width).sum + nestedTypes.map(_.width).sum
+  lazy val estimatedSize: Int = 1 + methods.map(_.estimatedSize).sum + nestedTypes.map(_.estimatedSize).sum
 
 object InterfaceOp:
 

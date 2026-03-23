@@ -24,7 +24,7 @@ case class Module(
       ContentHash.ofList(topLevel.toList)(using Operation.operationHashable)
     )
 
-  lazy val width: Int = topLevel.map(_.width).sum
+  lazy val estimatedSize: Int = topLevel.map(_.estimatedSize).sum
 
   override def mapChildren(f: Operation => Operation): Module =
     copy(topLevel = topLevel.map(f))

@@ -31,7 +31,7 @@ case class OneofOp(
       ContentHash.ofList(fields.toList)(using Operation.operationHashable)
     )
 
-  lazy val width: Int = 1 + fields.size
+  lazy val estimatedSize: Int = 1 + fields.size
 
 object OneofOp:
 

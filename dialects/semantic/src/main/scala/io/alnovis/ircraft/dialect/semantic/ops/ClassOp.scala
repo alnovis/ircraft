@@ -41,8 +41,8 @@ case class ClassOp(
       ContentHash.ofList(nestedTypes.toList)(using Operation.operationHashable)
     )
 
-  lazy val width: Int =
-    1 + fields.map(_.width).sum + methods.map(_.width).sum + nestedTypes.map(_.width).sum
+  lazy val estimatedSize: Int =
+    1 + fields.map(_.estimatedSize).sum + methods.map(_.estimatedSize).sum + nestedTypes.map(_.estimatedSize).sum
 
   def isAbstract: Boolean = modifiers.contains(Modifier.Abstract)
 
@@ -103,7 +103,7 @@ case class FieldDeclOp(
       ContentHash.ofSet(modifiers)
     )
 
-  val width: Int = 1
+  val estimatedSize: Int = 1
 
 /** Constructor declaration. */
 case class ConstructorOp(
@@ -125,4 +125,4 @@ case class ConstructorOp(
       ContentHash.ofOption(body)(using Block.given_ContentHashable_Block)
     )
 
-  val width: Int = 1
+  val estimatedSize: Int = 1

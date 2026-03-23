@@ -17,8 +17,8 @@ trait GreenNode:
   /** Content hash for structural identity. Two nodes with equal contentHash are structurally equivalent. */
   def contentHash: Int
 
-  /** Width of this node in the source representation. Used for computing absolute positions in Red Tree. */
-  def width: Int
+  /** Estimated size of this node's subtree. Used for approximate sizing; not semantically meaningful until Red Tree. */
+  def estimatedSize: Int
 
   /** Node identity derived from content hash. */
   final def nodeId: NodeId = NodeId(contentHash)

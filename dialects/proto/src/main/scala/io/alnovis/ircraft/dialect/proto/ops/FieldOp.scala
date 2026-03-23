@@ -59,6 +59,6 @@ case class FieldOp(
       ContentHash.ofBoolean(isMap)
     )
 
-  val width: Int = 1
+  val estimatedSize: Int = 1
 
   def hasConflict: Boolean = conflictType != ConflictType.None

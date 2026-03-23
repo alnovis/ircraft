@@ -39,7 +39,7 @@ case class SchemaOp(
       ContentHash.ofList(conflictEnums.toList)(using Operation.operationHashable)
     )
 
-  lazy val width: Int = messages.map(_.width).sum + enums.map(_.width).sum
+  lazy val estimatedSize: Int = messages.map(_.estimatedSize).sum + enums.map(_.estimatedSize).sum
 
 object SchemaOp:
 

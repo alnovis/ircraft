@@ -30,7 +30,7 @@ case class ConflictEnumOp(
       ContentHash.ofList(values.toList)(using Operation.operationHashable)
     )
 
-  lazy val width: Int = 1 + values.size
+  lazy val estimatedSize: Int = 1 + values.size
 
 object ConflictEnumOp:
 

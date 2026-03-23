@@ -30,7 +30,7 @@ case class MethodOp(
       ContentHash.ofOption(body)(using io.alnovis.ircraft.dialect.semantic.expr.Block.given_ContentHashable_Block)
     )
 
-  val width: Int = 1
+  val estimatedSize: Int = 1
 
   def isAbstract: Boolean = modifiers.contains(Modifier.Abstract) && body.isEmpty
   def isDefault: Boolean  = modifiers.contains(Modifier.Default) && body.isDefined

@@ -34,7 +34,7 @@ case class MessageOp(
       ContentHash.ofList(nestedEnums.toList)(using Operation.operationHashable)
     )
 
-  lazy val width: Int = 1 + fields.map(_.width).sum + nestedMessages.map(_.width).sum
+  lazy val estimatedSize: Int = 1 + fields.map(_.estimatedSize).sum + nestedMessages.map(_.estimatedSize).sum
 
   def hasOneofs: Boolean      = oneofs.nonEmpty
   def hasNestedTypes: Boolean = nestedMessages.nonEmpty || nestedEnums.nonEmpty

@@ -339,7 +339,7 @@ Before extending to Kotlin/Scala dialects:
 5. ~~**Fix nestedTypes accessor consistency**~~ (P2) — Done (2026-03-23): ClassOp + InterfaceOp now use `regionOps`
 6. ~~**Resolve Block/Statement problem**~~ — Done (2026-03-23): `ExprTraversal.scala` (Expression.walk/collectAll/transform, Statement.walkExprs/collectExprs/transformExprs, Block extensions) + `BodyTraversal.scala` (Module.collectFromBodies, Module.transformBodies bridge)
 7. ~~**Extract `LanguageTypeMapping` trait**~~ — Done (2026-03-23): trait in core, JavaTypeMapping extends it, legacy aliases preserved
-8. **Clean up `width`** — rename to `estimatedSize`
+8. ~~**Clean up `width`**~~ — Done (2026-03-23): renamed to `estimatedSize` across 14 files
 9. **Fix ContentHashable consistency** — all instances via given in companions
 
 After fixes, before 1.0.0:

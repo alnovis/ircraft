@@ -26,7 +26,7 @@ case class FileOp(
       ContentHash.ofList(types.toList)(using Operation.operationHashable)
     )
 
-  lazy val width: Int = types.map(_.width).sum
+  lazy val estimatedSize: Int = types.map(_.estimatedSize).sum
 
 object FileOp:
 

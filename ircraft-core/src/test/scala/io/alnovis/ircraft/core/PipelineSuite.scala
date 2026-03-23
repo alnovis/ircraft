@@ -9,7 +9,7 @@ class PipelineSuite extends munit.FunSuite:
     val regions: Vector[Region]  = Vector.empty
     val span: Option[Span]       = None
     lazy val contentHash: Int    = ContentHash.ofString(value)
-    val width: Int               = value.length
+    val estimatedSize: Int       = value.length
 
   val ctx: PassContext = PassContext()
 

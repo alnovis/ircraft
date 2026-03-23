@@ -36,7 +36,7 @@ case class EnumClassOp(
       ContentHash.ofList(methods.toList)(using Operation.operationHashable)
     )
 
-  lazy val width: Int = 1 + constants.size + methods.map(_.width).sum
+  lazy val estimatedSize: Int = 1 + constants.size + methods.map(_.estimatedSize).sum
 
 object EnumClassOp:
 
@@ -87,4 +87,4 @@ case class EnumConstantOp(
       ContentHash.ofList(arguments)(using Expression.given_ContentHashable_Expression)
     )
 
-  val width: Int = 1
+  val estimatedSize: Int = 1
