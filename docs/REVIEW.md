@@ -338,7 +338,7 @@ Before extending to Kotlin/Scala dialects:
 4. ~~**Remove asInstanceOf in lowering**~~ (P1) — Done (2026-03-23): replaced with type ascription
 5. ~~**Fix nestedTypes accessor consistency**~~ (P2) — Done (2026-03-23): ClassOp + InterfaceOp now use `regionOps`
 6. ~~**Resolve Block/Statement problem**~~ — Done (2026-03-23): `ExprTraversal.scala` (Expression.walk/collectAll/transform, Statement.walkExprs/collectExprs/transformExprs, Block extensions) + `BodyTraversal.scala` (Module.collectFromBodies, Module.transformBodies bridge)
-7. **Extract `LanguageTypeMapping` trait** into core
+7. ~~**Extract `LanguageTypeMapping` trait**~~ — Done (2026-03-23): trait in core, JavaTypeMapping extends it, legacy aliases preserved
 8. **Clean up `width`** — rename to `estimatedSize`
 9. **Fix ContentHashable consistency** — all instances via given in companions
 
