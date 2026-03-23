@@ -26,7 +26,8 @@ case class MethodOp(
       ContentHash.ofString(name),
       summon[ContentHashable[TypeRef]].contentHash(returnType),
       ContentHash.ofList(parameters)(using Parameter.given_ContentHashable_Parameter),
-      ContentHash.ofSet(modifiers)
+      ContentHash.ofSet(modifiers),
+      ContentHash.ofOption(body)(using io.alnovis.ircraft.dialect.semantic.expr.Block.given_ContentHashable_Block)
     )
 
   val width: Int = 1

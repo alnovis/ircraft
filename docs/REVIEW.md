@@ -250,30 +250,114 @@ Dialects are compile-time only. No runtime discovery or loading.
 
 ---
 
+---
+
+## Post-Refactoring Issues (2026-03-23)
+
+> Found after two-level Operation architecture refactoring (regions as source of truth).
+
+### P0 — Breaks content-addressability
+
+#### ContentHash missing for body/arguments fields
+
+`MethodOp.body`, `ConstructorOp.body`, and `EnumConstantOp.arguments` are **not included in contentHash**. Two nodes with identical signatures but different implementations produce the same hash. This will break incremental builds and caching.
+
+| Operation | Field not hashed | Impact |
+|-----------|-----------------|--------|
+| `MethodOp` | `body: Option[Block]` | Abstract vs concrete method = same hash |
+| `ConstructorOp` | `body: Option[Block]` | Different constructor bodies = same hash |
+| `EnumConstantOp` | `arguments: List[Expression]` | `USD(0)` vs `USD(100)` = same hash |
+
+**Fix:** Add `ContentHashable` instances for `Block`, `Statement`, `Expression`, include in hash computation.
+
+**Affected files:**
+- `dialects/semantic/src/main/scala/.../ops/MethodOp.scala`
+- `dialects/semantic/src/main/scala/.../ops/ClassOp.scala` (ConstructorOp)
+- `dialects/semantic/src/main/scala/.../ops/EnumClassOp.scala` (EnumConstantOp)
+
+### P1 — Type safety / correctness
+
+#### Unsafe asInstanceOf in ProtoToSemanticLowering
+
+Lines 113-115: `nestedEnums.map(_.asInstanceOf[Operation])` — unnecessary cast. Scala widens `Vector[EnumClassOp]` to `Vector[Operation]` automatically. Replace with `: Vector[Operation]` type ascription or `.map(identity[Operation])`.
+
+**Affected file:** `dialects/semantic/src/main/scala/.../lowering/ProtoToSemanticLowering.scala`
+
+#### No validation of region names
+
+If case class constructor is called directly with `Region("typo", ops)`, the typed lazy val accessor returns empty vector silently. Data is lost without warning.
+
+**Mitigation:** Smart constructors (`@targetName("create")`) ensure correct region names. Consider adding a debug-mode assertion in `regionOps()`.
+
+#### Unchecked cast in Operation.regionOps()
+
+`@unchecked` annotation suppresses type safety warning. If a region contains wrong operation types, they are silently filtered out.
+
+**Affected file:** `ircraft-core/src/main/scala/.../core/Operation.scala` (line 56)
+
+### P2 — Consistency
+
+#### nestedTypes accessor inconsistency
+
+`ClassOp` and `InterfaceOp` use `region("nestedTypes").map(_.operations)` instead of `regionOps("nestedTypes")`. Inconsistent with how all other typed views are accessed.
+
+**Affected files:**
+- `dialects/semantic/src/main/scala/.../ops/ClassOp.scala` (line 28)
+- `dialects/semantic/src/main/scala/.../ops/InterfaceOp.scala` (line 24)
+
+#### MethodOp missing @targetName("create") smart constructor
+
+All container operations have `@targetName("create")` companion `apply()`, but MethodOp does not. Works because it's effectively a leaf (no operation children in regions), but breaks the pattern.
+
+**Affected file:** `dialects/semantic/src/main/scala/.../ops/MethodOp.scala`
+
+### P3 — Documentation / polish
+
+#### DSL `enum_()` underscore not documented
+
+`enum` is a Scala 3 keyword, so `enum_()` is used. Not documented in code or CUSTOM_DIALECT.md.
+
+**Affected file:** `dialects/proto/src/main/scala/.../dsl/ProtoSchema.scala` (line 46)
+
+#### Missing test coverage
+
+- `deepTransform` with empty regions
+- `deepTransform` replacing parent with leaf of different type
+- Block/Statement/Expression interaction with Operation traversal
+- Multi-dialect modules (proto + semantic mixed)
+
+---
+
 ## Recommended Fix Order
 
 Before extending to Kotlin/Scala dialects:
 
-1. ~~**Add traversal API**~~ — Done (2026-03-22): `Traversal.scala` with `walk()`, `collectAll()`, `size`, `walkAll()`, `transformTopLevel()`
-2. **Resolve Block/Statement problem** — add `StmtVisitor` trait for uniform traversal of method bodies
-3. **Extract `LanguageTypeMapping` trait** into core
-4. **Clean up `width`** — rename to `estimatedSize`
-5. **Fix ContentHashable consistency** — all instances via given in companions
+1. ~~**Add traversal API**~~ — Done (2026-03-22): `Traversal.scala` with `walk()`, `collectAll()`, `size`, `walkAll()`, `deepTransform()`
+2. ~~**Two-level Operation architecture**~~ — Done (2026-03-23): regions as source of truth, `mapChildren`, `Module.transform`
+3. ~~**Fix contentHash for body/arguments**~~ (P0) — Done (2026-03-23): `ContentHashable` for Expression, Statement, Block, CatchClause. Included in MethodOp, ConstructorOp, EnumConstantOp hashes
+4. ~~**Remove asInstanceOf in lowering**~~ (P1) — Done (2026-03-23): replaced with type ascription
+5. ~~**Fix nestedTypes accessor consistency**~~ (P2) — Done (2026-03-23): ClassOp + InterfaceOp now use `regionOps`
+6. **Resolve Block/Statement problem** — add `StmtVisitor` trait for uniform traversal of method bodies
+7. **Extract `LanguageTypeMapping` trait** into core
+8. **Clean up `width`** — rename to `estimatedSize`
+9. **Fix ContentHashable consistency** — all instances via given in companions
 
 After fixes, before 1.0.0:
 
-6. Error recovery in lowering passes
-7. Reduce Operation boilerplate (macros or base class)
-8. Exhaustive matching enforcement in passes
+10. Error recovery in lowering passes
+11. Reduce Operation boilerplate (macros or base class)
+12. Exhaustive matching enforcement in passes
+13. Region name validation (debug mode)
 
 ---
 
 ## Strengths
 
-- Clean core design with proper separation of concerns
-- Good use of Scala 3 features (sealed traits, enums, opaque types, pattern matching)
-- Idiomatic builder DSL
-- Solid test coverage for happy paths (74 tests)
+- Clean two-level architecture: regions as source of truth, typed views as lazy vals
+- Generic deep transforms via `mapChildren` + `Module.transform`
+- Good use of Scala 3 features (sealed traits, enums, opaque types, pattern matching, `@targetName`)
+- Idiomatic builder DSL with smart constructors
+- Solid test coverage (78 tests)
 - Zero external dependencies
 - Content-addressable identity infrastructure ready for incremental builds
-- Well-documented (README, ARCHITECTURE, CUSTOM_DIALECT, IMPLEMENTATION_PLAN)
+- Well-documented (README, ARCHITECTURE, CUSTOM_DIALECT, IMPLEMENTATION_PLAN, REVIEW)

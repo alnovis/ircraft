@@ -110,9 +110,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       name = msg.name,
       methods = getters ++ oneofDiscriminators,
       nestedTypes =
-        nestedEnums.map(_.asInstanceOf[Operation]) ++ oneofEnums.map(_.asInstanceOf[Operation]) ++ nestedInterfaces.map(
-          _.asInstanceOf[Operation]
-        )
+        (nestedEnums: Vector[Operation]) ++ (oneofEnums: Vector[Operation]) ++ (nestedInterfaces: Vector[Operation])
     )
     FileOp(config.apiPackage, Vector(iface))
 

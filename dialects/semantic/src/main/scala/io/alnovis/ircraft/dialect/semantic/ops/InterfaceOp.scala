@@ -21,7 +21,7 @@ case class InterfaceOp(
   val kind: NodeKind = SemanticDialect.Kinds.Interface
 
   lazy val methods: Vector[MethodOp]      = regionOps("methods")
-  lazy val nestedTypes: Vector[Operation] = region("nestedTypes").map(_.operations).getOrElse(Vector.empty)
+  lazy val nestedTypes: Vector[Operation] = regionOps("nestedTypes")
 
   override def mapChildren(f: Operation => Operation): InterfaceOp =
     copy(regions = regions.map(r => Region(r.name, r.operations.map(f))))

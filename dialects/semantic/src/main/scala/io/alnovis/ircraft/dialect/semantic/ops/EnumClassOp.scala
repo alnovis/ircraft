@@ -81,6 +81,10 @@ case class EnumConstantOp(
   val kind: NodeKind          = SemanticDialect.Kinds.EnumConstant
   val regions: Vector[Region] = Vector.empty
 
-  lazy val contentHash: Int = ContentHash.ofString(name)
+  lazy val contentHash: Int =
+    ContentHash.combine(
+      ContentHash.ofString(name),
+      ContentHash.ofList(arguments)(using Expression.given_ContentHashable_Expression)
+    )
 
   val width: Int = 1

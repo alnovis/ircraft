@@ -25,7 +25,7 @@ case class ClassOp(
   lazy val fields: Vector[FieldDeclOp]         = regionOps("fields")
   lazy val constructors: Vector[ConstructorOp] = regionOps("constructors")
   lazy val methods: Vector[MethodOp]           = regionOps("methods")
-  lazy val nestedTypes: Vector[Operation]      = region("nestedTypes").map(_.operations).getOrElse(Vector.empty)
+  lazy val nestedTypes: Vector[Operation]      = regionOps("nestedTypes")
 
   override def mapChildren(f: Operation => Operation): ClassOp =
     copy(regions = regions.map(r => Region(r.name, r.operations.map(f))))
@@ -121,7 +121,8 @@ case class ConstructorOp(
   lazy val contentHash: Int =
     ContentHash.combine(
       ContentHash.ofList(parameters)(using Parameter.given_ContentHashable_Parameter),
-      ContentHash.ofSet(modifiers)
+      ContentHash.ofSet(modifiers),
+      ContentHash.ofOption(body)(using Block.given_ContentHashable_Block)
     )
 
   val width: Int = 1
