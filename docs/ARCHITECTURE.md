@@ -8,8 +8,8 @@ IRCraft structures IR into dialects — groups of operations at a specific abstr
 
 ```mermaid
 flowchart TB
-    H["High-Level Dialect\n(domain-specific)"]
-    S["Semantic Dialect\n(language-agnostic)"]
+    H["High-Level Dialect\ndomain-specific operations"]
+    S["Semantic Dialect\nclasses, interfaces, methods\n(language-agnostic)"]
     JC["Java Code Dialect"]
     KC["Kotlin Code Dialect"]
     SC["Scala Code Dialect"]
@@ -17,9 +17,7 @@ flowchart TB
     KF[".kt files"]
     SF[".scala files"]
 
-    H -- "domain operations" --> H
     H -- "lowering" --> S
-    S -- "classes, interfaces, methods" --> S
     S -- "lowering" --> JC
     S -- "lowering" --> KC
     S -- "lowering" --> SC
@@ -172,29 +170,39 @@ Each pass is a pure function: `GreenNode(v1) → GreenNode(v2)`. Input is never 
 ```mermaid
 flowchart TB
     core["ircraft-core"]
-    proto["ircraft-dialect-proto"]
     semantic["ircraft-dialect-semantic"]
+    proto["ircraft-dialect-proto"]
     java["ircraft-dialect-java"]
     kotlin["ircraft-dialect-kotlin (planned)"]
     scala["ircraft-dialect-scala (planned)"]
+    ptj["ircraft-pipeline-proto-to-java"]
 
-    proto --> core
     semantic --> core
-    semantic --> proto
+    proto --> core
+    proto --> semantic
     java --> core
     java --> semantic
     kotlin -.-> core
     kotlin -.-> semantic
     scala -.-> core
     scala -.-> semantic
+    ptj --> proto
+    ptj --> java
 
     style core fill:#4a9eff,color:#fff
-    style proto fill:#f59e0b,color:#fff
     style semantic fill:#8b5cf6,color:#fff
+    style proto fill:#f59e0b,color:#fff
     style java fill:#10b981,color:#fff
     style kotlin fill:#10b981,color:#fff
     style scala fill:#10b981,color:#fff
+    style ptj fill:#ef4444,color:#fff
 ```
+
+**Key principles:**
+- **Semantic** is pure — no dependencies on other dialects
+- **Source dialects** (proto) depend on semantic for lowering target types
+- **Code dialects** (java) depend on semantic for emission source types
+- **Pipelines** are separate modules that compose dialects — they depend on all dialects they connect
 
 ## Core Framework
 

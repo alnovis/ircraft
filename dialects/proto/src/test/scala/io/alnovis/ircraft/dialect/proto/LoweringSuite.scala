@@ -1,9 +1,9 @@
-package io.alnovis.ircraft.dialect.semantic
+package io.alnovis.ircraft.dialect.proto
 
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.proto.dsl.ProtoSchema
+import io.alnovis.ircraft.dialect.proto.lowering.*
 import io.alnovis.ircraft.dialect.proto.types.*
-import io.alnovis.ircraft.dialect.semantic.lowering.*
 import io.alnovis.ircraft.dialect.semantic.ops.*
 
 class LoweringSuite extends munit.FunSuite:

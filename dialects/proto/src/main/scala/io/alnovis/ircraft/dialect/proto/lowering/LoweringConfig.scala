@@ -1,4 +1,4 @@
-package io.alnovis.ircraft.dialect.semantic.lowering
+package io.alnovis.ircraft.dialect.proto.lowering
 
 /**
   * Configuration for Proto → Semantic lowering.

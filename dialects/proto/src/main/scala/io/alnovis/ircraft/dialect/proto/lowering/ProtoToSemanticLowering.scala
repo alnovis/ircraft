@@ -1,4 +1,4 @@
-package io.alnovis.ircraft.dialect.semantic.lowering
+package io.alnovis.ircraft.dialect.proto.lowering
 
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.proto.ProtoDialect

@@ -1,10 +1,10 @@
-package io.alnovis.ircraft.dialect.java.pipeline
+package io.alnovis.ircraft.pipeline.prototojava
 
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.core.emit.Emitter
 import io.alnovis.ircraft.dialect.java.emit.DirectJavaEmitter
+import io.alnovis.ircraft.dialect.proto.lowering.{LoweringConfig, ProtoToSemanticLowering}
 import io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass
-import io.alnovis.ircraft.dialect.semantic.lowering.{ LoweringConfig, ProtoToSemanticLowering }
 
 /**
   * Pre-built pipeline: Proto Schema → Java source files.

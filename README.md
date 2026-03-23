@@ -43,9 +43,10 @@ IRCraft ships with dialects for protobuf-to-code generation, but the framework i
 | Module | Artifact | Description |
 |--------|----------|-------------|
 | `ircraft-core` | `ircraft-core_3` | GreenNode, Operation, Dialect, Pass, Pipeline, TypeRef, EmitterUtils |
-| `ircraft-dialect-proto` | `ircraft-dialect-proto_3` | Proto schema IR: SchemaOp, MessageOp, FieldOp, EnumOp, OneofOp |
 | `ircraft-dialect-semantic` | `ircraft-dialect-semantic_3` | Language-agnostic OOP: ClassOp, InterfaceOp, MethodOp, Expression AST |
-| `ircraft-dialect-java` | `ircraft-dialect-java_3` | Java emitter, type mapping, end-to-end pipeline |
+| `ircraft-dialect-proto` | `ircraft-dialect-proto_3` | Proto schema IR, Proto→Semantic lowering |
+| `ircraft-dialect-java` | `ircraft-dialect-java_3` | Java emitter, type mapping |
+| `ircraft-pipeline-proto-to-java` | `ircraft-pipeline-proto-to-java_3` | End-to-end pipeline: Proto → Semantic → Java |
 
 ## Quick Start
 
@@ -185,47 +186,50 @@ ircraft/
 │       ├── Operation.scala                # IR operation (extends GreenNode)
 │       ├── Module.scala                   # Top-level IR container
 │       ├── Region.scala                   # Nested operation blocks (MLIR)
-│       ├── NodeKind.scala                 # Operation type identifier
-│       ├── NodeId.scala                   # Opaque content hash ID
 │       ├── TypeRef.scala                  # Type system (sealed trait)
-│       ├── Modifier.scala                 # Access/declaration modifiers
-│       ├── Attribute.scala                # Typed key-value metadata
-│       ├── AttributeMap.scala             # Immutable attribute collection
-│       ├── ContentHash.scala              # Hashing utilities
-│       ├── Span.scala                     # Source location
 │       ├── Dialect.scala                  # Dialect trait
-│       ├── Diagnostic.scala               # DiagnosticMessage, Severity
 │       ├── Pass.scala                     # Pass, Lowering, PassResult, PassContext
 │       ├── Pipeline.scala                 # Pipeline composition
+│       ├── Traversal.scala                # walk, collectAll, deepTransform
+│       ├── LanguageTypeMapping.scala      # Type mapping trait for emitters
+│       ├── ContentHash.scala              # Hashing utilities
 │       └── emit/
 │           ├── Emitter.scala              # Base emitter trait
 │           └── EmitterUtils.scala         # Shared formatting utilities
 │
 ├── dialects/
-│   ├── proto/                             # Proto Dialect
+│   ├── semantic/                          # Semantic Dialect (pure, no dialect deps)
+│   │   └── src/main/scala/.../semantic/
+│   │       ├── SemanticDialect.scala
+│   │       ├── ops/                       # ClassOp, InterfaceOp, MethodOp, ...
+│   │       ├── expr/                      # Expression, Statement, Block, ExprTraversal
+│   │       └── BodyTraversal.scala        # Module → method body bridge
+│   │
+│   ├── proto/                             # Proto Dialect (depends on semantic)
 │   │   └── src/main/scala/.../proto/
 │   │       ├── ProtoDialect.scala
 │   │       ├── ops/                       # SchemaOp, MessageOp, FieldOp, ...
 │   │       ├── types/                     # ConflictType, ProtoSyntax
 │   │       ├── passes/                    # ProtoVerifierPass
+│   │       ├── lowering/                  # ProtoToSemanticLowering, LoweringConfig
 │   │       └── dsl/                       # ProtoSchema builder DSL
 │   │
-│   ├── semantic/                          # Semantic Dialect
-│   │   └── src/main/scala/.../semantic/
-│   │       ├── SemanticDialect.scala
-│   │       ├── ops/                       # ClassOp, InterfaceOp, MethodOp, ...
-│   │       ├── expr/                      # Expression, Statement, Block
-│   │       └── lowering/                  # ProtoToSemanticLowering, LoweringConfig
-│   │
-│   └── java/                              # Java Code Dialect
+│   └── java/                              # Java Code Dialect (depends on semantic)
 │       └── src/main/scala/.../java/
 │           ├── JavaDialect.scala
 │           ├── types/                     # JavaTypeMapping
-│           ├── emit/                      # DirectJavaEmitter
-│           └── pipeline/                  # ProtoToJavaPipeline
+│           └── emit/                      # DirectJavaEmitter
+│
+├── pipelines/
+│   └── proto-to-java/                     # Pipeline: Proto → Semantic → Java
+│       └── src/main/scala/.../pipeline/prototojava/
+│           └── ProtoToJavaPipeline.scala
 │
 ├── docs/
-│   └── IMPLEMENTATION_PLAN.md             # Full phased roadmap
+│   ├── ARCHITECTURE.md                    # Detailed architecture with diagrams
+│   ├── IMPLEMENTATION_PLAN.md             # Full phased roadmap
+│   ├── CUSTOM_DIALECT.md                  # Guide: create your own dialect
+│   └── REVIEW.md                          # Architectural review & fix tracking
 │
 ├── build.sbt                              # Scala 3.6.4, sbt 1.10
 ├── .github/workflows/ci.yml              # CI: Java 17/21

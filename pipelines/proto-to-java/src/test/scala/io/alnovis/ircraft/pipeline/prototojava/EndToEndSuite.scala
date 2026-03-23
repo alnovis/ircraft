@@ -1,11 +1,10 @@
-package io.alnovis.ircraft.dialect.java
+package io.alnovis.ircraft.pipeline.prototojava
 
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.java.emit.DirectJavaEmitter
-import io.alnovis.ircraft.dialect.java.pipeline.ProtoToJavaPipeline
 import io.alnovis.ircraft.dialect.proto.dsl.ProtoSchema
+import io.alnovis.ircraft.dialect.proto.lowering.LoweringConfig
 import io.alnovis.ircraft.dialect.proto.types.*
-import io.alnovis.ircraft.dialect.semantic.lowering.LoweringConfig
 import io.alnovis.ircraft.dialect.semantic.ops.*
 
 class EndToEndSuite extends munit.FunSuite:
