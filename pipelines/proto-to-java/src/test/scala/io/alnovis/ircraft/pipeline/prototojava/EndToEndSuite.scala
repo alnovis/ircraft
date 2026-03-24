@@ -47,7 +47,7 @@ class EndToEndSuite extends munit.FunSuite:
 
     val result      = pipeline.execute(Module("test", Vector(schema)))
     val files       = result.toOption.get
-    val ifaceSource = files.find(_._1.endsWith("Money.java")).get._2
+    val ifaceSource = files.find(f => f._1.endsWith("Money.java") && f._2.contains("interface Money")).get._2
 
     assert(ifaceSource.contains("package com.example.api;"), s"Missing package:\n$ifaceSource")
     assert(ifaceSource.contains("public interface Money"), s"Missing interface decl:\n$ifaceSource")
@@ -121,7 +121,7 @@ class EndToEndSuite extends munit.FunSuite:
 
     val result      = pipeline.execute(Module("test", Vector(schema)))
     val files       = result.toOption.get
-    val ifaceSource = files.find(_._1.endsWith("Event.java")).get._2
+    val ifaceSource = files.find(f => f._1.endsWith("Event.java") && f._2.contains("interface Event")).get._2
 
     assert(ifaceSource.contains("PayloadCase"), s"Missing PayloadCase:\n$ifaceSource")
     assert(ifaceSource.contains("getPayloadCase()"), s"Missing getPayloadCase:\n$ifaceSource")
