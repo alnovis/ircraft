@@ -7,17 +7,15 @@ import io.alnovis.ircraft.dialect.semantic.ops.*
 
 class BuilderSuite extends munit.FunSuite:
 
-  val config: LoweringConfig = LoweringConfig("com.example.api", "com.example.%s", generateBuilders = true)
+  val config: LoweringConfig            = LoweringConfig("com.example.api", "com.example.%s", generateBuilders = true)
   val lowering: ProtoToSemanticLowering = ProtoToSemanticLowering(config)
   // Enable generateBuilders in PassContext
   val ctx: PassContext = PassContext(config = Map("generateBuilders" -> "true"))
 
   private def lowerWithBuilder(schema: io.alnovis.ircraft.dialect.proto.ops.SchemaOp): Module =
-    Pipeline("test",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
-      lowering,
-      BuilderPass,
-    ).run(Module("test", Vector(schema)), ctx).module
+    Pipeline("test", io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, BuilderPass)
+      .run(Module("test", Vector(schema)), ctx)
+      .module
 
   test("interface gets nested Builder interface"):
     val schema = ProtoSchema.build("v1") { s =>
@@ -27,7 +25,7 @@ class BuilderSuite extends munit.FunSuite:
       }
     }
     val module = lowerWithBuilder(schema)
-    val iface = module.collect { case i: InterfaceOp => i }.find(_.name == "Money").get
+    val iface  = module.collect { case i: InterfaceOp => i }.find(_.name == "Money").get
 
     val builder = iface.nestedTypes.collectFirst { case i: InterfaceOp if i.name == "Builder" => i }
     assert(builder.isDefined, s"Should have nested Builder, got: ${iface.nestedTypes.map(_.getClass.getSimpleName)}")
@@ -46,7 +44,7 @@ class BuilderSuite extends munit.FunSuite:
       }
     }
     val module = lowerWithBuilder(schema)
-    val iface = module.collect { case i: InterfaceOp => i }.find(_.name == "Money").get
+    val iface  = module.collect { case i: InterfaceOp => i }.find(_.name == "Money").get
 
     assert(iface.methods.exists(_.name == "toBuilder"))
 
@@ -76,7 +74,7 @@ class BuilderSuite extends munit.FunSuite:
       }
     }
     val module = lowerWithBuilder(schema)
-    val impl = module.collect { case c: ClassOp => c }.find(_.name == "MoneyV1").get
+    val impl   = module.collect { case c: ClassOp => c }.find(_.name == "MoneyV1").get
 
     assert(impl.methods.exists(_.name == "toBuilder"))
 
@@ -87,13 +85,9 @@ class BuilderSuite extends munit.FunSuite:
         m.field("amount", 1, TypeRef.LONG)
       }
     }
-    val pipeline = Pipeline("test",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
-      lowering,
-      BuilderPass,
-    )
-    val module = pipeline.run(Module("test", Vector(schema)), ctxDisabled).module
-    val iface = module.collect { case i: InterfaceOp => i }.find(_.name == "Money").get
+    val pipeline = Pipeline("test", io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, BuilderPass)
+    val module   = pipeline.run(Module("test", Vector(schema)), ctxDisabled).module
+    val iface    = module.collect { case i: InterfaceOp => i }.find(_.name == "Money").get
 
     // Should NOT have Builder
     assert(!iface.nestedTypes.exists {

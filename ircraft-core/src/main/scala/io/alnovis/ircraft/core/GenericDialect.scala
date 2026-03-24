@@ -2,7 +2,8 @@ package io.alnovis.ircraft.core
 
 import scala.collection.mutable
 
-/** Schema for a single operation in a generic dialect.
+/**
+  * Schema for a single operation in a generic dialect.
   *
   * @param name
   *   Operation name within the dialect
@@ -19,7 +20,8 @@ case class OpSchema(
   def isContainer: Boolean = childSlots.nonEmpty
   def isLeaf: Boolean      = childSlots.isEmpty
 
-/** A dialect defined entirely via a declarative DSL, producing GenericOp instances.
+/**
+  * A dialect defined entirely via a declarative DSL, producing GenericOp instances.
   *
   * Usage:
   * {{{
@@ -50,17 +52,21 @@ class GenericDialect private (
           val missingFields = opSchema.fields.collect:
             case (name, _) if !op.attributes.contains(name) => name
           if missingFields.nonEmpty then
-            List(DiagnosticMessage.warning(
-              s"Operation ${op.qualifiedName} missing fields: ${missingFields.mkString(", ")}"
-            ))
+            List(
+              DiagnosticMessage.warning(
+                s"Operation ${op.qualifiedName} missing fields: ${missingFields.mkString(", ")}"
+              )
+            )
           else Nil
 
   // ── Kind accessor ───────────────────────────────────────────────────
 
   /** Get the NodeKind for a named operation. */
   def kind(opName: String): NodeKind =
-    require(schemas.contains(opName),
-      s"Unknown operation '$opName' in dialect '$namespace'. Known: ${schemas.keys.mkString(", ")}")
+    require(
+      schemas.contains(opName),
+      s"Unknown operation '$opName' in dialect '$namespace'. Known: ${schemas.keys.mkString(", ")}"
+    )
     NodeKind(namespace, opName)
 
   /** Get the schema for a named operation. */
@@ -84,19 +90,21 @@ class GenericDialect private (
     fields: Seq[(String, Any)],
     childRegions: Vector[(String, Vector[Operation])]
   ): GenericOp =
-    val opSchema = schemas.getOrElse(opName,
+    val opSchema = schemas.getOrElse(
+      opName,
       throw IllegalArgumentException(
         s"Unknown operation '$opName' in dialect '$namespace'. Known: ${schemas.keys.mkString(", ")}"
-      ))
+      )
+    )
 
     val attrs = fields.map: (key, value) =>
       value match
-        case s: String     => Attribute.StringAttr(key, s)
-        case i: Int        => Attribute.IntAttr(key, i)
-        case l: Long       => Attribute.LongAttr(key, l)
-        case b: Boolean    => Attribute.BoolAttr(key, b)
-        case ss: List[?]   => Attribute.StringListAttr(key, ss.asInstanceOf[List[String]])
-        case a: Attribute  => a
+        case s: String    => Attribute.StringAttr(key, s)
+        case i: Int       => Attribute.IntAttr(key, i)
+        case l: Long      => Attribute.LongAttr(key, l)
+        case b: Boolean   => Attribute.BoolAttr(key, b)
+        case ss: List[?]  => Attribute.StringListAttr(key, ss.asInstanceOf[List[String]])
+        case a: Attribute => a
         case other =>
           throw IllegalArgumentException(
             s"Unsupported field value type for '$key': ${other.getClass.getSimpleName}"

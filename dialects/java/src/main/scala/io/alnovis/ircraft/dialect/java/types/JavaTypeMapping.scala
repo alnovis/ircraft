@@ -1,6 +1,6 @@
 package io.alnovis.ircraft.dialect.java.types
 
-import io.alnovis.ircraft.core.{LanguageTypeMapping, TypeRef}
+import io.alnovis.ircraft.core.{ LanguageTypeMapping, TypeRef }
 import io.alnovis.ircraft.core.TypeRef.*
 
 /** Maps ircraft TypeRef to Java type strings. */
@@ -19,7 +19,7 @@ object JavaTypeMapping extends LanguageTypeMapping:
     case PrimitiveType.Bytes                                                 => "byte[]"
     case VoidType                                                            => "void"
     case NamedType(fqn)                                                      => simpleName(fqn)
-    case ListType(elem)                => s"java.util.List<${toBoxedType(elem)}>"
+    case ListType(elem)                                                      => s"java.util.List<${toBoxedType(elem)}>"
     case MapType(k, v)                 => s"java.util.Map<${toBoxedType(k)}, ${toBoxedType(v)}>"
     case OptionalType(inner)           => toLanguageType(inner)
     case EnumType(fqn, _)              => simpleName(fqn)
@@ -49,5 +49,5 @@ object JavaTypeMapping extends LanguageTypeMapping:
     case _                                   => Set.empty
 
   // Legacy aliases for backward compatibility with DirectJavaEmitter
-  def toJavaType(ref: TypeRef): String    = toLanguageType(ref)
+  def toJavaType(ref: TypeRef): String      = toLanguageType(ref)
   def toBoxedJavaType(ref: TypeRef): String = toBoxedType(ref)

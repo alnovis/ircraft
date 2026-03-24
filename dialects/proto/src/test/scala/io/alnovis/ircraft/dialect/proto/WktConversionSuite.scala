@@ -7,16 +7,14 @@ import io.alnovis.ircraft.dialect.semantic.ops.*
 
 class WktConversionSuite extends munit.FunSuite:
 
-  val config: LoweringConfig = LoweringConfig("com.example.api", "com.example.%s")
+  val config: LoweringConfig            = LoweringConfig("com.example.api", "com.example.%s")
   val lowering: ProtoToSemanticLowering = ProtoToSemanticLowering(config)
-  val ctx: PassContext = PassContext()
+  val ctx: PassContext                  = PassContext()
 
   private def lowerWithWkt(schema: io.alnovis.ircraft.dialect.proto.ops.SchemaOp): Module =
-    Pipeline("test",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
-      lowering,
-      WktConversionPass,
-    ).run(Module("test", Vector(schema)), ctx).module
+    Pipeline("test", io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, WktConversionPass)
+      .run(Module("test", Vector(schema)), ctx)
+      .module
 
   test("Timestamp field becomes Instant"):
     val schema = ProtoSchema.build("v1") { s =>
@@ -25,7 +23,7 @@ class WktConversionSuite extends munit.FunSuite:
       }
     }
     val module = lowerWithWkt(schema)
-    val iface = module.collect { case i: InterfaceOp => i }.find(_.name == "Event").get
+    val iface  = module.collect { case i: InterfaceOp => i }.find(_.name == "Event").get
     val getter = iface.methods.find(_.name == "getCreatedAt").get
 
     assertEquals(getter.returnType, TypeRef.NamedType("java.time.Instant"))
@@ -37,7 +35,7 @@ class WktConversionSuite extends munit.FunSuite:
       }
     }
     val module = lowerWithWkt(schema)
-    val iface = module.collect { case i: InterfaceOp => i }.find(_.name == "Task").get
+    val iface  = module.collect { case i: InterfaceOp => i }.find(_.name == "Task").get
     val getter = iface.methods.find(_.name == "getTimeout").get
 
     assertEquals(getter.returnType, TypeRef.NamedType("java.time.Duration"))
@@ -49,7 +47,7 @@ class WktConversionSuite extends munit.FunSuite:
       }
     }
     val module = lowerWithWkt(schema)
-    val iface = module.collect { case i: InterfaceOp => i }.find(_.name == "Config").get
+    val iface  = module.collect { case i: InterfaceOp => i }.find(_.name == "Config").get
     val getter = iface.methods.find(_.name == "getMetadata").get
 
     assertEquals(getter.returnType, TypeRef.MapType(TypeRef.STRING, TypeRef.NamedType("Object")))
@@ -61,7 +59,7 @@ class WktConversionSuite extends munit.FunSuite:
       }
     }
     val module = lowerWithWkt(schema)
-    val iface = module.collect { case i: InterfaceOp => i }.find(_.name == "Simple").get
+    val iface  = module.collect { case i: InterfaceOp => i }.find(_.name == "Simple").get
     val getter = iface.methods.find(_.name == "getName").get
 
     assertEquals(getter.returnType, TypeRef.STRING)

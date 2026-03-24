@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.core
 
-/** Prints IR as human-readable text, similar to MLIR textual format.
+/**
+  * Prints IR as human-readable text, similar to MLIR textual format.
   *
   * Works for any Operation subclass — both typed (MessageOp, ClassOp) and generic (GenericOp). Uses only the Operation
   * trait interface: kind, attributes, regions.
@@ -21,7 +22,7 @@ object IrPrinter:
 
   /** Print a complete Module. */
   def print(module: Module): String =
-    val sb = StringBuilder()
+    val sb    = StringBuilder()
     val attrs = printAttrs(module.attributes)
     sb.append(s"""module "${module.name}"$attrs {\n""")
     for op <- module.topLevel do
@@ -45,8 +46,7 @@ object IrPrinter:
       // Container — block with regions
       val sb = StringBuilder()
       sb.append(s"$prefix$name$attrs {\n")
-      for r <- op.regions if r.operations.nonEmpty do
-        sb.append(printRegion(r, level + 1))
+      for r <- op.regions if r.operations.nonEmpty do sb.append(printRegion(r, level + 1))
       sb.append(s"$prefix}")
       sb.result()
 
@@ -74,10 +74,10 @@ object IrPrinter:
     case Attribute.StringListAttr(k, v) => s"""$k=[${v.map(s => s""""${escape(s)}"""").mkString(",")}]"""
     case Attribute.IntListAttr(k, v)    => s"$k=[${v.mkString(",")}]"
     case Attribute.AttrListAttr(k, v)   => s"$k=[${v.map(printAttr).mkString(", ")}]"
-    case Attribute.AttrMapAttr(k, v)    =>
+    case Attribute.AttrMapAttr(k, v) =>
       val entries = v.map((mk, mv) => s"$mk=${printAttrValue(mv)}").toList.sorted
       s"$k={${entries.mkString(", ")}}"
-    case Attribute.RefAttr(k, target)   => s"$k=@${target.value}"
+    case Attribute.RefAttr(k, target) => s"$k=@${target.value}"
 
   private def printAttrValue(attr: Attribute): String = attr match
     case Attribute.StringAttr(_, v)     => s""""${escape(v)}""""

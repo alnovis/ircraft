@@ -10,7 +10,7 @@ class KotlinEmitterSuite extends munit.FunSuite:
   val emitter = DirectKotlinEmitter()
 
   private def emitSingle(pkg: String, op: Operation): String =
-    val file = FileOp(pkg, Vector(op))
+    val file   = FileOp(pkg, Vector(op))
     val module = Module("test", Vector(file))
     emitter.emit(module).values.head
 
@@ -68,11 +68,13 @@ class KotlinEmitterSuite extends munit.FunSuite:
       constructors = Vector(
         ConstructorOp(
           parameters = List(Parameter("proto", TypeRef.NamedType("MoneyProto"))),
-          body = Some(Block.of(
-            Statement.ExpressionStmt(
-              Expression.MethodCall(Some(Expression.SuperRef), "this", List(Expression.Identifier("proto")))
+          body = Some(
+            Block.of(
+              Statement.ExpressionStmt(
+                Expression.MethodCall(Some(Expression.SuperRef), "this", List(Expression.Identifier("proto")))
+              )
             )
-          ))
+          )
         )
       ),
       methods = Vector(
@@ -80,11 +82,15 @@ class KotlinEmitterSuite extends munit.FunSuite:
           "extractAmount",
           TypeRef.LONG,
           modifiers = Set(Modifier.Protected, Modifier.Override),
-          body = Some(Block.of(
-            Statement.ReturnStmt(Some(
-              Expression.MethodCall(Some(Expression.Identifier("proto")), "getAmount")
-            ))
-          ))
+          body = Some(
+            Block.of(
+              Statement.ReturnStmt(
+                Some(
+                  Expression.MethodCall(Some(Expression.Identifier("proto")), "getAmount")
+                )
+              )
+            )
+          )
         )
       )
     )
@@ -129,7 +135,9 @@ class KotlinEmitterSuite extends munit.FunSuite:
   test("nullable optional type"):
     val iface = InterfaceOp(
       name = "Data",
-      methods = Vector(MethodOp("getName", TypeRef.OptionalType(TypeRef.STRING), modifiers = Set(Modifier.Public, Modifier.Abstract)))
+      methods = Vector(
+        MethodOp("getName", TypeRef.OptionalType(TypeRef.STRING), modifiers = Set(Modifier.Public, Modifier.Abstract))
+      )
     )
     val source = emitSingle("com.example", iface)
     assert(source.contains("fun getName(): String?"), s"Source:\n$source")
@@ -139,11 +147,22 @@ class KotlinEmitterSuite extends munit.FunSuite:
   test("cast uses 'as' syntax"):
     val cls = ClassOp(
       name = "Test",
-      methods = Vector(MethodOp("convert", TypeRef.STRING,
-        modifiers = Set(Modifier.Public),
-        body = Some(Block.of(Statement.ReturnStmt(Some(
-          Expression.Cast(Expression.Identifier("obj"), TypeRef.STRING)
-        ))))))
+      methods = Vector(
+        MethodOp(
+          "convert",
+          TypeRef.STRING,
+          modifiers = Set(Modifier.Public),
+          body = Some(
+            Block.of(
+              Statement.ReturnStmt(
+                Some(
+                  Expression.Cast(Expression.Identifier("obj"), TypeRef.STRING)
+                )
+              )
+            )
+          )
+        )
+      )
     )
     val source = emitSingle("com.example", cls)
     assert(source.contains("obj as String"), s"Source:\n$source")
@@ -151,11 +170,22 @@ class KotlinEmitterSuite extends munit.FunSuite:
   test("new instance without 'new' keyword"):
     val cls = ClassOp(
       name = "Test",
-      methods = Vector(MethodOp("create", TypeRef.NamedType("Money"),
-        modifiers = Set(Modifier.Public),
-        body = Some(Block.of(Statement.ReturnStmt(Some(
-          Expression.NewInstance(TypeRef.NamedType("Money"), List(Expression.Literal("100", TypeRef.LONG)))
-        ))))))
+      methods = Vector(
+        MethodOp(
+          "create",
+          TypeRef.NamedType("Money"),
+          modifiers = Set(Modifier.Public),
+          body = Some(
+            Block.of(
+              Statement.ReturnStmt(
+                Some(
+                  Expression.NewInstance(TypeRef.NamedType("Money"), List(Expression.Literal("100", TypeRef.LONG)))
+                )
+              )
+            )
+          )
+        )
+      )
     )
     val source = emitSingle("com.example", cls)
     assert(source.contains("Money(100)"), s"Source:\n$source")
@@ -168,8 +198,12 @@ class KotlinEmitterSuite extends munit.FunSuite:
       name = "VersionContextV1",
       modifiers = Set(Modifier.Public, Modifier.Final),
       fields = Vector(
-        FieldDeclOp("INSTANCE", TypeRef.NamedType("VersionContextV1"), Set(Modifier.Public, Modifier.Static, Modifier.Final),
-          defaultValue = Some("VersionContextV1()"))
+        FieldDeclOp(
+          "INSTANCE",
+          TypeRef.NamedType("VersionContextV1"),
+          Set(Modifier.Public, Modifier.Static, Modifier.Final),
+          defaultValue = Some("VersionContextV1()")
+        )
       ),
       constructors = Vector(ConstructorOp(parameters = Nil, modifiers = Set(Modifier.Private)))
     )

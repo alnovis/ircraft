@@ -1,7 +1,7 @@
 package io.alnovis.ircraft.dialect.kotlin.emit
 
 import io.alnovis.ircraft.core.*
-import io.alnovis.ircraft.core.emit.{CommentStyle, Emitter, EmitterUtils}
+import io.alnovis.ircraft.core.emit.{ CommentStyle, Emitter, EmitterUtils }
 import io.alnovis.ircraft.dialect.kotlin.types.KotlinTypeMapping
 import io.alnovis.ircraft.dialect.semantic.ops.*
 import io.alnovis.ircraft.dialect.semantic.expr.*
@@ -12,14 +12,16 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
   private val tm = KotlinTypeMapping
 
   def emit(module: Module): Map[String, String] =
-    module.topLevel.collect { case f: FileOp => f }.flatMap: f =>
-      f.types.map: op =>
-        val name    = typeOpName(op)
-        val path    = f.packageName.replace('.', '/') + s"/$name.kt"
-        val imports = collectImports(op)
-        val source  = emitFile(f.packageName, imports, op)
-        path -> source
-    .toMap
+    module.topLevel
+      .collect { case f: FileOp => f }
+      .flatMap: f =>
+        f.types.map: op =>
+          val name    = typeOpName(op)
+          val path    = f.packageName.replace('.', '/') + s"/$name.kt"
+          val imports = collectImports(op)
+          val source  = emitFile(f.packageName, imports, op)
+          path -> source
+      .toMap
 
   private def emitFile(pkg: String, imports: Set[String], op: Operation): String =
     val sb = StringBuilder()
@@ -44,7 +46,8 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
     val sb = StringBuilder()
     i.javadoc.foreach(doc => sb.append(wrapComment(CommentStyle.KDoc, doc, level) + "\n"))
     emitAnnotations(i.annotations, level, sb)
-    val extendsClause = if i.extendsTypes.isEmpty then ""
+    val extendsClause =
+      if i.extendsTypes.isEmpty then ""
       else s" : ${i.extendsTypes.map(t => tm.toLanguageType(t)).mkString(", ")}"
     sb.append(indent(level, s"interface ${i.name}$extendsClause {\n"))
     for m <- i.methods do sb.append(emitMethod(m, level + 1) + "\n")
@@ -57,11 +60,12 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
     c.javadoc.foreach(doc => sb.append(wrapComment(CommentStyle.KDoc, doc, level) + "\n"))
     emitAnnotations(c.annotations, level, sb)
 
-    val mods   = emitModifiers(c.modifiers)
-    val kw     = if c.isAbstract then "abstract class" else "class"
-    val tparams = emitTypeParams(c.typeParams)
+    val mods        = emitModifiers(c.modifiers)
+    val kw          = if c.isAbstract then "abstract class" else "class"
+    val tparams     = emitTypeParams(c.typeParams)
     val superClause = c.superClass.map(s => s" : ${tm.toLanguageType(s)}").getOrElse("")
-    val implClause = if c.implementsTypes.isEmpty then ""
+    val implClause =
+      if c.implementsTypes.isEmpty then ""
       else if c.superClass.isDefined then s", ${c.implementsTypes.map(t => tm.toLanguageType(t)).mkString(", ")}"
       else s" : ${c.implementsTypes.map(t => tm.toLanguageType(t)).mkString(", ")}"
 
@@ -98,7 +102,8 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
     val sb = StringBuilder()
     e.javadoc.foreach(doc => sb.append(wrapComment(CommentStyle.KDoc, doc, level) + "\n"))
     emitAnnotations(e.annotations, level, sb)
-    val implClause = if e.implementsTypes.isEmpty then ""
+    val implClause =
+      if e.implementsTypes.isEmpty then ""
       else s" : ${e.implementsTypes.map(t => tm.toLanguageType(t)).mkString(", ")}"
     sb.append(indent(level, s"enum class ${e.name}$implClause {\n"))
 
@@ -122,9 +127,9 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
   // ── Members ────────────────────────────────────────────────────────────
 
   private def emitField(f: FieldDeclOp, level: Int): String =
-    val mods = emitFieldModifiers(f.modifiers)
+    val mods       = emitFieldModifiers(f.modifiers)
     val mutability = if f.modifiers.contains(Modifier.Final) then "val" else "var"
-    val init = f.defaultValue.map(v => s" = $v").getOrElse("")
+    val init       = f.defaultValue.map(v => s" = $v").getOrElse("")
     indent(level, s"$mods$mutability ${f.name}: ${tm.toLanguageType(f.fieldType)}$init")
 
   private def emitConstructor(ct: ConstructorOp, level: Int): String =
@@ -137,13 +142,12 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
     val sb = StringBuilder()
     m.javadoc.foreach(doc => sb.append(wrapComment(CommentStyle.KDoc, doc, level) + "\n"))
 
-    val mods   = emitMethodModifiers(m.modifiers)
+    val mods    = emitMethodModifiers(m.modifiers)
     val tparams = emitTypeParams(m.typeParams)
-    val params = m.parameters.map(p => s"${p.name}: ${tm.toLanguageType(p.paramType)}").mkString(", ")
+    val params  = m.parameters.map(p => s"${p.name}: ${tm.toLanguageType(p.paramType)}").mkString(", ")
     val retType = if m.returnType == TypeRef.VOID then "" else s": ${tm.toLanguageType(m.returnType)}"
 
-    if m.isAbstract then
-      sb.append(indent(level, s"${mods}fun $tparams${m.name}($params)$retType"))
+    if m.isAbstract then sb.append(indent(level, s"${mods}fun $tparams${m.name}($params)$retType"))
     else
       val bodyStr = m.body.map(b => emitBlock(b, level + 1)).getOrElse("")
       sb.append(block(s"${mods}fun $tparams${m.name}($params)$retType", level)(bodyStr))
@@ -155,21 +159,22 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
     b.statements.map(s => emitStmt(s, level)).mkString("\n")
 
   private def emitStmt(s: Statement, level: Int): String = s match
-    case Statement.ExpressionStmt(expr)      => indent(level, emitExpr(expr))
-    case Statement.ReturnStmt(None)          => indent(level, "return")
-    case Statement.ReturnStmt(Some(value))   => indent(level, s"return ${emitExpr(value)}")
-    case Statement.VarDecl(n, t, init, fin)  =>
-      val kw = if fin then "val" else "var"
+    case Statement.ExpressionStmt(expr)    => indent(level, emitExpr(expr))
+    case Statement.ReturnStmt(None)        => indent(level, "return")
+    case Statement.ReturnStmt(Some(value)) => indent(level, s"return ${emitExpr(value)}")
+    case Statement.VarDecl(n, t, init, fin) =>
+      val kw      = if fin then "val" else "var"
       val initStr = init.map(e => s" = ${emitExpr(e)}").getOrElse("")
       indent(level, s"$kw $n: ${tm.toLanguageType(t)}$initStr")
     case Statement.Assignment(target, value) => indent(level, s"${emitExpr(target)} = ${emitExpr(value)}")
     case Statement.IfStmt(cond, thenBlock, elseBlock) =>
       val thenStr = emitBlock(thenBlock, level + 1)
       val result  = block(s"if (${emitExpr(cond)})", level)(thenStr)
-      elseBlock.map: eb =>
-        val elseStr = emitBlock(eb, level + 1)
-        result + " else {\n" + elseStr + "\n" + indent(level, "}")
-      .getOrElse(result)
+      elseBlock
+        .map: eb =>
+          val elseStr = emitBlock(eb, level + 1)
+          result + " else {\n" + elseStr + "\n" + indent(level, "}")
+        .getOrElse(result)
     case Statement.ForEachStmt(v, t, iterable, body) =>
       val bodyStr = emitBlock(body, level + 1)
       block(s"for ($v: ${tm.toLanguageType(t)} in ${emitExpr(iterable)})", level)(bodyStr)
@@ -179,31 +184,33 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
       sb.append(block("try", level)(emitBlock(tryBlock, level + 1)))
       for c <- catches do
         val catchBody = emitBlock(c.body, level + 1)
-        sb.append(s" catch (${c.variableName}: ${tm.toLanguageType(c.exceptionType)}) {\n$catchBody\n${indent(level, "}")}")
+        sb.append(
+          s" catch (${c.variableName}: ${tm.toLanguageType(c.exceptionType)}) {\n$catchBody\n${indent(level, "}")}"
+        )
       fin.foreach(f => sb.append(s" finally {\n${emitBlock(f, level + 1)}\n${indent(level, "}")}"))
       sb.result()
 
   // ── Expressions ────────────────────────────────────────────────────────
 
   private def emitExpr(e: Expression): String = e match
-    case Expression.Literal(v, _)               => v
-    case Expression.Identifier(n)               => n
+    case Expression.Literal(v, _) => v
+    case Expression.Identifier(n) => n
     case Expression.MethodCall(recv, name, args, _) =>
-      val r    = recv.map(r => s"${emitExpr(r)}.").getOrElse("")
-      val a    = args.map(emitExpr).mkString(", ")
+      val r = recv.map(r => s"${emitExpr(r)}.").getOrElse("")
+      val a = args.map(emitExpr).mkString(", ")
       s"$r$name($a)"
-    case Expression.FieldAccess(recv, name)     => s"${emitExpr(recv)}.$name"
-    case Expression.NewInstance(t, args)         => s"${tm.toLanguageType(t)}(${args.map(emitExpr).mkString(", ")})"
-    case Expression.Cast(expr, t)               => s"${emitExpr(expr)} as ${tm.toLanguageType(t)}"
-    case Expression.Conditional(cond, t, f)     => s"if (${emitExpr(cond)}) ${emitExpr(t)} else ${emitExpr(f)}"
-    case Expression.BinaryOp(l, op, r)          => s"${emitExpr(l)} ${emitBinOp(op)} ${emitExpr(r)}"
-    case Expression.UnaryOp(op, expr)           => s"${emitUnOp(op)}${emitExpr(expr)}"
-    case Expression.Lambda(params, body)        =>
+    case Expression.FieldAccess(recv, name) => s"${emitExpr(recv)}.$name"
+    case Expression.NewInstance(t, args)    => s"${tm.toLanguageType(t)}(${args.map(emitExpr).mkString(", ")})"
+    case Expression.Cast(expr, t)           => s"${emitExpr(expr)} as ${tm.toLanguageType(t)}"
+    case Expression.Conditional(cond, t, f) => s"if (${emitExpr(cond)}) ${emitExpr(t)} else ${emitExpr(f)}"
+    case Expression.BinaryOp(l, op, r)      => s"${emitExpr(l)} ${emitBinOp(op)} ${emitExpr(r)}"
+    case Expression.UnaryOp(op, expr)       => s"${emitUnOp(op)}${emitExpr(expr)}"
+    case Expression.Lambda(params, body) =>
       if params.isEmpty then s"{ ${emitExpr(body)} }"
       else s"{ ${params.mkString(", ")} -> ${emitExpr(body)} }"
-    case Expression.NullLiteral                 => "null"
-    case Expression.ThisRef                     => "this"
-    case Expression.SuperRef                    => "super"
+    case Expression.NullLiteral => "null"
+    case Expression.ThisRef     => "this"
+    case Expression.SuperRef    => "super"
 
   private def emitBinOp(op: BinOperator): String = op match
     case BinOperator.Eq     => "=="

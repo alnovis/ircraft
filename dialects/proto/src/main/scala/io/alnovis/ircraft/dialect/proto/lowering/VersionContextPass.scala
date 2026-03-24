@@ -4,7 +4,8 @@ import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.semantic.ops.*
 import io.alnovis.ircraft.dialect.semantic.expr.*
 
-/** Generates VersionContext interface and per-version implementations.
+/**
+  * Generates VersionContext interface and per-version implementations.
   *
   * VersionContext is a factory for wrapping proto messages and parsing bytes. Produces:
   *
@@ -21,7 +22,8 @@ object VersionContextPass extends Pass:
 
   def run(module: Module, context: PassContext): PassResult =
     // Collect message names and versions from InterfaceOps
-    val messageInterfaces = module.collect { case i: InterfaceOp => i }
+    val messageInterfaces = module
+      .collect { case i: InterfaceOp => i }
       .filter(_.attributes.contains(ProtoAttributes.PresentInVersions))
 
     if messageInterfaces.isEmpty then return PassResult(module)
@@ -33,9 +35,10 @@ object VersionContextPass extends Pass:
     if versions.isEmpty then return PassResult(module)
 
     // Find API and impl packages
-    val apiPackage = module.topLevel.collectFirst:
-      case f: FileOp if f.types.exists(_.isInstanceOf[InterfaceOp]) => f.packageName
-    .getOrElse("com.example.api")
+    val apiPackage = module.topLevel
+      .collectFirst:
+        case f: FileOp if f.types.exists(_.isInstanceOf[InterfaceOp]) => f.packageName
+      .getOrElse("com.example.api")
 
     // Generate VersionContext interface
     val interfaceMethods = messageInterfaces.flatMap: iface =>
@@ -78,9 +81,9 @@ object VersionContextPass extends Pass:
     PassResult(module.copy(topLevel = module.topLevel ++ (contextFile +: implFiles.toVector)))
 
   private def generateVersionImpl(
-      version: String,
-      messages: Vector[InterfaceOp],
-      apiPackage: String
+    version: String,
+    messages: Vector[InterfaceOp],
+    apiPackage: String
   ): FileOp =
     val versionSuffix = version.capitalize
     val implClassName = s"VersionContext$versionSuffix"
@@ -101,9 +104,11 @@ object VersionContextPass extends Pass:
       "getVersionId",
       TypeRef.STRING,
       modifiers = Set(Modifier.Public, Modifier.Override),
-      body = Some(Block.of(
-        Statement.ReturnStmt(Some(Expression.Literal(s""""$version"""", TypeRef.STRING)))
-      ))
+      body = Some(
+        Block.of(
+          Statement.ReturnStmt(Some(Expression.Literal(s""""$version"""", TypeRef.STRING)))
+        )
+      )
     )
 
     val wrapMethods = messages.flatMap: iface =>
@@ -115,35 +120,47 @@ object VersionContextPass extends Pass:
             TypeRef.NamedType(iface.name),
             parameters = List(Parameter("proto", TypeRef.NamedType("com.google.protobuf.Message"))),
             modifiers = Set(Modifier.Public, Modifier.Override),
-            body = Some(Block.of(
-              Statement.ReturnStmt(Some(
-                Expression.NewInstance(
-                  TypeRef.NamedType(s"${iface.name}$versionSuffix"),
-                  List(Expression.Cast(
-                    Expression.Identifier("proto"),
-                    TypeRef.NamedType(s"${iface.name}Proto")
-                  ))
+            body = Some(
+              Block.of(
+                Statement.ReturnStmt(
+                  Some(
+                    Expression.NewInstance(
+                      TypeRef.NamedType(s"${iface.name}$versionSuffix"),
+                      List(
+                        Expression.Cast(
+                          Expression.Identifier("proto"),
+                          TypeRef.NamedType(s"${iface.name}Proto")
+                        )
+                      )
+                    )
+                  )
                 )
-              ))
-            ))
+              )
+            )
           ),
           MethodOp(
             s"parse${iface.name}FromBytes",
             TypeRef.NamedType(iface.name),
             parameters = List(Parameter("bytes", TypeRef.BYTES)),
             modifiers = Set(Modifier.Public, Modifier.Override),
-            body = Some(Block.of(
-              Statement.ReturnStmt(Some(
-                Expression.NewInstance(
-                  TypeRef.NamedType(s"${iface.name}$versionSuffix"),
-                  List(Expression.MethodCall(
-                    Some(Expression.Identifier(s"${iface.name}Proto")),
-                    "parseFrom",
-                    List(Expression.Identifier("bytes"))
-                  ))
+            body = Some(
+              Block.of(
+                Statement.ReturnStmt(
+                  Some(
+                    Expression.NewInstance(
+                      TypeRef.NamedType(s"${iface.name}$versionSuffix"),
+                      List(
+                        Expression.MethodCall(
+                          Some(Expression.Identifier(s"${iface.name}Proto")),
+                          "parseFrom",
+                          List(Expression.Identifier("bytes"))
+                        )
+                      )
+                    )
+                  )
                 )
-              ))
-            ))
+              )
+            )
           )
         )
       else Vector.empty

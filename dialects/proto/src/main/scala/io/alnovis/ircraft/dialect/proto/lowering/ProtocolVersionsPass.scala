@@ -3,7 +3,8 @@ package io.alnovis.ircraft.dialect.proto.lowering
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.semantic.ops.*
 
-/** Generates a ProtocolVersions utility class with version constants.
+/**
+  * Generates a ProtocolVersions utility class with version constants.
   *
   * Produces:
   * {{{
@@ -27,7 +28,8 @@ object ProtocolVersionsPass extends Pass:
 
   def run(module: Module, context: PassContext): PassResult =
     // Find versions from first InterfaceOp's attributes
-    val versions = module.collect { case i: InterfaceOp => i }
+    val versions = module
+      .collect { case i: InterfaceOp => i }
       .headOption
       .flatMap(_.attributes.getStringList(ProtoAttributes.SchemaVersions))
       .getOrElse(Nil)
@@ -35,9 +37,10 @@ object ProtocolVersionsPass extends Pass:
     if versions.isEmpty then return PassResult(module)
 
     // Find API package from first FileOp containing an InterfaceOp
-    val apiPackage = module.topLevel.collectFirst:
-      case f: FileOp if f.types.exists(_.isInstanceOf[InterfaceOp]) => f.packageName
-    .getOrElse("com.example.api")
+    val apiPackage = module.topLevel
+      .collectFirst:
+        case f: FileOp if f.types.exists(_.isInstanceOf[InterfaceOp]) => f.packageName
+      .getOrElse("com.example.api")
 
     val versionFields = versions.map: v =>
       FieldDeclOp(

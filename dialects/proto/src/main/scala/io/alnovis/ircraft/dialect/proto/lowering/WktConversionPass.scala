@@ -4,7 +4,8 @@ import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.core.Traversal.*
 import io.alnovis.ircraft.dialect.semantic.ops.*
 
-/** Converts Well-Known Type fields to Java standard types.
+/**
+  * Converts Well-Known Type fields to Java standard types.
   *
   * Transforms getter return types in interfaces and abstract classes:
   *   - Timestamp → java.time.Instant
@@ -35,7 +36,7 @@ object WktConversionPass extends Pass:
     m.attributes.getString(ProtoAttributes.WellKnownType).exists(_.nonEmpty)
 
   private def convertMethodType(m: MethodOp): MethodOp =
-    val wkt = m.attributes.getString(ProtoAttributes.WellKnownType).getOrElse("")
+    val wkt     = m.attributes.getString(ProtoAttributes.WellKnownType).getOrElse("")
     val newType = wktToJavaType(wkt)
     if newType == m.returnType then m
     else m.copy(returnType = newType)

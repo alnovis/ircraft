@@ -5,7 +5,8 @@ import io.alnovis.ircraft.core.Traversal.*
 import io.alnovis.ircraft.dialect.semantic.ops.*
 import io.alnovis.ircraft.dialect.semantic.expr.*
 
-/** Generates Builder pattern for message wrappers (conditional: generateBuilders=true).
+/**
+  * Generates Builder pattern for message wrappers (conditional: generateBuilders=true).
   *
   * Adds to interface:
   *   - Nested `Builder` interface with `setXxx()`, `clearXxx()`, `build()` methods
@@ -113,10 +114,14 @@ object BuilderPass extends Pass:
 
     val doBuild = MethodOp(
       "doBuild",
-      TypeRef.NamedType(cls.implementsTypes.headOption.map {
-        case TypeRef.NamedType(n) => n
-        case _                    => "Object"
-      }.getOrElse("Object")),
+      TypeRef.NamedType(
+        cls.implementsTypes.headOption
+          .map {
+            case TypeRef.NamedType(n) => n
+            case _                    => "Object"
+          }
+          .getOrElse("Object")
+      ),
       modifiers = Set(Modifier.Protected, Modifier.Abstract)
     )
 
@@ -127,18 +132,26 @@ object BuilderPass extends Pass:
         TypeRef.NamedType("AbstractBuilder"),
         parameters = List(Parameter(decapitalize(fieldName), m.returnType)),
         modifiers = Set(Modifier.Public),
-        body = Some(Block.of(
-          Statement.ExpressionStmt(Expression.MethodCall(None, s"doSet$fieldName", List(Expression.Identifier(decapitalize(fieldName))))),
-          Statement.ReturnStmt(Some(Expression.ThisRef))
-        ))
+        body = Some(
+          Block.of(
+            Statement.ExpressionStmt(
+              Expression.MethodCall(None, s"doSet$fieldName", List(Expression.Identifier(decapitalize(fieldName))))
+            ),
+            Statement.ReturnStmt(Some(Expression.ThisRef))
+          )
+        )
       )
 
     val buildImpl = MethodOp(
       "build",
-      TypeRef.NamedType(cls.implementsTypes.headOption.map {
-        case TypeRef.NamedType(n) => n
-        case _                    => "Object"
-      }.getOrElse("Object")),
+      TypeRef.NamedType(
+        cls.implementsTypes.headOption
+          .map {
+            case TypeRef.NamedType(n) => n
+            case _                    => "Object"
+          }
+          .getOrElse("Object")
+      ),
       modifiers = Set(Modifier.Public),
       body = Some(Block.of(Statement.ReturnStmt(Some(Expression.MethodCall(None, "doBuild")))))
     )
@@ -173,12 +186,16 @@ object BuilderPass extends Pass:
       TypeRef.NamedType("Builder"),
       modifiers = Set(Modifier.Public, Modifier.Override),
       javadoc = Some("Creates a builder from this wrapper's proto."),
-      body = Some(Block.of(
-        Statement.ThrowStmt(Expression.NewInstance(
-          TypeRef.NamedType("UnsupportedOperationException"),
-          List(Expression.Literal("\"Builder not yet implemented for this version\"", TypeRef.STRING))
-        ))
-      ))
+      body = Some(
+        Block.of(
+          Statement.ThrowStmt(
+            Expression.NewInstance(
+              TypeRef.NamedType("UnsupportedOperationException"),
+              List(Expression.Literal("\"Builder not yet implemented for this version\"", TypeRef.STRING))
+            )
+          )
+        )
+      )
     )
 
     ClassOp(

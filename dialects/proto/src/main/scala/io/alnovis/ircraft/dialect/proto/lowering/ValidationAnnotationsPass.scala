@@ -4,7 +4,8 @@ import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.core.Traversal.*
 import io.alnovis.ircraft.dialect.semantic.ops.*
 
-/** Adds validation annotations (@NotNull, @Valid) to interface getter methods.
+/**
+  * Adds validation annotations (@NotNull, @Valid) to interface getter methods.
   *
   *   - Message-type fields get @NotNull (non-nullable by default)
   *   - Optional fields do NOT get @NotNull
@@ -48,12 +49,11 @@ object ValidationAnnotationsPass extends Pass:
     val annotations = List.newBuilder[String]
     annotations ++= m.annotations
 
-    if isRepeated || isMap then
-      annotations += "NotNull"
+    if isRepeated || isMap then annotations += "NotNull"
     else if !isOptional then
       m.returnType match
         case TypeRef.NamedType(_) => annotations += "NotNull"
-        case _                   => () // primitives don't need @NotNull
+        case _                    => () // primitives don't need @NotNull
 
     val result = annotations.result().distinct
     if result == m.annotations then m

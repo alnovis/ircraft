@@ -12,30 +12,40 @@ class BodyTraversalSuite extends munit.FunSuite:
       "getAmount",
       TypeRef.LONG,
       modifiers = Set(Modifier.Public),
-      body = Some(Block.of(
-        Statement.ReturnStmt(Some(
-          Expression.MethodCall(Some(Expression.Identifier("proto")), "getAmount")
-        ))
-      ))
+      body = Some(
+        Block.of(
+          Statement.ReturnStmt(
+            Some(
+              Expression.MethodCall(Some(Expression.Identifier("proto")), "getAmount")
+            )
+          )
+        )
+      )
     )
     val method2 = MethodOp(
       "getCurrency",
       TypeRef.STRING,
       modifiers = Set(Modifier.Public),
-      body = Some(Block.of(
-        Statement.ReturnStmt(Some(
-          Expression.MethodCall(Some(Expression.Identifier("proto")), "getCurrency")
-        ))
-      ))
+      body = Some(
+        Block.of(
+          Statement.ReturnStmt(
+            Some(
+              Expression.MethodCall(Some(Expression.Identifier("proto")), "getCurrency")
+            )
+          )
+        )
+      )
     )
     val constructor = ConstructorOp(
       parameters = List(Parameter("proto", TypeRef.NamedType("Proto"))),
-      body = Some(Block.of(
-        Statement.Assignment(
-          Expression.FieldAccess(Expression.ThisRef, "proto"),
-          Expression.Identifier("proto")
+      body = Some(
+        Block.of(
+          Statement.Assignment(
+            Expression.FieldAccess(Expression.ThisRef, "proto"),
+            Expression.Identifier("proto")
+          )
         )
-      ))
+      )
     )
     val cls = ClassOp(
       name = "MoneyV1",
@@ -59,9 +69,9 @@ class BodyTraversalSuite extends munit.FunSuite:
 
   test("collectFromBodies returns empty for module without bodies"):
     val abstractMethod = MethodOp("foo", TypeRef.VOID, modifiers = Set(Modifier.Public, Modifier.Abstract))
-    val iface = InterfaceOp("Foo", methods = Vector(abstractMethod))
-    val module = Module("test", Vector(FileOp("com.example", Vector(iface))))
-    val calls = module.collectFromBodies { case Expression.MethodCall(_, n, _, _) => n }
+    val iface          = InterfaceOp("Foo", methods = Vector(abstractMethod))
+    val module         = Module("test", Vector(FileOp("com.example", Vector(iface))))
+    val calls          = module.collectFromBodies { case Expression.MethodCall(_, n, _, _) => n }
     assertEquals(calls, Vector.empty)
 
   test("transformBodies replaces Identifier across all bodies"):

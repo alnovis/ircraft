@@ -3,7 +3,8 @@ package io.alnovis.ircraft.dialect.proto.lowering
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.semantic.ops.*
 
-/** Generates the ProtoWrapper base interface that all message interfaces extend.
+/**
+  * Generates the ProtoWrapper base interface that all message interfaces extend.
   *
   * Produces:
   * {{{
@@ -23,9 +24,10 @@ object ProtoWrapperPass extends Pass:
 
   def run(module: Module, context: PassContext): PassResult =
     // Find API package
-    val apiPackage = module.topLevel.collectFirst:
-      case f: FileOp if f.types.exists(_.isInstanceOf[InterfaceOp]) => f.packageName
-    .getOrElse("com.example.api")
+    val apiPackage = module.topLevel
+      .collectFirst:
+        case f: FileOp if f.types.exists(_.isInstanceOf[InterfaceOp]) => f.packageName
+      .getOrElse("com.example.api")
 
     // Generate ProtoWrapper interface
     val protoWrapperInterface = InterfaceOp(
@@ -59,7 +61,8 @@ object ProtoWrapperPass extends Pass:
     val updatedTopLevel = module.topLevel.map:
       case f: FileOp =>
         val updatedTypes = f.types.map:
-          case iface: InterfaceOp if iface.name != "ProtoWrapper" && iface.attributes.contains(ProtoAttributes.PresentInVersions) =>
+          case iface: InterfaceOp
+              if iface.name != "ProtoWrapper" && iface.attributes.contains(ProtoAttributes.PresentInVersions) =>
             InterfaceOp(
               name = iface.name,
               modifiers = iface.modifiers,

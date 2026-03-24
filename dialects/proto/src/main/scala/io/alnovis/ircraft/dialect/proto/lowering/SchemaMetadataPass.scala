@@ -4,7 +4,8 @@ import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.semantic.ops.*
 import io.alnovis.ircraft.dialect.semantic.expr.*
 
-/** Generates SchemaInfo classes per version with runtime schema metadata.
+/**
+  * Generates SchemaInfo classes per version with runtime schema metadata.
   *
   * Produces per version:
   * {{{
@@ -27,7 +28,8 @@ object SchemaMetadataPass extends Pass:
     context.getBool("generateSchemaMetadata")
 
   def run(module: Module, context: PassContext): PassResult =
-    val messageInterfaces = module.collect { case i: InterfaceOp => i }
+    val messageInterfaces = module
+      .collect { case i: InterfaceOp => i }
       .filter(_.attributes.contains(ProtoAttributes.PresentInVersions))
 
     if messageInterfaces.isEmpty then return PassResult(module)
@@ -36,14 +38,15 @@ object SchemaMetadataPass extends Pass:
       .getStringList(ProtoAttributes.SchemaVersions)
       .getOrElse(Nil)
 
-    val apiPackage = module.topLevel.collectFirst:
-      case f: FileOp if f.types.exists(_.isInstanceOf[InterfaceOp]) => f.packageName
-    .getOrElse("com.example.api")
+    val apiPackage = module.topLevel
+      .collectFirst:
+        case f: FileOp if f.types.exists(_.isInstanceOf[InterfaceOp]) => f.packageName
+      .getOrElse("com.example.api")
 
     val metadataPackage = apiPackage.replace(".api", "") + ".metadata"
 
     val messageNames = messageInterfaces.map(_.name).toList
-    val enumNames = module.collect { case e: EnumClassOp => e }.map(_.name).toList
+    val enumNames    = module.collect { case e: EnumClassOp => e }.map(_.name).toList
 
     val schemaInfoFiles = versions.map: version =>
       generateSchemaInfo(version, messageNames, enumNames, metadataPackage)
@@ -51,10 +54,10 @@ object SchemaMetadataPass extends Pass:
     PassResult(module.copy(topLevel = module.topLevel ++ schemaInfoFiles))
 
   private def generateSchemaInfo(
-      version: String,
-      messageNames: List[String],
-      enumNames: List[String],
-      packageName: String
+    version: String,
+    messageNames: List[String],
+    enumNames: List[String],
+    packageName: String
   ): FileOp =
     val versionSuffix = version.capitalize
     val className     = s"SchemaInfo$versionSuffix"
@@ -75,35 +78,49 @@ object SchemaMetadataPass extends Pass:
       "getVersionId",
       TypeRef.STRING,
       modifiers = Set(Modifier.Public),
-      body = Some(Block.of(
-        Statement.ReturnStmt(Some(Expression.Literal(s""""$version"""", TypeRef.STRING)))
-      ))
+      body = Some(
+        Block.of(
+          Statement.ReturnStmt(Some(Expression.Literal(s""""$version"""", TypeRef.STRING)))
+        )
+      )
     )
 
     val getMessageNames = MethodOp(
       "getMessageNames",
       TypeRef.ListType(TypeRef.STRING),
       modifiers = Set(Modifier.Public),
-      body = Some(Block.of(
-        Statement.ReturnStmt(Some(Expression.MethodCall(
-          Some(Expression.Identifier("java.util.List")),
-          "of",
-          messageNames.map(n => Expression.Literal(s""""$n"""", TypeRef.STRING))
-        )))
-      ))
+      body = Some(
+        Block.of(
+          Statement.ReturnStmt(
+            Some(
+              Expression.MethodCall(
+                Some(Expression.Identifier("java.util.List")),
+                "of",
+                messageNames.map(n => Expression.Literal(s""""$n"""", TypeRef.STRING))
+              )
+            )
+          )
+        )
+      )
     )
 
     val getEnumNames = MethodOp(
       "getEnumNames",
       TypeRef.ListType(TypeRef.STRING),
       modifiers = Set(Modifier.Public),
-      body = Some(Block.of(
-        Statement.ReturnStmt(Some(Expression.MethodCall(
-          Some(Expression.Identifier("java.util.List")),
-          "of",
-          enumNames.map(n => Expression.Literal(s""""$n"""", TypeRef.STRING))
-        )))
-      ))
+      body = Some(
+        Block.of(
+          Statement.ReturnStmt(
+            Some(
+              Expression.MethodCall(
+                Some(Expression.Identifier("java.util.List")),
+                "of",
+                enumNames.map(n => Expression.Literal(s""""$n"""", TypeRef.STRING))
+              )
+            )
+          )
+        )
+      )
     )
 
     val cls = ClassOp(

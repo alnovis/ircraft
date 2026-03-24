@@ -52,8 +52,9 @@ class ExprTraversalSuite extends munit.FunSuite:
       "get",
       List(Expression.Identifier("proto"))
     )
-    val transformed = expr.transform { case Expression.Identifier("proto") =>
-      Expression.Identifier("delegate")
+    val transformed = expr.transform {
+      case Expression.Identifier("proto") =>
+        Expression.Identifier("delegate")
     }
     val ids = transformed.collectAll { case Expression.Identifier(n) => n }
     assertEquals(ids, List("delegate", "delegate"))
@@ -70,7 +71,7 @@ class ExprTraversalSuite extends munit.FunSuite:
   // ── Statement.walkExprs ────────────────────────────────────────────────
 
   test("walkExprs finds expressions in ReturnStmt"):
-    val stmt = Statement.ReturnStmt(Some(Expression.Identifier("result")))
+    val stmt  = Statement.ReturnStmt(Some(Expression.Identifier("result")))
     var found = List.empty[String]
     stmt.walkExprs {
       case Expression.Identifier(n) => found = found :+ n
@@ -99,8 +100,9 @@ class ExprTraversalSuite extends munit.FunSuite:
       Block.of(Statement.ReturnStmt(Some(Expression.Identifier("x")))),
       None
     )
-    val transformed = stmt.transformExprs { case Expression.Identifier("x") =>
-      Expression.Identifier("y")
+    val transformed = stmt.transformExprs {
+      case Expression.Identifier("x") =>
+        Expression.Identifier("y")
     }
     val ids = transformed.collectExprs { case Expression.Identifier(n) => n }
     assertEquals(ids, List("y", "y"))
@@ -114,9 +116,9 @@ class ExprTraversalSuite extends munit.FunSuite:
     )
     var found = List.empty[String]
     block.walkExprs:
-      case Expression.Literal(v, _)   => found = found :+ s"lit:$v"
-      case Expression.Identifier(n)   => found = found :+ s"id:$n"
-      case _                          => ()
+      case Expression.Literal(v, _) => found = found :+ s"lit:$v"
+      case Expression.Identifier(n) => found = found :+ s"id:$n"
+      case _                        => ()
     assertEquals(found, List("lit:1", "id:a"))
 
   // ── Block.collectStmts ─────────────────────────────────────────────────
@@ -162,8 +164,9 @@ class ExprTraversalSuite extends munit.FunSuite:
       Statement.ExpressionStmt(Expression.Identifier("old")),
       Statement.ReturnStmt(Some(Expression.Identifier("old")))
     )
-    val transformed = block.transformExprs { case Expression.Identifier("old") =>
-      Expression.Identifier("new")
+    val transformed = block.transformExprs {
+      case Expression.Identifier("old") =>
+        Expression.Identifier("new")
     }
     val ids = transformed.collectExprs { case Expression.Identifier(n) => n }
     assertEquals(ids, List("new", "new"))

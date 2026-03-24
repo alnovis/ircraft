@@ -8,16 +8,13 @@ import io.alnovis.ircraft.dialect.semantic.ops.*
 
 class ConflictResolutionSuite extends munit.FunSuite:
 
-  val config: LoweringConfig = LoweringConfig("com.example.api", "com.example.%s")
+  val config: LoweringConfig            = LoweringConfig("com.example.api", "com.example.%s")
   val lowering: ProtoToSemanticLowering = ProtoToSemanticLowering(config)
-  val ctx: PassContext = PassContext()
+  val ctx: PassContext                  = PassContext()
 
   private def lowerAndResolve(schema: io.alnovis.ircraft.dialect.proto.ops.SchemaOp): Module =
-    val pipeline = Pipeline("test",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
-      lowering,
-      ConflictResolutionPass,
-    )
+    val pipeline =
+      Pipeline("test", io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, ConflictResolutionPass)
     pipeline.run(Module("test", Vector(schema)), ctx).module
 
   test("INT_ENUM conflict adds getXxxEnum to interface"):
@@ -28,8 +25,8 @@ class ConflictResolutionSuite extends munit.FunSuite:
     }
 
     val module = lowerAndResolve(schema)
-    val files = module.topLevel.collect { case f: FileOp => f }
-    val iface = files.flatMap(_.types).collectFirst { case i: InterfaceOp => i }.get
+    val files  = module.topLevel.collect { case f: FileOp => f }
+    val iface  = files.flatMap(_.types).collectFirst { case i: InterfaceOp => i }.get
 
     assert(iface.methods.exists(_.name == "getType"), "Should have getType")
     assert(iface.methods.exists(_.name == "getTypeEnum"), s"Should have getTypeEnum, got: ${iface.methods.map(_.name)}")
@@ -42,8 +39,11 @@ class ConflictResolutionSuite extends munit.FunSuite:
     }
 
     val module = lowerAndResolve(schema)
-    val iface = module.topLevel.collect { case f: FileOp => f }
-      .flatMap(_.types).collectFirst { case i: InterfaceOp => i }.get
+    val iface = module.topLevel
+      .collect { case f: FileOp => f }
+      .flatMap(_.types)
+      .collectFirst { case i: InterfaceOp => i }
+      .get
 
     assert(iface.methods.exists(_.name == "getContentBytes"))
 
@@ -55,8 +55,11 @@ class ConflictResolutionSuite extends munit.FunSuite:
     }
 
     val module = lowerAndResolve(schema)
-    val iface = module.topLevel.collect { case f: FileOp => f }
-      .flatMap(_.types).collectFirst { case i: InterfaceOp => i }.get
+    val iface = module.topLevel
+      .collect { case f: FileOp => f }
+      .flatMap(_.types)
+      .collectFirst { case i: InterfaceOp => i }
+      .get
 
     assert(iface.methods.exists(_.name == "getTotalMessage"))
     assert(iface.methods.exists(_.name == "supportsTotalMessage"))
@@ -69,8 +72,11 @@ class ConflictResolutionSuite extends munit.FunSuite:
     }
 
     val module = lowerAndResolve(schema)
-    val absCls = module.topLevel.collect { case f: FileOp => f }
-      .flatMap(_.types).collectFirst { case c: ClassOp if c.isAbstract => c }.get
+    val absCls = module.topLevel
+      .collect { case f: FileOp => f }
+      .flatMap(_.types)
+      .collectFirst { case c: ClassOp if c.isAbstract => c }
+      .get
 
     assert(absCls.methods.exists(_.name == "extractTypeEnum"), s"Methods: ${absCls.methods.map(_.name)}")
     assert(absCls.methods.exists(_.name == "getTypeEnum"))
@@ -83,7 +89,10 @@ class ConflictResolutionSuite extends munit.FunSuite:
     }
 
     val module = lowerAndResolve(schema)
-    val iface = module.topLevel.collect { case f: FileOp => f }
-      .flatMap(_.types).collectFirst { case i: InterfaceOp => i }.get
+    val iface = module.topLevel
+      .collect { case f: FileOp => f }
+      .flatMap(_.types)
+      .collectFirst { case i: InterfaceOp => i }
+      .get
 
     assertEquals(iface.methods.size, 1) // only getName

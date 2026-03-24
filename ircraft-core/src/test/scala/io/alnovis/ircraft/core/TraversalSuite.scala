@@ -12,7 +12,7 @@ class TraversalSuite extends munit.FunSuite:
     val span: Option[Span]           = None
     lazy val kids: Vector[Operation] = region("children").map(_.operations).getOrElse(Vector.empty)
     lazy val contentHash: Int        = ContentHash.ofString(name)
-    val estimatedSize: Int            = 1
+    val estimatedSize: Int           = 1
 
     override def mapChildren(f: Operation => Operation): ParentOp =
       copy(regions = regions.map(r => Region(r.name, r.operations.map(f))))
@@ -29,7 +29,7 @@ class TraversalSuite extends munit.FunSuite:
     val regions: Vector[Region]  = Vector.empty
     val span: Option[Span]       = None
     lazy val contentHash: Int    = ContentHash.ofString(name)
-    val estimatedSize: Int        = 1
+    val estimatedSize: Int       = 1
 
   val tree: ParentOp = ParentOp(
     "root",

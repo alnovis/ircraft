@@ -5,7 +5,8 @@ import io.alnovis.ircraft.core.Traversal.*
 import io.alnovis.ircraft.dialect.semantic.ops.*
 import io.alnovis.ircraft.dialect.semantic.expr.*
 
-/** Adds version conversion methods to interfaces and abstract classes.
+/**
+  * Adds version conversion methods to interfaces and abstract classes.
   *
   * Adds to interface:
   *   - `asVersion(VersionContext)` → converts wrapper to another version
@@ -62,24 +63,34 @@ object VersionConversionPass extends Pass:
       // asVersion(VersionContext) → wraps toBytes + parseFromBytes on target context
       MethodOp(
         "asVersion",
-        TypeRef.NamedType(cls.implementsTypes.headOption.map {
-          case TypeRef.NamedType(n) => n
-          case _                    => "Object"
-        }.getOrElse("Object")),
+        TypeRef.NamedType(
+          cls.implementsTypes.headOption
+            .map {
+              case TypeRef.NamedType(n) => n
+              case _                    => "Object"
+            }
+            .getOrElse("Object")
+        ),
         parameters = List(Parameter("targetContext", TypeRef.NamedType("VersionContext"))),
         modifiers = Set(Modifier.Public, Modifier.Override),
-        body = Some(Block.of(
-          Statement.ReturnStmt(Some(
-            Expression.MethodCall(
-              Some(Expression.Identifier("targetContext")),
-              s"wrap${cls.implementsTypes.headOption.map {
-                case TypeRef.NamedType(n) => n
-                case _                    => "Unknown"
-              }.getOrElse("Unknown")}",
-              List(Expression.MethodCall(None, "getTypedProto"))
+        body = Some(
+          Block.of(
+            Statement.ReturnStmt(
+              Some(
+                Expression.MethodCall(
+                  Some(Expression.Identifier("targetContext")),
+                  s"wrap${cls.implementsTypes.headOption
+                      .map {
+                        case TypeRef.NamedType(n) => n
+                        case _                    => "Unknown"
+                      }
+                      .getOrElse("Unknown")}",
+                  List(Expression.MethodCall(None, "getTypedProto"))
+                )
+              )
             )
-          ))
-        ))
+          )
+        )
       ),
       // getFieldsInaccessibleInVersion — abstract, implemented by version impls
       MethodOp(

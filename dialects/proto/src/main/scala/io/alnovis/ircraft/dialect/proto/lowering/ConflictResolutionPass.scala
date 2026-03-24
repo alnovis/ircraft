@@ -5,7 +5,8 @@ import io.alnovis.ircraft.core.Traversal.*
 import io.alnovis.ircraft.dialect.semantic.ops.*
 import io.alnovis.ircraft.dialect.semantic.expr.*
 
-/** Enriches Semantic IR with conflict-specific methods based on proto metadata attributes.
+/**
+  * Enriches Semantic IR with conflict-specific methods based on proto metadata attributes.
   *
   * For each getter method with a non-None conflictType attribute, generates additional methods in the interface and
   * abstract class. Does not modify impl classes — extract methods handle type conversion.
@@ -19,7 +20,7 @@ object ConflictResolutionPass extends Pass:
 
   def run(module: Module, context: PassContext): PassResult =
     val transformed = module.transform:
-      case iface: InterfaceOp => enrichInterface(iface)
+      case iface: InterfaceOp             => enrichInterface(iface)
       case cls: ClassOp if cls.isAbstract => enrichAbstractClass(cls)
     PassResult(transformed)
 
@@ -63,23 +64,27 @@ object ConflictResolutionPass extends Pass:
   // ── Conflict method generation ─────────────────────────────────────────
 
   private def conflictMethodsForInterface(m: MethodOp): Vector[MethodOp] =
-    val ct = m.attributes.getString(ProtoAttributes.ConflictType).getOrElse("None")
+    val ct        = m.attributes.getString(ProtoAttributes.ConflictType).getOrElse("None")
     val fieldName = extractFieldName(m.name)
     ct match
       case "IntEnum" =>
-        Vector(MethodOp(
-          s"get${fieldName}Enum",
-          TypeRef.NamedType(s"${fieldName}Enum"),
-          modifiers = Set(Modifier.Public, Modifier.Abstract),
-          javadoc = Some(s"Returns the ${fieldName} value as enum (for INT_ENUM conflict).")
-        ))
+        Vector(
+          MethodOp(
+            s"get${fieldName}Enum",
+            TypeRef.NamedType(s"${fieldName}Enum"),
+            modifiers = Set(Modifier.Public, Modifier.Abstract),
+            javadoc = Some(s"Returns the ${fieldName} value as enum (for INT_ENUM conflict).")
+          )
+        )
       case "StringBytes" =>
-        Vector(MethodOp(
-          s"get${fieldName}Bytes",
-          TypeRef.BYTES,
-          modifiers = Set(Modifier.Public, Modifier.Abstract),
-          javadoc = Some(s"Returns the ${fieldName} value as bytes (for STRING_BYTES conflict).")
-        ))
+        Vector(
+          MethodOp(
+            s"get${fieldName}Bytes",
+            TypeRef.BYTES,
+            modifiers = Set(Modifier.Public, Modifier.Abstract),
+            javadoc = Some(s"Returns the ${fieldName} value as bytes (for STRING_BYTES conflict).")
+          )
+        )
       case "PrimitiveMessage" =>
         Vector(
           MethodOp(
@@ -98,7 +103,7 @@ object ConflictResolutionPass extends Pass:
       case _ => Vector.empty
 
   private def conflictMethodsForAbstract(m: MethodOp): Vector[MethodOp] =
-    val ct = m.attributes.getString(ProtoAttributes.ConflictType).getOrElse("None")
+    val ct        = m.attributes.getString(ProtoAttributes.ConflictType).getOrElse("None")
     val fieldName = extractFieldName(m.name)
     ct match
       case "IntEnum" =>
@@ -112,9 +117,11 @@ object ConflictResolutionPass extends Pass:
             s"get${fieldName}Enum",
             TypeRef.NamedType(s"${fieldName}Enum"),
             modifiers = Set(Modifier.Public, Modifier.Override),
-            body = Some(Block.of(
-              Statement.ReturnStmt(Some(Expression.MethodCall(None, s"extract${fieldName}Enum")))
-            ))
+            body = Some(
+              Block.of(
+                Statement.ReturnStmt(Some(Expression.MethodCall(None, s"extract${fieldName}Enum")))
+              )
+            )
           )
         )
       case "StringBytes" =>
@@ -128,9 +135,11 @@ object ConflictResolutionPass extends Pass:
             s"get${fieldName}Bytes",
             TypeRef.BYTES,
             modifiers = Set(Modifier.Public, Modifier.Override),
-            body = Some(Block.of(
-              Statement.ReturnStmt(Some(Expression.MethodCall(None, s"extract${fieldName}Bytes")))
-            ))
+            body = Some(
+              Block.of(
+                Statement.ReturnStmt(Some(Expression.MethodCall(None, s"extract${fieldName}Bytes")))
+              )
+            )
           )
         )
       case "PrimitiveMessage" =>
@@ -144,9 +153,11 @@ object ConflictResolutionPass extends Pass:
             s"get${fieldName}Message",
             TypeRef.NamedType("com.google.protobuf.Message"),
             modifiers = Set(Modifier.Public, Modifier.Override),
-            body = Some(Block.of(
-              Statement.ReturnStmt(Some(Expression.MethodCall(None, s"extract${fieldName}Message")))
-            ))
+            body = Some(
+              Block.of(
+                Statement.ReturnStmt(Some(Expression.MethodCall(None, s"extract${fieldName}Message")))
+              )
+            )
           ),
           MethodOp(
             s"supports${fieldName}Message",

@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.dialect.proto.lowering
 
-/** Attribute keys attached to Semantic IR during Proto → Semantic lowering.
+/**
+  * Attribute keys attached to Semantic IR during Proto → Semantic lowering.
   *
   * Subsequent passes (ConflictResolutionPass, HasMethodsPass, etc.) read these attributes to make decisions without
   * importing proto dialect operations.

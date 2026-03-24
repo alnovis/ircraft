@@ -7,16 +7,14 @@ import io.alnovis.ircraft.dialect.semantic.ops.*
 
 class VersionConversionSuite extends munit.FunSuite:
 
-  val config: LoweringConfig = LoweringConfig("com.example.api", "com.example.%s")
+  val config: LoweringConfig            = LoweringConfig("com.example.api", "com.example.%s")
   val lowering: ProtoToSemanticLowering = ProtoToSemanticLowering(config)
-  val ctx: PassContext = PassContext()
+  val ctx: PassContext                  = PassContext()
 
   private def lowerWithConversion(schema: io.alnovis.ircraft.dialect.proto.ops.SchemaOp): Module =
-    Pipeline("test",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
-      lowering,
-      VersionConversionPass,
-    ).run(Module("test", Vector(schema)), ctx).module
+    Pipeline("test", io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, VersionConversionPass)
+      .run(Module("test", Vector(schema)), ctx)
+      .module
 
   test("interface gets asVersion and getFieldsInaccessibleInVersion"):
     val schema = ProtoSchema.build("v1", "v2") { s =>
@@ -25,7 +23,7 @@ class VersionConversionSuite extends munit.FunSuite:
       }
     }
     val module = lowerWithConversion(schema)
-    val iface = module.collect { case i: InterfaceOp => i }.find(_.name == "Money").get
+    val iface  = module.collect { case i: InterfaceOp => i }.find(_.name == "Money").get
 
     assert(iface.methods.exists(_.name == "asVersion"), s"Methods: ${iface.methods.map(_.name)}")
     assert(iface.methods.exists(_.name == "getFieldsInaccessibleInVersion"))
@@ -53,8 +51,8 @@ class VersionConversionSuite extends munit.FunSuite:
         m.field("id", 1, TypeRef.LONG)
       }
     }
-    val module = lowerWithConversion(schema)
-    val absCls = module.collect { case c: ClassOp => c }.find(c => c.isAbstract && c.name == "AbstractOrder").get
+    val module    = lowerWithConversion(schema)
+    val absCls    = module.collect { case c: ClassOp => c }.find(c => c.isAbstract && c.name == "AbstractOrder").get
     val asVersion = absCls.methods.find(_.name == "asVersion").get
 
     assertEquals(asVersion.returnType, TypeRef.NamedType("Order"))

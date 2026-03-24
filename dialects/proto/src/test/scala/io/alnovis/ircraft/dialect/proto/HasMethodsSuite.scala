@@ -7,16 +7,12 @@ import io.alnovis.ircraft.dialect.semantic.ops.*
 
 class HasMethodsSuite extends munit.FunSuite:
 
-  val config: LoweringConfig = LoweringConfig("com.example.api", "com.example.%s")
+  val config: LoweringConfig            = LoweringConfig("com.example.api", "com.example.%s")
   val lowering: ProtoToSemanticLowering = ProtoToSemanticLowering(config)
-  val ctx: PassContext = PassContext()
+  val ctx: PassContext                  = PassContext()
 
   private def lowerAndEnrich(schema: io.alnovis.ircraft.dialect.proto.ops.SchemaOp): Module =
-    val pipeline = Pipeline("test",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
-      lowering,
-      HasMethodsPass,
-    )
+    val pipeline = Pipeline("test", io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, HasMethodsPass)
     pipeline.run(Module("test", Vector(schema)), ctx).module
 
   test("optional field gets hasXxx in interface"):
@@ -27,8 +23,11 @@ class HasMethodsSuite extends munit.FunSuite:
     }
 
     val module = lowerAndEnrich(schema)
-    val iface = module.topLevel.collect { case f: FileOp => f }
-      .flatMap(_.types).collectFirst { case i: InterfaceOp => i }.get
+    val iface = module.topLevel
+      .collect { case f: FileOp => f }
+      .flatMap(_.types)
+      .collectFirst { case i: InterfaceOp => i }
+      .get
 
     assert(iface.methods.exists(_.name == "getName"))
     assert(iface.methods.exists(_.name == "hasName"), s"Methods: ${iface.methods.map(_.name)}")
@@ -41,8 +40,11 @@ class HasMethodsSuite extends munit.FunSuite:
     }
 
     val module = lowerAndEnrich(schema)
-    val iface = module.topLevel.collect { case f: FileOp => f }
-      .flatMap(_.types).collectFirst { case i: InterfaceOp => i }.get
+    val iface = module.topLevel
+      .collect { case f: FileOp => f }
+      .flatMap(_.types)
+      .collectFirst { case i: InterfaceOp => i }
+      .get
 
     assert(!iface.methods.exists(_.name == "hasId"))
 
@@ -55,8 +57,11 @@ class HasMethodsSuite extends munit.FunSuite:
     }
 
     val module = lowerAndEnrich(schema)
-    val iface = module.topLevel.collect { case f: FileOp => f }
-      .flatMap(_.types).collectFirst { case i: InterfaceOp => i }.get
+    val iface = module.topLevel
+      .collect { case f: FileOp => f }
+      .flatMap(_.types)
+      .collectFirst { case i: InterfaceOp => i }
+      .get
 
     assert(!iface.methods.exists(_.name == "supportsId"), "id is in all versions")
     assert(iface.methods.exists(_.name == "supportsNotes"), s"Methods: ${iface.methods.map(_.name)}")
@@ -69,8 +74,11 @@ class HasMethodsSuite extends munit.FunSuite:
     }
 
     val module = lowerAndEnrich(schema)
-    val absCls = module.topLevel.collect { case f: FileOp => f }
-      .flatMap(_.types).collectFirst { case c: ClassOp if c.isAbstract => c }.get
+    val absCls = module.topLevel
+      .collect { case f: FileOp => f }
+      .flatMap(_.types)
+      .collectFirst { case c: ClassOp if c.isAbstract => c }
+      .get
 
     assert(absCls.methods.exists(_.name == "extractHasName"), s"Methods: ${absCls.methods.map(_.name)}")
     assert(absCls.methods.exists(_.name == "hasName"))
@@ -83,15 +91,19 @@ class HasMethodsSuite extends munit.FunSuite:
       }
     }
 
-    val pipeline = Pipeline("full",
+    val pipeline = Pipeline(
+      "full",
       io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
       lowering,
       ConflictResolutionPass,
-      HasMethodsPass,
+      HasMethodsPass
     )
     val module = pipeline.run(Module("test", Vector(schema)), ctx).module
-    val iface = module.topLevel.collect { case f: FileOp => f }
-      .flatMap(_.types).collectFirst { case i: InterfaceOp => i }.get
+    val iface = module.topLevel
+      .collect { case f: FileOp => f }
+      .flatMap(_.types)
+      .collectFirst { case i: InterfaceOp => i }
+      .get
 
     assert(iface.methods.exists(_.name == "hasAmount"))
     assert(iface.methods.exists(_.name == "supportsNotes"))

@@ -5,7 +5,8 @@ import io.alnovis.ircraft.core.Traversal.*
 import io.alnovis.ircraft.dialect.semantic.ops.*
 import io.alnovis.ircraft.dialect.semantic.expr.*
 
-/** Adds common utility methods to abstract classes: equals, hashCode, toString, serialization.
+/**
+  * Adds common utility methods to abstract classes: equals, hashCode, toString, serialization.
   *
   * Adds to abstract class:
   *   - `equals(Object)` — compare versionId + proto
@@ -35,9 +36,11 @@ object CommonMethodsPass extends Pass:
       "getTypedProto",
       TypeRef.NamedType("com.google.protobuf.Message"),
       modifiers = Set(Modifier.Public, Modifier.Override),
-      body = Some(Block.of(
-        Statement.ReturnStmt(Some(Expression.Identifier("proto")))
-      ))
+      body = Some(
+        Block.of(
+          Statement.ReturnStmt(Some(Expression.Identifier("proto")))
+        )
+      )
     )
 
     // getWrapperVersionId() → abstract
@@ -59,9 +62,11 @@ object CommonMethodsPass extends Pass:
       "toBytes",
       TypeRef.BYTES,
       modifiers = Set(Modifier.Public, Modifier.Override),
-      body = Some(Block.of(
-        Statement.ReturnStmt(Some(Expression.MethodCall(None, "serializeToBytes")))
-      ))
+      body = Some(
+        Block.of(
+          Statement.ReturnStmt(Some(Expression.MethodCall(None, "serializeToBytes")))
+        )
+      )
     )
 
     // toString()
@@ -70,23 +75,27 @@ object CommonMethodsPass extends Pass:
       TypeRef.STRING,
       modifiers = Set(Modifier.Public, Modifier.Override),
       annotations = List("Override"),
-      body = Some(Block.of(
-        Statement.ReturnStmt(Some(
-          Expression.BinaryOp(
-            Expression.BinaryOp(
+      body = Some(
+        Block.of(
+          Statement.ReturnStmt(
+            Some(
               Expression.BinaryOp(
-                Expression.Literal(s""""${cls.name}["""", TypeRef.STRING),
+                Expression.BinaryOp(
+                  Expression.BinaryOp(
+                    Expression.Literal(s""""${cls.name}["""", TypeRef.STRING),
+                    BinOperator.Add,
+                    Expression.MethodCall(None, "getWrapperVersionId")
+                  ),
+                  BinOperator.Add,
+                  Expression.Literal(""""] """", TypeRef.STRING)
+                ),
                 BinOperator.Add,
-                Expression.MethodCall(None, "getWrapperVersionId")
-              ),
-              BinOperator.Add,
-              Expression.Literal(""""] """", TypeRef.STRING)
-            ),
-            BinOperator.Add,
-            Expression.MethodCall(Some(Expression.Identifier("proto")), "toString")
+                Expression.MethodCall(Some(Expression.Identifier("proto")), "toString")
+              )
+            )
           )
-        ))
-      ))
+        )
+      )
     )
 
     // equals(Object)
@@ -96,39 +105,47 @@ object CommonMethodsPass extends Pass:
       parameters = List(Parameter("obj", TypeRef.NamedType("Object"))),
       modifiers = Set(Modifier.Public, Modifier.Override),
       annotations = List("Override"),
-      body = Some(Block.of(
-        Statement.IfStmt(
-          Expression.BinaryOp(Expression.ThisRef, BinOperator.Eq, Expression.Identifier("obj")),
-          Block.of(Statement.ReturnStmt(Some(Expression.Literal("true", TypeRef.BOOL)))),
-          None
-        ),
-        Statement.IfStmt(
-          Expression.BinaryOp(Expression.Identifier("obj"), BinOperator.Eq, Expression.NullLiteral),
-          Block.of(Statement.ReturnStmt(Some(Expression.Literal("false", TypeRef.BOOL)))),
-          None
-        ),
-        Statement.ReturnStmt(Some(
-          Expression.BinaryOp(
-            Expression.MethodCall(
-              Some(Expression.MethodCall(None, "getWrapperVersionId")),
-              "equals",
-              List(Expression.MethodCall(
-                Some(Expression.Cast(Expression.Identifier("obj"), TypeRef.NamedType(cls.name))),
-                "getWrapperVersionId"
-              ))
-            ),
-            BinOperator.And,
-            Expression.MethodCall(
-              Some(Expression.Identifier("proto")),
-              "equals",
-              List(Expression.FieldAccess(
-                Expression.Cast(Expression.Identifier("obj"), TypeRef.NamedType(cls.name)),
-                "proto"
-              ))
+      body = Some(
+        Block.of(
+          Statement.IfStmt(
+            Expression.BinaryOp(Expression.ThisRef, BinOperator.Eq, Expression.Identifier("obj")),
+            Block.of(Statement.ReturnStmt(Some(Expression.Literal("true", TypeRef.BOOL)))),
+            None
+          ),
+          Statement.IfStmt(
+            Expression.BinaryOp(Expression.Identifier("obj"), BinOperator.Eq, Expression.NullLiteral),
+            Block.of(Statement.ReturnStmt(Some(Expression.Literal("false", TypeRef.BOOL)))),
+            None
+          ),
+          Statement.ReturnStmt(
+            Some(
+              Expression.BinaryOp(
+                Expression.MethodCall(
+                  Some(Expression.MethodCall(None, "getWrapperVersionId")),
+                  "equals",
+                  List(
+                    Expression.MethodCall(
+                      Some(Expression.Cast(Expression.Identifier("obj"), TypeRef.NamedType(cls.name))),
+                      "getWrapperVersionId"
+                    )
+                  )
+                ),
+                BinOperator.And,
+                Expression.MethodCall(
+                  Some(Expression.Identifier("proto")),
+                  "equals",
+                  List(
+                    Expression.FieldAccess(
+                      Expression.Cast(Expression.Identifier("obj"), TypeRef.NamedType(cls.name)),
+                      "proto"
+                    )
+                  )
+                )
+              )
             )
           )
-        ))
-      ))
+        )
+      )
     )
 
     // hashCode()
@@ -137,22 +154,26 @@ object CommonMethodsPass extends Pass:
       TypeRef.INT,
       modifiers = Set(Modifier.Public, Modifier.Override),
       annotations = List("Override"),
-      body = Some(Block.of(
-        Statement.ReturnStmt(Some(
-          Expression.BinaryOp(
-            Expression.BinaryOp(
-              Expression.Literal("31", TypeRef.INT),
-              BinOperator.Mul,
-              Expression.MethodCall(
-                Some(Expression.MethodCall(None, "getWrapperVersionId")),
-                "hashCode"
+      body = Some(
+        Block.of(
+          Statement.ReturnStmt(
+            Some(
+              Expression.BinaryOp(
+                Expression.BinaryOp(
+                  Expression.Literal("31", TypeRef.INT),
+                  BinOperator.Mul,
+                  Expression.MethodCall(
+                    Some(Expression.MethodCall(None, "getWrapperVersionId")),
+                    "hashCode"
+                  )
+                ),
+                BinOperator.Add,
+                Expression.MethodCall(Some(Expression.Identifier("proto")), "hashCode")
               )
-            ),
-            BinOperator.Add,
-            Expression.MethodCall(Some(Expression.Identifier("proto")), "hashCode")
+            )
           )
-        ))
-      ))
+        )
+      )
     )
 
     ClassOp(

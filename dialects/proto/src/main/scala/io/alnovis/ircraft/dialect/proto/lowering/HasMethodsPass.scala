@@ -4,7 +4,8 @@ import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.core.Traversal.*
 import io.alnovis.ircraft.dialect.semantic.ops.*
 
-/** Adds `hasXxx()` and `supportsXxx()` methods to interfaces and abstract classes.
+/**
+  * Adds `hasXxx()` and `supportsXxx()` methods to interfaces and abstract classes.
   *
   *   - `hasXxx()` for optional fields → delegates to proto `hasXxx()`
   *   - `supportsXxx()` for fields not present in all versions → returns version check
@@ -18,12 +19,12 @@ object HasMethodsPass extends Pass:
 
   def run(module: Module, context: PassContext): PassResult =
     val transformed = module.transform:
-      case iface: InterfaceOp => enrichInterface(iface)
+      case iface: InterfaceOp             => enrichInterface(iface)
       case cls: ClassOp if cls.isAbstract => enrichAbstractClass(cls)
     PassResult(transformed)
 
   private def enrichInterface(iface: InterfaceOp): InterfaceOp =
-    val schemaVersions = iface.attributes.getStringList(ProtoAttributes.SchemaVersions).getOrElse(Nil)
+    val schemaVersions    = iface.attributes.getStringList(ProtoAttributes.SchemaVersions).getOrElse(Nil)
     val additionalMethods = iface.methods.flatMap(m => hasMethodsForInterface(m, schemaVersions))
     if additionalMethods.isEmpty then iface
     else
@@ -41,7 +42,7 @@ object HasMethodsPass extends Pass:
       )
 
   private def enrichAbstractClass(cls: ClassOp): ClassOp =
-    val schemaVersions = cls.attributes.getStringList(ProtoAttributes.SchemaVersions).getOrElse(Nil)
+    val schemaVersions    = cls.attributes.getStringList(ProtoAttributes.SchemaVersions).getOrElse(Nil)
     val additionalMethods = cls.methods.flatMap(m => hasMethodsForAbstract(m, schemaVersions))
     if additionalMethods.isEmpty then cls
     else

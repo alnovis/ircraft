@@ -1,6 +1,6 @@
 package io.alnovis.ircraft.dialect.scala3.types
 
-import io.alnovis.ircraft.core.{LanguageTypeMapping, TypeRef}
+import io.alnovis.ircraft.core.{ LanguageTypeMapping, TypeRef }
 import io.alnovis.ircraft.core.TypeRef.*
 
 /** Maps ircraft TypeRef to Scala 3 type strings. */
@@ -18,7 +18,7 @@ object ScalaTypeMapping extends LanguageTypeMapping:
     case PrimitiveType.Bytes                                                 => "Array[Byte]"
     case VoidType                                                            => "Unit"
     case NamedType(fqn)                                                      => simpleName(fqn)
-    case ListType(elem)                => s"List[${toLanguageType(elem)}]"
+    case ListType(elem)                                                      => s"List[${toLanguageType(elem)}]"
     case MapType(k, v)                 => s"Map[${toLanguageType(k)}, ${toLanguageType(v)}]"
     case OptionalType(inner)           => s"Option[${toLanguageType(inner)}]"
     case EnumType(fqn, _)              => simpleName(fqn)

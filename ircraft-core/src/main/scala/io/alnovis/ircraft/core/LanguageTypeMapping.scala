@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.core
 
-/** Maps ircraft TypeRef to language-specific type strings.
+/**
+  * Maps ircraft TypeRef to language-specific type strings.
   *
   * Each language dialect implements this trait to provide type name resolution, boxing (for generics), and import
   * collection.

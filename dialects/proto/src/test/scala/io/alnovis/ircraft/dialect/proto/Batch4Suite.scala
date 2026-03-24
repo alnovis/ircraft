@@ -7,7 +7,7 @@ import io.alnovis.ircraft.dialect.semantic.ops.*
 
 class Batch4Suite extends munit.FunSuite:
 
-  val config: LoweringConfig = LoweringConfig("com.example.api", "com.example.%s")
+  val config: LoweringConfig            = LoweringConfig("com.example.api", "com.example.%s")
   val lowering: ProtoToSemanticLowering = ProtoToSemanticLowering(config)
 
   // ── ValidationAnnotationsPass ──────────────────────────────────────────
@@ -19,11 +19,14 @@ class Batch4Suite extends munit.FunSuite:
         m.field("item", 1, TypeRef.NamedType("Item"))
       }
     }
-    val module = Pipeline("test",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, ValidationAnnotationsPass
+    val module = Pipeline(
+      "test",
+      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
+      lowering,
+      ValidationAnnotationsPass
     ).run(Module("test", Vector(schema)), ctx).module
 
-    val iface = module.collect { case i: InterfaceOp => i }.find(_.name == "Order").get
+    val iface  = module.collect { case i: InterfaceOp => i }.find(_.name == "Order").get
     val getter = iface.methods.find(_.name == "getItem").get
     assert(getter.annotations.contains("NotNull"), s"Annotations: ${getter.annotations}")
 
@@ -34,11 +37,14 @@ class Batch4Suite extends munit.FunSuite:
         m.field("notes", 1, TypeRef.STRING, optional = true)
       }
     }
-    val module = Pipeline("test",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, ValidationAnnotationsPass
+    val module = Pipeline(
+      "test",
+      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
+      lowering,
+      ValidationAnnotationsPass
     ).run(Module("test", Vector(schema)), ctx).module
 
-    val iface = module.collect { case i: InterfaceOp => i }.find(_.name == "Order").get
+    val iface  = module.collect { case i: InterfaceOp => i }.find(_.name == "Order").get
     val getter = iface.methods.find(_.name == "getNotes").get
     assert(!getter.annotations.contains("NotNull"))
 
@@ -49,11 +55,14 @@ class Batch4Suite extends munit.FunSuite:
         m.field("items", 1, TypeRef.NamedType("Item"), repeated = true)
       }
     }
-    val module = Pipeline("test",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, ValidationAnnotationsPass
+    val module = Pipeline(
+      "test",
+      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
+      lowering,
+      ValidationAnnotationsPass
     ).run(Module("test", Vector(schema)), ctx).module
 
-    val iface = module.collect { case i: InterfaceOp => i }.find(_.name == "Order").get
+    val iface  = module.collect { case i: InterfaceOp => i }.find(_.name == "Order").get
     val getter = iface.methods.find(_.name == "getItems").get
     assert(getter.annotations.contains("NotNull"))
 
@@ -64,11 +73,14 @@ class Batch4Suite extends munit.FunSuite:
         m.field("item", 1, TypeRef.NamedType("Item"))
       }
     }
-    val module = Pipeline("test",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, ValidationAnnotationsPass
+    val module = Pipeline(
+      "test",
+      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
+      lowering,
+      ValidationAnnotationsPass
     ).run(Module("test", Vector(schema)), ctx).module
 
-    val iface = module.collect { case i: InterfaceOp => i }.find(_.name == "Order").get
+    val iface  = module.collect { case i: InterfaceOp => i }.find(_.name == "Order").get
     val getter = iface.methods.find(_.name == "getItem").get
     assert(!getter.annotations.contains("NotNull"))
 
@@ -81,8 +93,11 @@ class Batch4Suite extends munit.FunSuite:
         m.field("amount", 1, TypeRef.LONG)
       }
     }
-    val module = Pipeline("test",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, SchemaMetadataPass
+    val module = Pipeline(
+      "test",
+      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
+      lowering,
+      SchemaMetadataPass
     ).run(Module("test", Vector(schema)), ctx).module
 
     val v1Info = module.collect { case c: ClassOp => c }.find(_.name == "SchemaInfoV1")
@@ -102,8 +117,11 @@ class Batch4Suite extends munit.FunSuite:
         m.field("amount", 1, TypeRef.LONG)
       }
     }
-    val module = Pipeline("test",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, SchemaMetadataPass
+    val module = Pipeline(
+      "test",
+      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
+      lowering,
+      SchemaMetadataPass
     ).run(Module("test", Vector(schema)), ctx).module
 
     val infoClasses = module.collect { case c: ClassOp => c }.filter(_.name.startsWith("SchemaInfo"))
@@ -112,11 +130,13 @@ class Batch4Suite extends munit.FunSuite:
   // ── Full pipeline with all passes ──────────────────────────────────────
 
   test("all passes compose into full pipeline"):
-    val ctx = PassContext(config = Map(
-      "generateBuilders" -> "true",
-      "generateValidationAnnotations" -> "true",
-      "generateSchemaMetadata" -> "true",
-    ))
+    val ctx = PassContext(config =
+      Map(
+        "generateBuilders"              -> "true",
+        "generateValidationAnnotations" -> "true",
+        "generateSchemaMetadata"        -> "true"
+      )
+    )
     val schema = ProtoSchema.build("v1", "v2") { s =>
       s.message("Money") { m =>
         m.field("amount", 1, TypeRef.LONG, optional = true)
@@ -128,7 +148,8 @@ class Batch4Suite extends munit.FunSuite:
       }
     }
 
-    val pipeline = Pipeline("full-pipeline",
+    val pipeline = Pipeline(
+      "full-pipeline",
       io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
       lowering,
       ConflictResolutionPass,
@@ -141,7 +162,7 @@ class Batch4Suite extends munit.FunSuite:
       BuilderPass,
       WktConversionPass,
       ValidationAnnotationsPass,
-      SchemaMetadataPass,
+      SchemaMetadataPass
     )
     val result = pipeline.run(Module("test", Vector(schema)), ctx)
     assert(result.isSuccess, s"Pipeline failed: ${result.diagnostics}")

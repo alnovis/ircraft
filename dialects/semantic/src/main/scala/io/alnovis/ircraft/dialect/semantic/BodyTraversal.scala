@@ -6,7 +6,8 @@ import io.alnovis.ircraft.dialect.semantic.expr.*
 import io.alnovis.ircraft.dialect.semantic.expr.ExprTraversal.*
 import io.alnovis.ircraft.dialect.semantic.ops.*
 
-/** Bridge between Operation-level traversal and Expression-level traversal.
+/**
+  * Bridge between Operation-level traversal and Expression-level traversal.
   *
   * Provides Module-level methods to reach into method/constructor bodies.
   */

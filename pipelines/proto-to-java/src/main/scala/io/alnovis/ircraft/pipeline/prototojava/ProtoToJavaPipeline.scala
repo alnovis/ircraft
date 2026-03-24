@@ -40,7 +40,7 @@ class ProtoToJavaPipeline(config: LoweringConfig):
     BuilderPass,
     WktConversionPass,
     ValidationAnnotationsPass,
-    SchemaMetadataPass,
+    SchemaMetadataPass
   )
 
   private val emitter: Emitter = DirectJavaEmitter()

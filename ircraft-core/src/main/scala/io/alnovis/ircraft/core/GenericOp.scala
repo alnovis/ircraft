@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.core
 
-/** A generic operation that stores all data in AttributeMap and Region vectors.
+/**
+  * A generic operation that stores all data in AttributeMap and Region vectors.
   *
   * GenericOp is the runtime representation for operations defined via GenericDialect. It trades compile-time field type
   * safety for zero-boilerplate dialect creation.

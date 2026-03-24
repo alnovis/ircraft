@@ -10,7 +10,7 @@ class ScalaEmitterSuite extends munit.FunSuite:
   val emitter = DirectScalaEmitter()
 
   private def emitSingle(pkg: String, op: Operation): String =
-    val file = FileOp(pkg, Vector(op))
+    val file   = FileOp(pkg, Vector(op))
     val module = Module("test", Vector(file))
     emitter.emit(module).values.head
 
@@ -68,11 +68,15 @@ class ScalaEmitterSuite extends munit.FunSuite:
           "extractAmount",
           TypeRef.LONG,
           modifiers = Set(Modifier.Protected, Modifier.Override),
-          body = Some(Block.of(
-            Statement.ReturnStmt(Some(
-              Expression.MethodCall(Some(Expression.Identifier("proto")), "getAmount")
-            ))
-          ))
+          body = Some(
+            Block.of(
+              Statement.ReturnStmt(
+                Some(
+                  Expression.MethodCall(Some(Expression.Identifier("proto")), "getAmount")
+                )
+              )
+            )
+          )
         )
       )
     )
@@ -109,7 +113,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
   test("Option type for optional"):
     val iface = InterfaceOp(
       name = "Data",
-      methods = Vector(MethodOp("getName", TypeRef.OptionalType(TypeRef.STRING), modifiers = Set(Modifier.Public, Modifier.Abstract)))
+      methods = Vector(
+        MethodOp("getName", TypeRef.OptionalType(TypeRef.STRING), modifiers = Set(Modifier.Public, Modifier.Abstract))
+      )
     )
     val source = emitSingle("com.example", iface)
     assert(source.contains("def getName: Option[String]"), s"Source:\n$source")
@@ -117,7 +123,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
   test("List with square brackets"):
     val iface = InterfaceOp(
       name = "Data",
-      methods = Vector(MethodOp("getItems", TypeRef.ListType(TypeRef.STRING), modifiers = Set(Modifier.Public, Modifier.Abstract)))
+      methods = Vector(
+        MethodOp("getItems", TypeRef.ListType(TypeRef.STRING), modifiers = Set(Modifier.Public, Modifier.Abstract))
+      )
     )
     val source = emitSingle("com.example", iface)
     assert(source.contains("def getItems: List[String]"), s"Source:\n$source")
@@ -127,11 +135,22 @@ class ScalaEmitterSuite extends munit.FunSuite:
   test("cast uses asInstanceOf"):
     val cls = ClassOp(
       name = "Test",
-      methods = Vector(MethodOp("convert", TypeRef.STRING,
-        modifiers = Set(Modifier.Public),
-        body = Some(Block.of(Statement.ReturnStmt(Some(
-          Expression.Cast(Expression.Identifier("obj"), TypeRef.STRING)
-        ))))))
+      methods = Vector(
+        MethodOp(
+          "convert",
+          TypeRef.STRING,
+          modifiers = Set(Modifier.Public),
+          body = Some(
+            Block.of(
+              Statement.ReturnStmt(
+                Some(
+                  Expression.Cast(Expression.Identifier("obj"), TypeRef.STRING)
+                )
+              )
+            )
+          )
+        )
+      )
     )
     val source = emitSingle("com.example", cls)
     assert(source.contains("obj.asInstanceOf[String]"), s"Source:\n$source")
@@ -139,15 +158,26 @@ class ScalaEmitterSuite extends munit.FunSuite:
   test("conditional uses if-then-else"):
     val cls = ClassOp(
       name = "Test",
-      methods = Vector(MethodOp("check", TypeRef.STRING,
-        modifiers = Set(Modifier.Public),
-        body = Some(Block.of(Statement.ReturnStmt(Some(
-          Expression.Conditional(
-            Expression.Identifier("flag"),
-            Expression.Literal("\"yes\"", TypeRef.STRING),
-            Expression.Literal("\"no\"", TypeRef.STRING)
+      methods = Vector(
+        MethodOp(
+          "check",
+          TypeRef.STRING,
+          modifiers = Set(Modifier.Public),
+          body = Some(
+            Block.of(
+              Statement.ReturnStmt(
+                Some(
+                  Expression.Conditional(
+                    Expression.Identifier("flag"),
+                    Expression.Literal("\"yes\"", TypeRef.STRING),
+                    Expression.Literal("\"no\"", TypeRef.STRING)
+                  )
+                )
+              )
+            )
           )
-        ))))))
+        )
+      )
     )
     val source = emitSingle("com.example", cls)
     assert(source.contains("if flag then"), s"Source:\n$source")
@@ -159,8 +189,12 @@ class ScalaEmitterSuite extends munit.FunSuite:
       name = "Versions",
       modifiers = Set(Modifier.Public, Modifier.Final),
       fields = Vector(
-        FieldDeclOp("INSTANCE", TypeRef.NamedType("Versions"), Set(Modifier.Public, Modifier.Static, Modifier.Final),
-          defaultValue = Some("Versions()"))
+        FieldDeclOp(
+          "INSTANCE",
+          TypeRef.NamedType("Versions"),
+          Set(Modifier.Public, Modifier.Static, Modifier.Final),
+          defaultValue = Some("Versions()")
+        )
       )
     )
     val source = emitSingle("com.example", cls)

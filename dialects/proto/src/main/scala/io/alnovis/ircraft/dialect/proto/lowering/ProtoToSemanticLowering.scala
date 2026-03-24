@@ -44,17 +44,20 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
     for e <- schema.enums do
       scala.util.Try(lowerEnum(e)) match
         case scala.util.Success(file) => ops += file
-        case scala.util.Failure(ex)   => diags += DiagnosticMessage.error(s"Failed to lower enum '${e.name}': ${ex.getMessage}")
+        case scala.util.Failure(ex) =>
+          diags += DiagnosticMessage.error(s"Failed to lower enum '${e.name}': ${ex.getMessage}")
 
     for c <- schema.conflictEnums do
       scala.util.Try(lowerConflictEnum(c)) match
         case scala.util.Success(file) => ops += file
-        case scala.util.Failure(ex)   => diags += DiagnosticMessage.error(s"Failed to lower conflict enum '${c.enumName}': ${ex.getMessage}")
+        case scala.util.Failure(ex) =>
+          diags += DiagnosticMessage.error(s"Failed to lower conflict enum '${c.enumName}': ${ex.getMessage}")
 
     for m <- schema.messages do
       scala.util.Try(lowerMessage(m, schema.versions)) match
         case scala.util.Success(files) => ops ++= files
-        case scala.util.Failure(ex)    => diags += DiagnosticMessage.error(s"Failed to lower message '${m.name}': ${ex.getMessage}")
+        case scala.util.Failure(ex) =>
+          diags += DiagnosticMessage.error(s"Failed to lower message '${m.name}': ${ex.getMessage}")
 
     (ops.result(), diags.result())
 
@@ -141,7 +144,8 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
   private def lowerToInterfaceOp(msg: MessageOp): InterfaceOp =
     val getters = msg.fields.map(fieldToGetter)
     val nestedEnums = msg.nestedEnums.map: e =>
-      val constants = e.values.map(v => EnumConstantOp(v.name, List(Expression.Literal(v.number.toString, TypeRef.INT))))
+      val constants =
+        e.values.map(v => EnumConstantOp(v.name, List(Expression.Literal(v.number.toString, TypeRef.INT))))
       EnumClassOp(e.name, constants = constants)
     val nestedInterfaces = msg.nestedMessages.map(lowerToInterfaceOp)
     InterfaceOp(
@@ -267,17 +271,27 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
     val constructor = ConstructorOp(
       parameters = List(Parameter("proto", TypeRef.NamedType("PROTO"))),
       modifiers = Set(Modifier.Protected),
-      body = Some(Block.of(
-        Statement.Assignment(Expression.FieldAccess(Expression.ThisRef, "proto"), Expression.Identifier("proto"))
-      ))
+      body = Some(
+        Block.of(
+          Statement.Assignment(Expression.FieldAccess(Expression.ThisRef, "proto"), Expression.Identifier("proto"))
+        )
+      )
     )
     val extractMethods = msg.fields.map: f =>
-      MethodOp(s"extract${f.javaName.capitalize}", resolveGetterType(f),
-        modifiers = Set(Modifier.Protected, Modifier.Abstract), attributes = fieldAttributes(f))
+      MethodOp(
+        s"extract${f.javaName.capitalize}",
+        resolveGetterType(f),
+        modifiers = Set(Modifier.Protected, Modifier.Abstract),
+        attributes = fieldAttributes(f)
+      )
     val getterImpls = msg.fields.map: f =>
-      MethodOp(s"get${f.javaName.capitalize}", resolveGetterType(f),
+      MethodOp(
+        s"get${f.javaName.capitalize}",
+        resolveGetterType(f),
         modifiers = Set(Modifier.Public, Modifier.Override),
-        body = Some(Block.of(Statement.ReturnStmt(Some(Expression.MethodCall(None, s"extract${f.javaName.capitalize}"))))))
+        body =
+          Some(Block.of(Statement.ReturnStmt(Some(Expression.MethodCall(None, s"extract${f.javaName.capitalize}")))))
+      )
     val nestedAbstract = msg.nestedMessages.map(n => lowerToAbstractClassOp(n, versions))
 
     ClassOp(
@@ -288,7 +302,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       fields = Vector(protoField),
       constructors = Vector(constructor),
       methods = extractMethods ++ getterImpls,
-      nestedTypes = (nestedAbstract: Vector[Operation]),
+      nestedTypes = nestedAbstract: Vector[Operation],
       attributes = messageAttributes(msg, versions)
     )
 
@@ -298,26 +312,45 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
     val constructor = ConstructorOp(
       parameters = List(Parameter("proto", TypeRef.NamedType(protoTypeName))),
       modifiers = Set(Modifier.Public),
-      body = Some(Block.of(
-        Statement.ExpressionStmt(Expression.MethodCall(Some(Expression.SuperRef), "this", List(Expression.Identifier("proto"))))
-      ))
+      body = Some(
+        Block.of(
+          Statement.ExpressionStmt(
+            Expression.MethodCall(Some(Expression.SuperRef), "this", List(Expression.Identifier("proto")))
+          )
+        )
+      )
     )
-    val extractImpls = msg.fields.filter(_.presentInVersions.contains(version)).map: f =>
-      MethodOp(s"extract${f.javaName.capitalize}", resolveGetterType(f),
-        modifiers = Set(Modifier.Protected, Modifier.Override),
-        body = Some(Block.of(Statement.ReturnStmt(Some(
-          Expression.MethodCall(Some(Expression.Identifier("proto")), s"get${f.javaName.capitalize}"))))))
-    val nestedImpls = msg.nestedMessages.filter(_.presentInVersions.contains(version))
+    val extractImpls = msg.fields
+      .filter(_.presentInVersions.contains(version))
+      .map: f =>
+        MethodOp(
+          s"extract${f.javaName.capitalize}",
+          resolveGetterType(f),
+          modifiers = Set(Modifier.Protected, Modifier.Override),
+          body = Some(
+            Block.of(
+              Statement.ReturnStmt(
+                Some(Expression.MethodCall(Some(Expression.Identifier("proto")), s"get${f.javaName.capitalize}"))
+              )
+            )
+          )
+        )
+    val nestedImpls = msg.nestedMessages
+      .filter(_.presentInVersions.contains(version))
       .map(n => lowerToImplClassOp(n, version))
 
     ClassOp(
       name = s"${msg.name}$versionSuffix",
       modifiers = Set(Modifier.Public, Modifier.Static),
-      superClass = Some(TypeRef.ParameterizedType(
-        TypeRef.NamedType(s"${config.abstractClassPrefix}${msg.name}"), List(TypeRef.NamedType(protoTypeName)))),
+      superClass = Some(
+        TypeRef.ParameterizedType(
+          TypeRef.NamedType(s"${config.abstractClassPrefix}${msg.name}"),
+          List(TypeRef.NamedType(protoTypeName))
+        )
+      ),
       constructors = Vector(constructor),
       methods = extractImpls,
-      nestedTypes = (nestedImpls: Vector[Operation]),
+      nestedTypes = nestedImpls: Vector[Operation],
       attributes = implAttributes(msg, version)
     )
 
@@ -345,14 +378,14 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
   private def messageAttributes(msg: MessageOp, versions: List[String]): AttributeMap =
     AttributeMap(
       Attribute.StringListAttr(PA.PresentInVersions, msg.presentInVersions.toList),
-      Attribute.StringListAttr(PA.SchemaVersions, versions),
+      Attribute.StringListAttr(PA.SchemaVersions, versions)
     )
 
   private def implAttributes(msg: MessageOp, version: String): AttributeMap =
     AttributeMap(
       Attribute.StringAttr(PA.ImplVersion, version),
       Attribute.StringAttr(PA.ProtoClassName, s"${msg.name}Proto"),
-      Attribute.StringListAttr(PA.PresentInVersions, msg.presentInVersions.toList),
+      Attribute.StringListAttr(PA.PresentInVersions, msg.presentInVersions.toList)
     )
 
   private def fieldAttributes(f: FieldOp): AttributeMap =
@@ -365,15 +398,15 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       Attribute.BoolAttr(PA.IsOptional, f.isOptional),
       Attribute.BoolAttr(PA.IsRepeated, f.isRepeated),
       Attribute.BoolAttr(PA.IsMap, f.isMap),
-      Attribute.StringAttr(PA.WellKnownType, wkt),
+      Attribute.StringAttr(PA.WellKnownType, wkt)
     )
 
   private def detectWellKnownType(ref: TypeRef): String = ref match
     case TypeRef.NamedType(fqn) =>
       val simple = fqn.split('.').last
       simple match
-        case "Timestamp" | "Duration" | "Struct" | "Value" | "ListValue" => simple
-        case "Int32Value" | "Int64Value" | "UInt32Value" | "UInt64Value" => simple
+        case "Timestamp" | "Duration" | "Struct" | "Value" | "ListValue"               => simple
+        case "Int32Value" | "Int64Value" | "UInt32Value" | "UInt64Value"               => simple
         case "FloatValue" | "DoubleValue" | "BoolValue" | "StringValue" | "BytesValue" => simple
-        case _ => ""
+        case _                                                                         => ""
     case _ => ""

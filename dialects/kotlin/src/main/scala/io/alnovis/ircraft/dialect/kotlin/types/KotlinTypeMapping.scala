@@ -1,6 +1,6 @@
 package io.alnovis.ircraft.dialect.kotlin.types
 
-import io.alnovis.ircraft.core.{LanguageTypeMapping, TypeRef}
+import io.alnovis.ircraft.core.{ LanguageTypeMapping, TypeRef }
 import io.alnovis.ircraft.core.TypeRef.*
 
 /** Maps ircraft TypeRef to Kotlin type strings. */
@@ -18,7 +18,7 @@ object KotlinTypeMapping extends LanguageTypeMapping:
     case PrimitiveType.Bytes                                                 => "ByteArray"
     case VoidType                                                            => "Unit"
     case NamedType(fqn)                                                      => simpleName(fqn)
-    case ListType(elem)                => s"List<${toLanguageType(elem)}>"
+    case ListType(elem)                                                      => s"List<${toLanguageType(elem)}>"
     case MapType(k, v)                 => s"Map<${toLanguageType(k)}, ${toLanguageType(v)}>"
     case OptionalType(inner)           => s"${toLanguageType(inner)}?"
     case EnumType(fqn, _)              => simpleName(fqn)
