@@ -1,35 +1,16 @@
 package io.alnovis.ircraft.dialect.scala3.types
 
-import io.alnovis.ircraft.core.{ LanguageTypeMapping, TypeRef }
-import io.alnovis.ircraft.core.TypeRef.*
+import io.alnovis.ircraft.core.BaseLanguageTypeMapping
 
 /** Maps ircraft TypeRef to Scala 3 type strings. */
-object ScalaTypeMapping extends LanguageTypeMapping:
+object ScalaTypeMapping extends BaseLanguageTypeMapping:
 
-  def toLanguageType(ref: TypeRef): String = ref match
-    case PrimitiveType.Int32 | PrimitiveType.SInt32 | PrimitiveType.SFixed32 => "Int"
-    case PrimitiveType.Int64 | PrimitiveType.SInt64 | PrimitiveType.SFixed64 => "Long"
-    case PrimitiveType.UInt32 | PrimitiveType.Fixed32                        => "Int"
-    case PrimitiveType.UInt64 | PrimitiveType.Fixed64                        => "Long"
-    case PrimitiveType.Float32                                               => "Float"
-    case PrimitiveType.Float64                                               => "Double"
-    case PrimitiveType.Bool                                                  => "Boolean"
-    case PrimitiveType.StringType                                            => "String"
-    case PrimitiveType.Bytes                                                 => "Array[Byte]"
-    case VoidType                                                            => "Unit"
-    case NamedType(fqn)                                                      => simpleName(fqn)
-    case ListType(elem)                                                      => s"List[${toLanguageType(elem)}]"
-    case MapType(k, v)                 => s"Map[${toLanguageType(k)}, ${toLanguageType(v)}]"
-    case OptionalType(inner)           => s"Option[${toLanguageType(inner)}]"
-    case EnumType(fqn, _)              => simpleName(fqn)
-    case UnionType(_)                  => "Any"
-    case ParameterizedType(base, args) => s"${toLanguageType(base)}[${args.map(toLanguageType).mkString(", ")}]"
-    case WildcardType(bound)           => bound.map(b => s"_ <: ${toLanguageType(b)}").getOrElse("_")
+  protected val bytesType: String = "Array[Byte]"
+  protected val voidType: String  = "Unit"
+  protected val unionType: String = "Any"
 
-  /** Scala has no primitive/boxed distinction. */
-  override def toBoxedType(ref: TypeRef): String = toLanguageType(ref)
-
-  override def importsFor(ref: TypeRef): Set[String] = ref match
-    case NamedType(fqn) if fqn.contains(".") => Set(fqn)
-    case ParameterizedType(base, args)       => importsFor(base) ++ args.flatMap(importsFor)
-    case _                                   => Set.empty
+  protected def listType(elem: String): String                              = s"List[$elem]"
+  protected def mapType(key: String, value: String): String                 = s"Map[$key, $value]"
+  protected def optionalType(inner: String): String                         = s"Option[$inner]"
+  protected def parameterizedType(base: String, args: List[String]): String = s"$base[${args.mkString(", ")}]"
+  protected def wildcardType(bound: Option[String]): String                 = bound.map(b => s"_ <: $b").getOrElse("_")

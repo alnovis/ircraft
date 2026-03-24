@@ -1,33 +1,26 @@
 package io.alnovis.ircraft.dialect.java.types
 
-import io.alnovis.ircraft.core.{ LanguageTypeMapping, TypeRef }
+import io.alnovis.ircraft.core.{ BaseLanguageTypeMapping, TypeRef }
 import io.alnovis.ircraft.core.TypeRef.*
 
 /** Maps ircraft TypeRef to Java type strings. */
-object JavaTypeMapping extends LanguageTypeMapping:
+object JavaTypeMapping extends BaseLanguageTypeMapping:
 
-  /** Returns the Java type name for a TypeRef. */
-  def toLanguageType(ref: TypeRef): String = ref match
-    case PrimitiveType.Int32 | PrimitiveType.SInt32 | PrimitiveType.SFixed32 => "int"
-    case PrimitiveType.Int64 | PrimitiveType.SInt64 | PrimitiveType.SFixed64 => "long"
-    case PrimitiveType.UInt32 | PrimitiveType.Fixed32                        => "int"
-    case PrimitiveType.UInt64 | PrimitiveType.Fixed64                        => "long"
-    case PrimitiveType.Float32                                               => "float"
-    case PrimitiveType.Float64                                               => "double"
-    case PrimitiveType.Bool                                                  => "boolean"
-    case PrimitiveType.StringType                                            => "String"
-    case PrimitiveType.Bytes                                                 => "byte[]"
-    case VoidType                                                            => "void"
-    case NamedType(fqn)                                                      => simpleName(fqn)
-    case ListType(elem)                                                      => s"java.util.List<${toBoxedType(elem)}>"
-    case MapType(k, v)                 => s"java.util.Map<${toBoxedType(k)}, ${toBoxedType(v)}>"
-    case OptionalType(inner)           => toLanguageType(inner)
-    case EnumType(fqn, _)              => simpleName(fqn)
-    case UnionType(_)                  => "Object"
-    case ParameterizedType(base, args) => s"${toLanguageType(base)}<${args.map(toBoxedType).mkString(", ")}>"
-    case WildcardType(bound)           => bound.map(b => s"? extends ${toLanguageType(b)}").getOrElse("?")
+  protected val bytesType: String = "byte[]"
+  protected val voidType: String  = "void"
+  protected val unionType: String = "Object"
 
-  /** Returns the boxed Java type (for generics). */
+  protected def listType(elem: String): String = s"java.util.List<${toBoxedJavaType(elem)}>"
+
+  protected def mapType(key: String, value: String): String =
+    s"java.util.Map<${toBoxedJavaType(key)}, ${toBoxedJavaType(value)}>"
+  protected def optionalType(inner: String): String = inner // Java unwraps optional
+
+  protected def parameterizedType(base: String, args: List[String]): String =
+    s"$base<${args.map(toBoxedJavaType).mkString(", ")}>"
+  protected def wildcardType(bound: Option[String]): String = bound.map(b => s"? extends $b").getOrElse("?")
+
+  /** Java primitives need boxing for generics. */
   override def toBoxedType(ref: TypeRef): String = ref match
     case PrimitiveType.Int32 | PrimitiveType.SInt32 | PrimitiveType.SFixed32 | PrimitiveType.UInt32 |
         PrimitiveType.Fixed32 =>
@@ -40,14 +33,31 @@ object JavaTypeMapping extends LanguageTypeMapping:
     case PrimitiveType.Bool    => "Boolean"
     case _                     => toLanguageType(ref)
 
-  /** Extract imports needed for a TypeRef. */
-  override def importsFor(ref: TypeRef): Set[String] = ref match
-    case ListType(_)                         => Set("java.util.List")
-    case MapType(_, _)                       => Set("java.util.Map")
-    case NamedType(fqn) if fqn.contains(".") => Set(fqn)
-    case ParameterizedType(base, args)       => importsFor(base) ++ args.flatMap(importsFor)
-    case _                                   => Set.empty
+  /** Java-specific: primitives in toLanguageType return lowercase (int, long, etc.). */
+  override def toLanguageType(ref: TypeRef): String = ref match
+    case PrimitiveType.Int32 | PrimitiveType.SInt32 | PrimitiveType.SFixed32 => "int"
+    case PrimitiveType.Int64 | PrimitiveType.SInt64 | PrimitiveType.SFixed64 => "long"
+    case PrimitiveType.UInt32 | PrimitiveType.Fixed32                        => "int"
+    case PrimitiveType.UInt64 | PrimitiveType.Fixed64                        => "long"
+    case PrimitiveType.Float32                                               => "float"
+    case PrimitiveType.Float64                                               => "double"
+    case PrimitiveType.Bool                                                  => "boolean"
+    case _                                                                   => super.toLanguageType(ref)
 
-  // Legacy aliases for backward compatibility with DirectJavaEmitter
+  override def importsFor(ref: TypeRef): Set[String] = ref match
+    case ListType(_)   => Set("java.util.List")
+    case MapType(_, _) => Set("java.util.Map")
+    case _             => super.importsFor(ref)
+
+  // Helper for boxing in collection/generic contexts
+  private def toBoxedJavaType(typeStr: String): String = typeStr match
+    case "int"     => "Integer"
+    case "long"    => "Long"
+    case "float"   => "Float"
+    case "double"  => "Double"
+    case "boolean" => "Boolean"
+    case other     => other
+
+  // Legacy aliases
   def toJavaType(ref: TypeRef): String      = toLanguageType(ref)
   def toBoxedJavaType(ref: TypeRef): String = toBoxedType(ref)
