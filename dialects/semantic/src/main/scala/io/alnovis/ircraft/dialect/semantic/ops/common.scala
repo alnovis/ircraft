@@ -18,7 +18,8 @@ object Parameter:
       ContentHash.combine(
         ContentHash.ofString(a.name),
         summon[ContentHashable[TypeRef]].contentHash(a.paramType),
-        ContentHash.ofSet(a.modifiers)
+        ContentHash.ofSet(a.modifiers),
+        ContentHash.ofList(a.annotations)
       )
 
 /** Generic type parameter. */
@@ -36,6 +37,6 @@ object TypeParam:
       val typeRefHash = summon[ContentHashable[TypeRef]]
       ContentHash.combine(
         ContentHash.ofString(a.name),
-        a.upperBounds.map(typeRefHash.contentHash).sum,
-        a.lowerBounds.map(typeRefHash.contentHash).sum
+        ContentHash.ofList(a.upperBounds)(using typeRefHash),
+        ContentHash.ofList(a.lowerBounds)(using typeRefHash)
       )

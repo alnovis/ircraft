@@ -1,42 +1,53 @@
 package io.alnovis.ircraft.dialect.kotlin.emit
 
 import io.alnovis.ircraft.core.*
-import io.alnovis.ircraft.core.emit.{ CommentStyle, Emitter, EmitterUtils }
+import io.alnovis.ircraft.core.emit.CommentStyle
 import io.alnovis.ircraft.dialect.kotlin.types.KotlinTypeMapping
+import io.alnovis.ircraft.dialect.semantic.emit.BaseEmitter
 import io.alnovis.ircraft.dialect.semantic.ops.*
 import io.alnovis.ircraft.dialect.semantic.expr.*
 
 /** Emits Kotlin source code from Semantic Dialect IR. */
-class DirectKotlinEmitter extends Emitter with EmitterUtils:
+class DirectKotlinEmitter extends BaseEmitter:
 
-  private val tm = KotlinTypeMapping
+  protected val tm: LanguageTypeMapping    = KotlinTypeMapping
+  protected val fileExtension: String      = "kt"
+  protected val commentStyle: CommentStyle = CommentStyle.KDoc
+  protected val statementTerminator: String = ""
 
-  def emit(module: Module): Map[String, String] =
-    module.topLevel
-      .collect { case f: FileOp => f }
-      .flatMap: f =>
-        f.types.map: op =>
-          val name    = typeOpName(op)
-          val path    = f.packageName.replace('.', '/') + s"/$name.kt"
-          val imports = collectImports(op)
-          val source  = emitFile(f.packageName, imports, op)
-          path -> source
-      .toMap
+  // ── Expression hooks ──────────────────────────────────────────────────
 
-  private def emitFile(pkg: String, imports: Set[String], op: Operation): String =
-    val sb = StringBuilder()
-    sb.append(s"package $pkg\n")
-    if imports.nonEmpty then
-      sb.append("\n")
-      imports.toList.sorted.foreach(i => sb.append(s"import $i\n"))
-    sb.append("\n")
-    sb.append(emitTypeDecl(op, 0))
-    sb.append("\n")
-    sb.result()
+  protected def emitCast(expr: Expression, t: TypeRef): String =
+    s"${emitExpr(expr)} as ${tm.toLanguageType(t)}"
+
+  protected def emitNewInstance(t: TypeRef, args: List[Expression]): String =
+    s"${tm.toLanguageType(t)}(${args.map(emitExpr).mkString(", ")})"
+
+  protected def emitConditional(cond: Expression, t: Expression, f: Expression): String =
+    s"if (${emitExpr(cond)}) ${emitExpr(t)} else ${emitExpr(f)}"
+
+  protected def emitUnaryOp(op: UnOperator, expr: Expression): String =
+    if op == UnOperator.BitwiseNot then s"${emitExpr(expr)}.inv()"
+    else
+      val opStr = op match
+        case UnOperator.Not    => "!"
+        case UnOperator.Negate => "-"
+        case _                 => "~"
+      s"$opStr${emitExpr(expr)}"
+
+  protected def emitLambda(params: List[String], body: Expression): String =
+    if params.isEmpty then s"{ ${emitExpr(body)} }"
+    else s"{ ${params.mkString(", ")} -> ${emitExpr(body)} }"
+
+  override protected def emitBinOp(op: BinOperator): String = op match
+    case BinOperator.BitAnd => "and"
+    case BinOperator.BitOr  => "or"
+    case BinOperator.BitXor => "xor"
+    case other              => super.emitBinOp(other)
 
   // ── Type declarations ──────────────────────────────────────────────────
 
-  private def emitTypeDecl(op: Operation, level: Int): String = op match
+  protected def emitTypeDecl(op: Operation, level: Int): String = op match
     case i: InterfaceOp => emitInterface(i, level)
     case c: ClassOp     => emitClass(c, level)
     case e: EnumClassOp => emitEnum(e, level)
@@ -44,7 +55,7 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
 
   private def emitInterface(i: InterfaceOp, level: Int): String =
     val sb = StringBuilder()
-    i.javadoc.foreach(doc => sb.append(wrapComment(CommentStyle.KDoc, doc, level) + "\n"))
+    i.javadoc.foreach(doc => sb.append(wrapComment(commentStyle, doc, level) + "\n"))
     emitAnnotations(i.annotations, level, sb)
     val extendsClause =
       if i.extendsTypes.isEmpty then ""
@@ -57,7 +68,7 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
 
   private def emitClass(c: ClassOp, level: Int): String =
     val sb = StringBuilder()
-    c.javadoc.foreach(doc => sb.append(wrapComment(CommentStyle.KDoc, doc, level) + "\n"))
+    c.javadoc.foreach(doc => sb.append(wrapComment(commentStyle, doc, level) + "\n"))
     emitAnnotations(c.annotations, level, sb)
 
     val mods        = emitModifiers(c.modifiers)
@@ -71,23 +82,18 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
 
     sb.append(indent(level, s"$mods$kw ${c.name}$tparams$superClause$implClause {\n"))
 
-    // Instance fields (non-static)
     val (staticFields, instanceFields) = c.fields.partition(f => f.modifiers.contains(Modifier.Static))
     for f <- instanceFields do sb.append(emitField(f, level + 1) + "\n")
     if instanceFields.nonEmpty && (c.constructors.nonEmpty || c.methods.nonEmpty) then sb.append("\n")
 
-    // Constructors
     for ct <- c.constructors do sb.append(emitConstructor(ct, level + 1) + "\n")
     if c.constructors.nonEmpty && c.methods.nonEmpty then sb.append("\n")
 
-    // Methods (non-static)
     val (staticMethods, instanceMethods) = c.methods.partition(_.modifiers.contains(Modifier.Static))
     for m <- instanceMethods do sb.append(emitMethod(m, level + 1) + "\n")
 
-    // Nested types
     for n <- c.nestedTypes do sb.append(emitTypeDecl(n, level + 1) + "\n")
 
-    // Companion object for static members
     if staticFields.nonEmpty || staticMethods.nonEmpty then
       sb.append("\n")
       sb.append(indent(level + 1, "companion object {\n"))
@@ -100,14 +106,13 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
 
   private def emitEnum(e: EnumClassOp, level: Int): String =
     val sb = StringBuilder()
-    e.javadoc.foreach(doc => sb.append(wrapComment(CommentStyle.KDoc, doc, level) + "\n"))
+    e.javadoc.foreach(doc => sb.append(wrapComment(commentStyle, doc, level) + "\n"))
     emitAnnotations(e.annotations, level, sb)
     val implClause =
       if e.implementsTypes.isEmpty then ""
       else s" : ${e.implementsTypes.map(t => tm.toLanguageType(t)).mkString(", ")}"
     sb.append(indent(level, s"enum class ${e.name}$implClause {\n"))
 
-    // Constants
     val constLines = e.constants.map: c =>
       val args = if c.arguments.isEmpty then "" else s"(${c.arguments.map(emitExpr).mkString(", ")})"
       s"${c.name}$args"
@@ -115,7 +120,6 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
       sb.append(indent(level + 1, constLines.mkString(",\n" + "  " * (level + 1))))
       sb.append(";\n")
 
-    // Fields, constructors, methods
     if e.fields.nonEmpty || e.constructors.nonEmpty || e.methods.nonEmpty then sb.append("\n")
     for f <- e.fields do sb.append(emitField(f, level + 1) + "\n")
     for ct <- e.constructors do sb.append(emitConstructor(ct, level + 1) + "\n")
@@ -133,14 +137,14 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
     indent(level, s"$mods$mutability ${f.name}: ${tm.toLanguageType(f.fieldType)}$init")
 
   private def emitConstructor(ct: ConstructorOp, level: Int): String =
-    val mods    = emitModifiers(ct.modifiers - Modifier.Public) // public is default
+    val mods    = emitModifiers(ct.modifiers - Modifier.Public)
     val params  = ct.parameters.map(p => s"${p.name}: ${tm.toLanguageType(p.paramType)}").mkString(", ")
     val bodyStr = ct.body.map(b => emitBlock(b, level + 1)).getOrElse("")
     block(s"${mods}constructor($params)", level)(bodyStr)
 
   private def emitMethod(m: MethodOp, level: Int): String =
     val sb = StringBuilder()
-    m.javadoc.foreach(doc => sb.append(wrapComment(CommentStyle.KDoc, doc, level) + "\n"))
+    m.javadoc.foreach(doc => sb.append(wrapComment(commentStyle, doc, level) + "\n"))
 
     val mods    = emitMethodModifiers(m.modifiers)
     val tparams = emitTypeParams(m.typeParams)
@@ -155,10 +159,7 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
 
   // ── Statements ─────────────────────────────────────────────────────────
 
-  private def emitBlock(b: Block, level: Int): String =
-    b.statements.map(s => emitStmt(s, level)).mkString("\n")
-
-  private def emitStmt(s: Statement, level: Int): String = s match
+  protected def emitStmt(s: Statement, level: Int): String = s match
     case Statement.ExpressionStmt(expr)    => indent(level, emitExpr(expr))
     case Statement.ReturnStmt(None)        => indent(level, "return")
     case Statement.ReturnStmt(Some(value)) => indent(level, s"return ${emitExpr(value)}")
@@ -190,64 +191,15 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
       fin.foreach(f => sb.append(s" finally {\n${emitBlock(f, level + 1)}\n${indent(level, "}")}"))
       sb.result()
 
-  // ── Expressions ────────────────────────────────────────────────────────
-
-  private def emitExpr(e: Expression): String = e match
-    case Expression.Literal(v, _) => v
-    case Expression.Identifier(n) => n
-    case Expression.MethodCall(recv, name, args, _) =>
-      val r = recv.map(r => s"${emitExpr(r)}.").getOrElse("")
-      val a = args.map(emitExpr).mkString(", ")
-      s"$r$name($a)"
-    case Expression.FieldAccess(recv, name) => s"${emitExpr(recv)}.$name"
-    case Expression.NewInstance(t, args)    => s"${tm.toLanguageType(t)}(${args.map(emitExpr).mkString(", ")})"
-    case Expression.Cast(expr, t)           => s"${emitExpr(expr)} as ${tm.toLanguageType(t)}"
-    case Expression.Conditional(cond, t, f) => s"if (${emitExpr(cond)}) ${emitExpr(t)} else ${emitExpr(f)}"
-    case Expression.BinaryOp(l, op, r)      => s"${emitExpr(l)} ${emitBinOp(op)} ${emitExpr(r)}"
-    case Expression.UnaryOp(op, expr)       => s"${emitUnOp(op)}${emitExpr(expr)}"
-    case Expression.Lambda(params, body) =>
-      if params.isEmpty then s"{ ${emitExpr(body)} }"
-      else s"{ ${params.mkString(", ")} -> ${emitExpr(body)} }"
-    case Expression.NullLiteral => "null"
-    case Expression.ThisRef     => "this"
-    case Expression.SuperRef    => "super"
-
-  private def emitBinOp(op: BinOperator): String = op match
-    case BinOperator.Eq     => "=="
-    case BinOperator.Neq    => "!="
-    case BinOperator.Lt     => "<"
-    case BinOperator.Gt     => ">"
-    case BinOperator.Lte    => "<="
-    case BinOperator.Gte    => ">="
-    case BinOperator.Add    => "+"
-    case BinOperator.Sub    => "-"
-    case BinOperator.Mul    => "*"
-    case BinOperator.Div    => "/"
-    case BinOperator.Mod    => "%"
-    case BinOperator.And    => "&&"
-    case BinOperator.Or     => "||"
-    case BinOperator.BitAnd => "and"
-    case BinOperator.BitOr  => "or"
-    case BinOperator.BitXor => "xor"
-
-  private def emitUnOp(op: UnOperator): String = op match
-    case UnOperator.Not        => "!"
-    case UnOperator.Negate     => "-"
-    case UnOperator.BitwiseNot => "inv()"
-
   // ── Modifiers ──────────────────────────────────────────────────────────
 
   private def emitModifiers(mods: Set[Modifier]): String =
     val parts = List.newBuilder[String]
-    // Kotlin: public is default, omit it
     if mods.contains(Modifier.Private) then parts += "private"
     if mods.contains(Modifier.Protected) then parts += "protected"
     if mods.contains(Modifier.Abstract) then parts += "abstract"
     if mods.contains(Modifier.Override) then parts += "override"
     if mods.contains(Modifier.Sealed) then parts += "sealed"
-    // open only if not abstract and not final (Kotlin classes are final by default)
-    if !mods.contains(Modifier.Abstract) && !mods.contains(Modifier.Final) && !mods.contains(Modifier.Static) then
-      if mods.contains(Modifier.Public) && !mods.contains(Modifier.Override) then () // open not needed for top-level
     val result = parts.result()
     if result.isEmpty then "" else result.mkString(" ") + " "
 
@@ -281,34 +233,5 @@ class DirectKotlinEmitter extends Emitter with EmitterUtils:
 
   private def emitAnnotations(anns: List[String], level: Int, sb: StringBuilder): Unit =
     for a <- anns do
-      if a != "Override" then // @Override is a keyword in Kotlin, handled via modifier
+      if a != "Override" then
         sb.append(indent(level, s"@$a\n"))
-
-  private def typeOpName(op: Operation): String = op match
-    case i: InterfaceOp => i.name
-    case c: ClassOp     => c.name
-    case e: EnumClassOp => e.name
-    case _              => "Unknown"
-
-  private def collectImports(op: Operation): Set[String] =
-    val imports = scala.collection.mutable.Set.empty[String]
-    def walk(o: Operation): Unit = o match
-      case c: ClassOp =>
-        c.superClass.foreach(t => imports ++= tm.importsFor(t))
-        c.implementsTypes.foreach(t => imports ++= tm.importsFor(t))
-        c.fields.foreach(f => imports ++= tm.importsFor(f.fieldType))
-        c.methods.foreach(m => imports ++= tm.importsFor(m.returnType))
-        c.nestedTypes.foreach(walk)
-      case i: InterfaceOp =>
-        i.extendsTypes.foreach(t => imports ++= tm.importsFor(t))
-        i.methods.foreach(m => imports ++= tm.importsFor(m.returnType))
-        i.nestedTypes.foreach(walk)
-      case m: MethodOp =>
-        imports ++= tm.importsFor(m.returnType)
-        m.parameters.foreach(p => imports ++= tm.importsFor(p.paramType))
-      case e: EnumClassOp =>
-        e.implementsTypes.foreach(t => imports ++= tm.importsFor(t))
-        e.methods.foreach(m => imports ++= tm.importsFor(m.returnType))
-      case _ => ()
-    walk(op)
-    imports.toSet

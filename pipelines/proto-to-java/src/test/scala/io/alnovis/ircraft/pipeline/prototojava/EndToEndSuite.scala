@@ -139,8 +139,10 @@ class EndToEndSuite extends munit.FunSuite:
     val v1Source = files.find(_._1.endsWith("ItemV1.java")).get._2
     val v2Source = files.find(_._1.endsWith("ItemV2.java")).get._2
 
-    assert(!v1Source.contains("extractDescription"), s"V1 should not have extractDescription:\n$v1Source")
+    assert(v1Source.contains("extractDescription"), s"V1 should have extractDescription stub:\n$v1Source")
+    assert(v1Source.contains("UnsupportedOperationException"), s"V1 extractDescription should throw:\n$v1Source")
     assert(v2Source.contains("extractDescription"), s"V2 should have extractDescription:\n$v2Source")
+    assert(!v2Source.contains("UnsupportedOperationException"), s"V2 extractDescription should not throw:\n$v2Source")
 
   test("pipeline rejects invalid schema"):
     val schema = ProtoSchema.build()(_ => ()) // empty versions

@@ -65,9 +65,9 @@ object TypeRef:
       case ListType(e)                => ContentHash.combine(4, contentHash(e))
       case MapType(k, v)              => ContentHash.combine(5, contentHash(k), contentHash(v))
       case OptionalType(i)            => ContentHash.combine(6, contentHash(i))
-      case EnumType(fqn, vs)          => ContentHash.combine(7, ContentHash.ofString(fqn), vs.map(v => v.hashCode).sum)
-      case UnionType(alts)            => ContentHash.combine(8, alts.map(contentHash).sum)
-      case ParameterizedType(b, args) => ContentHash.combine(9, contentHash(b), args.map(contentHash).sum)
+      case EnumType(fqn, vs)          => ContentHash.combine(7, ContentHash.ofString(fqn), ContentHash.ofList(vs))
+      case UnionType(alts)            => ContentHash.combine(8, ContentHash.ofList(alts)(using this))
+      case ParameterizedType(b, args) => ContentHash.combine(9, contentHash(b), ContentHash.ofList(args)(using this))
       case WildcardType(bound)        => ContentHash.combine(10, bound.map(contentHash).getOrElse(0))
 
 /** A single enum value. */

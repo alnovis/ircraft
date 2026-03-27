@@ -147,11 +147,22 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       val constants =
         e.values.map(v => EnumConstantOp(v.name, List(Expression.Literal(v.number.toString, TypeRef.INT))))
       EnumClassOp(e.name, constants = constants)
+    val oneofEnums = msg.oneofs.map: o =>
+      val constants = o.fields.map(f => EnumConstantOp(f.javaName.capitalize, Nil))
+      val notSet    = EnumConstantOp(s"${o.javaName.capitalize}_NOT_SET".toUpperCase, Nil)
+      EnumClassOp(o.caseEnumName, constants = constants :+ notSet)
+    val oneofDiscriminators = msg.oneofs.map: o =>
+      MethodOp(
+        s"get${o.caseEnumName}",
+        TypeRef.NamedType(o.caseEnumName),
+        modifiers = Set(Modifier.Public, Modifier.Abstract)
+      )
     val nestedInterfaces = msg.nestedMessages.map(lowerToInterfaceOp)
     InterfaceOp(
       name = msg.name,
-      methods = getters,
-      nestedTypes = (nestedEnums: Vector[Operation]) ++ (nestedInterfaces: Vector[Operation]),
+      methods = getters ++ oneofDiscriminators,
+      nestedTypes =
+        (nestedEnums: Vector[Operation]) ++ (oneofEnums: Vector[Operation]) ++ (nestedInterfaces: Vector[Operation]),
       attributes = messageAttributes(msg, msg.presentInVersions.toList)
     )
 
@@ -243,6 +254,28 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
           )
         )
 
+    val absentExtractImpls = msg.fields
+      .filterNot(_.presentInVersions.contains(version))
+      .map: f =>
+        MethodOp(
+          s"extract${f.javaName.capitalize}",
+          resolveGetterType(f),
+          modifiers = Set(Modifier.Protected, Modifier.Override),
+          body = Some(
+            Block.of(
+              Statement.ThrowStmt(
+                Expression.NewInstance(
+                  TypeRef.NamedType("UnsupportedOperationException"),
+                  List(Expression.Literal(
+                    s"\"Field '${f.javaName}' is not present in version $version\"",
+                    TypeRef.STRING
+                  ))
+                )
+              )
+            )
+          )
+        )
+
     val nestedImplClasses: Vector[Operation] = msg.nestedMessages
       .filter(_.presentInVersions.contains(version))
       .map(nested => lowerToImplClassOp(nested, version))
@@ -257,7 +290,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
         )
       ),
       constructors = Vector(constructor),
-      methods = extractImpls,
+      methods = extractImpls ++ absentExtractImpls,
       nestedTypes = nestedImplClasses,
       attributes = implAttributes(msg, version)
     )
@@ -335,6 +368,27 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
             )
           )
         )
+    val absentExtractImpls = msg.fields
+      .filterNot(_.presentInVersions.contains(version))
+      .map: f =>
+        MethodOp(
+          s"extract${f.javaName.capitalize}",
+          resolveGetterType(f),
+          modifiers = Set(Modifier.Protected, Modifier.Override),
+          body = Some(
+            Block.of(
+              Statement.ThrowStmt(
+                Expression.NewInstance(
+                  TypeRef.NamedType("UnsupportedOperationException"),
+                  List(Expression.Literal(
+                    s"\"Field '${f.javaName}' is not present in version $version\"",
+                    TypeRef.STRING
+                  ))
+                )
+              )
+            )
+          )
+        )
     val nestedImpls = msg.nestedMessages
       .filter(_.presentInVersions.contains(version))
       .map(n => lowerToImplClassOp(n, version))
@@ -349,7 +403,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
         )
       ),
       constructors = Vector(constructor),
-      methods = extractImpls,
+      methods = extractImpls ++ absentExtractImpls,
       nestedTypes = nestedImpls: Vector[Operation],
       attributes = implAttributes(msg, version)
     )

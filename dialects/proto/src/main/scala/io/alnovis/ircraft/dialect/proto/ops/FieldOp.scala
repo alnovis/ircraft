@@ -50,13 +50,15 @@ case class FieldOp(
   lazy val contentHash: Int =
     ContentHash.combine(
       ContentHash.ofString(name),
+      ContentHash.ofString(javaName),
       number,
       summon[ContentHashable[TypeRef]].contentHash(fieldType),
       conflictType.ordinal,
       ContentHash.ofSet(presentInVersions),
       ContentHash.ofBoolean(isOptional),
       ContentHash.ofBoolean(isRepeated),
-      ContentHash.ofBoolean(isMap)
+      ContentHash.ofBoolean(isMap),
+      ContentHash.ofMap(typesPerVersion)
     )
 
   val estimatedSize: Int = 1

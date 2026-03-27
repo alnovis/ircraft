@@ -32,7 +32,12 @@ case class EnumClassOp(
     ContentHash.combine(
       ContentHash.ofString(name),
       ContentHash.ofSet(modifiers),
+      ContentHash.ofList(implementsTypes)(using summon[ContentHashable[TypeRef]]),
+      ContentHash.ofOption(javadoc),
+      ContentHash.ofList(annotations),
       ContentHash.ofList(constants.toList)(using Operation.operationHashable),
+      ContentHash.ofList(fields.toList)(using Operation.operationHashable),
+      ContentHash.ofList(constructors.toList)(using Operation.operationHashable),
       ContentHash.ofList(methods.toList)(using Operation.operationHashable)
     )
 
@@ -84,7 +89,8 @@ case class EnumConstantOp(
   lazy val contentHash: Int =
     ContentHash.combine(
       ContentHash.ofString(name),
-      ContentHash.ofList(arguments)(using summon[ContentHashable[Expression]])
+      ContentHash.ofList(arguments)(using summon[ContentHashable[Expression]]),
+      ContentHash.ofOption(javadoc)
     )
 
   val estimatedSize: Int = 1

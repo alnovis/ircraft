@@ -5,6 +5,7 @@ import io.alnovis.ircraft.dialect.proto.dsl.ProtoSchema
 import io.alnovis.ircraft.dialect.proto.lowering.*
 import io.alnovis.ircraft.dialect.proto.types.*
 import io.alnovis.ircraft.dialect.semantic.ops.*
+import io.alnovis.ircraft.dialect.semantic.expr.*
 
 class LoweringSuite extends munit.FunSuite:
 
@@ -133,11 +134,13 @@ class LoweringSuite extends munit.FunSuite:
     val v1Impl = files.flatMap(_.types).collect { case c: ClassOp if c.name == "OrderV1" => c }.head
     val v2Impl = files.flatMap(_.types).collect { case c: ClassOp if c.name == "OrderV2" => c }.head
 
-    // v1 should only have extractId (notes not present in v1)
-    assertEquals(v1Impl.methods.size, 1, s"v1 methods: ${v1Impl.methods.map(_.name)}")
-    assertEquals(v1Impl.methods.head.name, "extractId")
+    // v1 should have extractId (present) + extractNotes (absent stub throwing UnsupportedOperationException)
+    assertEquals(v1Impl.methods.size, 2, s"v1 methods: ${v1Impl.methods.map(_.name)}")
+    assertEquals(v1Impl.methods(0).name, "extractId")
+    assertEquals(v1Impl.methods(1).name, "extractNotes")
+    assert(v1Impl.methods(1).body.get.statements.head.isInstanceOf[Statement.ThrowStmt])
 
-    // v2 should have both
+    // v2 should have both as present
     assertEquals(v2Impl.methods.size, 2, s"v2 methods: ${v2Impl.methods.map(_.name)}")
 
   test("lowering runs in pipeline"):

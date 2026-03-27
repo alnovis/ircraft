@@ -30,6 +30,10 @@ case class InterfaceOp(
     ContentHash.combine(
       ContentHash.ofString(name),
       ContentHash.ofSet(modifiers),
+      ContentHash.ofList(typeParams),
+      ContentHash.ofList(extendsTypes)(using summon[ContentHashable[TypeRef]]),
+      ContentHash.ofOption(javadoc),
+      ContentHash.ofList(annotations),
       ContentHash.ofList(methods.toList)(using Operation.operationHashable),
       ContentHash.ofList(nestedTypes.toList)(using Operation.operationHashable)
     )

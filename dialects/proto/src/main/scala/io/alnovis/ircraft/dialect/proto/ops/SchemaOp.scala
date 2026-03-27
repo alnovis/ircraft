@@ -34,6 +34,7 @@ case class SchemaOp(
   lazy val contentHash: Int =
     ContentHash.combine(
       ContentHash.ofList(versions),
+      versionSyntax.foldLeft(0)((acc, kv) => acc ^ ContentHash.combine(ContentHash.ofString(kv._1), kv._2.ordinal)),
       ContentHash.ofList(messages.toList)(using Operation.operationHashable),
       ContentHash.ofList(enums.toList)(using Operation.operationHashable),
       ContentHash.ofList(conflictEnums.toList)(using Operation.operationHashable)

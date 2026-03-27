@@ -27,7 +27,10 @@ case class MethodOp(
       summon[ContentHashable[TypeRef]].contentHash(returnType),
       ContentHash.ofList(parameters)(using summon[ContentHashable[Parameter]]),
       ContentHash.ofSet(modifiers),
-      ContentHash.ofOption(body)(using summon[ContentHashable[Block]])
+      ContentHash.ofList(typeParams),
+      ContentHash.ofOption(body)(using summon[ContentHashable[Block]]),
+      ContentHash.ofOption(javadoc),
+      ContentHash.ofList(annotations)
     )
 
   val estimatedSize: Int = 1

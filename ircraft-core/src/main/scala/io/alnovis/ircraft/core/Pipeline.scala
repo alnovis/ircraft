@@ -39,7 +39,7 @@ case class Pipeline(
 
           if result.hasErrors && failFast then
             context.logger.error(s"  ${pass.name} failed with errors, stopping pipeline")
-            break(PipelineResult(result.module, allDiagnostics, passResults))
+            break(PipelineResult(current, allDiagnostics, passResults))
           else current = result.module
 
       PipelineResult(current, allDiagnostics, passResults)

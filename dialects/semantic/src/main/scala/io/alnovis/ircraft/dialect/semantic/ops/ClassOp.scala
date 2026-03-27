@@ -34,7 +34,11 @@ case class ClassOp(
     ContentHash.combine(
       ContentHash.ofString(name),
       ContentHash.ofSet(modifiers),
+      ContentHash.ofList(typeParams),
       ContentHash.ofOption(superClass),
+      ContentHash.ofList(implementsTypes)(using summon[ContentHashable[TypeRef]]),
+      ContentHash.ofOption(javadoc),
+      ContentHash.ofList(annotations),
       ContentHash.ofList(fields.toList)(using Operation.operationHashable),
       ContentHash.ofList(constructors.toList)(using Operation.operationHashable),
       ContentHash.ofList(methods.toList)(using Operation.operationHashable),
@@ -100,7 +104,10 @@ case class FieldDeclOp(
     ContentHash.combine(
       ContentHash.ofString(name),
       summon[ContentHashable[TypeRef]].contentHash(fieldType),
-      ContentHash.ofSet(modifiers)
+      ContentHash.ofSet(modifiers),
+      ContentHash.ofOption(defaultValue),
+      ContentHash.ofOption(javadoc),
+      ContentHash.ofList(annotations)
     )
 
   val estimatedSize: Int = 1
@@ -122,7 +129,8 @@ case class ConstructorOp(
     ContentHash.combine(
       ContentHash.ofList(parameters)(using summon[ContentHashable[Parameter]]),
       ContentHash.ofSet(modifiers),
-      ContentHash.ofOption(body)(using summon[ContentHashable[Block]])
+      ContentHash.ofOption(body)(using summon[ContentHashable[Block]]),
+      ContentHash.ofList(annotations)
     )
 
   val estimatedSize: Int = 1

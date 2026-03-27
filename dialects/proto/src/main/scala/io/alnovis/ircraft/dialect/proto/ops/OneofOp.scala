@@ -27,6 +27,7 @@ case class OneofOp(
     ContentHash.combine(
       ContentHash.ofString(protoName),
       ContentHash.ofString(javaName),
+      ContentHash.ofString(caseEnumName),
       ContentHash.ofSet(presentInVersions),
       ContentHash.ofList(fields.toList)(using Operation.operationHashable)
     )
