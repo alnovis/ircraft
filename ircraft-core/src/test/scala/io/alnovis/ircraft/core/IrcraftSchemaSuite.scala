@@ -1,6 +1,6 @@
 package io.alnovis.ircraft.core
 
-import io.alnovis.ircraft.core.IrcraftSchema.*
+import io.alnovis.ircraft.core.IrcraftCodec.*
 import io.alnovis.ircraft.core.Traversal.*
 
 class IrcraftSchemaSuite extends munit.FunSuite:
@@ -127,3 +127,55 @@ class IrcraftSchemaSuite extends munit.FunSuite:
     }
     val result = updated.topLevel.head.asInstanceOf[GenericOp]
     assertEquals(result.stringField("key"), Some("new"))
+
+  // ── Schema-level extractor ──────────────────────────────────────────
+
+  test("schema extractor matches derived ops"):
+    val E  = IrcraftSchema[SimpleEntry].extractor
+    val op = SimpleEntry("k", "v").toOp
+    op match
+      case E(e) => assertEquals(e.stringField("key"), Some("k"))
+      case _    => fail("extractor should match")
+
+  test("schema extractor does not match other types"):
+    val E  = IrcraftSchema[SimpleEntry].extractor
+    val op = Inner("x").toOp
+    op match
+      case E(_) => fail("should not match")
+      case _    => ()
+
+  // ── Schema-level transformPass ──────────────────────────────────────
+
+  test("schema transformPass applies to matching ops"):
+    val pass = IrcraftSchema[SimpleEntry].transformPass("upper"):
+      case e => e.withField("key", e.stringField("key").getOrElse("").toUpperCase)
+    val module = Module("test", Vector(SimpleEntry("host", "v").toOp))
+    val result = pass.run(module, PassContext())
+    assertEquals(result.module.topLevel.head.asInstanceOf[GenericOp].stringField("key"), Some("HOST"))
+
+  test("schema transformPass ignores other types"):
+    val pass = IrcraftSchema[SimpleEntry].transformPass("noop"):
+      case e => e.withField("key", "changed")
+    val module = Module("test", Vector(Inner("original").toOp))
+    val result = pass.run(module, PassContext())
+    assertEquals(result.module.topLevel.head.asInstanceOf[GenericOp].stringField("x"), Some("original"))
+
+  // ── Schema-only module (for codegen) ────────────────────────────────
+
+  test("module creates schema-only IR without data"):
+    val module = IrcraftSchema.module("myapp", IrcraftSchema[SimpleEntry], IrcraftSchema[Inner])
+    assertEquals(module.name, "myapp")
+    assertEquals(module.topLevel.size, 2)
+    val personOp = module.topLevel.head.asInstanceOf[GenericOp]
+    assertEquals(personOp.kind, NodeKind("myapp", "simpleentry"))
+    // Fields describe structure, not data
+    assertEquals(personOp.stringField("key"), Some("StringField"))
+    assertEquals(personOp.stringField("value"), Some("StringField"))
+
+  test("module with nested type has empty child regions"):
+    val module  = IrcraftSchema.module("myapp", IrcraftSchema[Outer])
+    val outerOp = module.topLevel.head.asInstanceOf[GenericOp]
+    assertEquals(outerOp.kind, NodeKind("myapp", "outer"))
+    assertEquals(outerOp.stringField("name"), Some("StringField"))
+    assert(outerOp.region("inner").isDefined)
+    assert(outerOp.region("inner").get.operations.isEmpty) // schema only, no data

@@ -16,11 +16,14 @@ All three produce Operations that work with Traversal, Pipeline, Pass, and Emitt
 
 The fastest way to get Scala types into the IR. No manual schema definition — the structure is extracted from case classes at compile time via Scala 3 `Mirror`. Zero external dependencies.
 
+One `derives` gives you two things:
+- **IrcraftSchema** — type structure metadata (for code generation)
+- **IrcraftCodec** — data encode/decode (auto-derived, for testing and serialization)
+
 ### Define Types
 
 ```scala
 import io.alnovis.ircraft.core.*
-import io.alnovis.ircraft.core.IrcraftSchema.*
 
 case class Address(street: String, city: String) derives IrcraftSchema
 case class Person(name: String, age: Int, address: Address) derives IrcraftSchema
@@ -28,13 +31,40 @@ case class Person(name: String, age: Int, address: Address) derives IrcraftSchem
 
 That's it. Each type now has a compile-time derived `IrcraftSchema` instance.
 
-### Convert to IR
+### Schema: Type Structure (for Code Generation)
+
+`IrcraftSchema` describes the **structure** of a type — field names, types, nesting. No data involved.
 
 ```scala
-val op = Person("John", 30, Address("Main St", "NYC")).toOp
+IrcraftSchema[Person].opName        // "person"
+IrcraftSchema[Person].fieldSchemas  // Vector(("name", StringField), ("age", IntField))
+IrcraftSchema[Person].childSlots    // Vector("inner")
 ```
 
-Result:
+Create a schema-only Module for codegen pipelines:
+
+```scala
+val module = IrcraftSchema.module("myapp", IrcraftSchema[Person], IrcraftSchema[Address])
+// → Module with GenericOps describing Person and Address STRUCTURE
+// → Feed into pipeline → emit .proto, SQL DDL, TypeScript, etc.
+```
+
+### Codec: Data Encode/Decode (for Testing & Serialization)
+
+`IrcraftCodec` is auto-derived when `IrcraftSchema` is available — no extra `derives` needed:
+
+```scala
+import io.alnovis.ircraft.core.IrcraftCodec.*
+
+// Encode a value to GenericOp
+val op = Person("John", 30, Address("Main St", "NYC")).toOp
+
+// Decode back — exact round-trip
+val person = op.to[Person]
+assert(person == Person("John", 30, Address("Main St", "NYC")))
+```
+
+Result of `toOp`:
 ```
 GenericOp(
   kind = "derived.person",
@@ -47,89 +77,25 @@ GenericOp(
 )
 ```
 
-Primitive fields become attributes. Nested case classes become child operations in regions.
-
-### Convert Back (Round-Trip)
-
-```scala
-val person = op.to[Person]
-// Person("John", 30, Address("Main St", "NYC"))
-
-assert(person == Person("John", 30, Address("Main St", "NYC")))
-```
-
-Round-trip is exact for all supported types.
-
-### Custom Namespace
-
-By default, operations use the `"derived"` namespace. Override per call:
+Custom namespace:
 
 ```scala
 val op = Person("John", 30, Address("Main St", "NYC")).toOp("myapp")
 // op.kind == NodeKind("myapp", "person")
 ```
 
-### Generate a Dialect
+### Extractors and Passes — Directly from Schema
 
-Create a `GenericDialect` from multiple schemas — integrates with extractors, `transformPass`, and `verify`:
-
-```scala
-val MyDialect = IrcraftSchema.dialect("myapp",
-  IrcraftSchema[Person],
-  IrcraftSchema[Address]
-)
-
-// Now use the full Generic Dialect API:
-val PersonOp = MyDialect.extractor("person")
-val AddressOp = MyDialect.extractor("address")
-
-val pass = MyDialect.transformPass("uppercase-names"):
-  case p if p.is("person") =>
-    p.withField("name", p.stringField("name").getOrElse("").toUpperCase)
-```
-
-### Use in Pipeline
-
-Derived operations are standard `GenericOp` instances — they work with all existing infrastructure:
+No need to create a `GenericDialect` — `IrcraftSchema` provides extractors and passes directly:
 
 ```scala
-import io.alnovis.ircraft.core.Traversal.*
+val PersonOp = IrcraftSchema[Person].extractor
 
-val module = Module("app", Vector(
-  Person("Alice", 25, Address("1st Ave", "NYC")).toOp,
-  Person("Bob", 30, Address("2nd St", "LA")).toOp
-))
-
-// Walk
-module.walkAll {
-  case g: GenericOp if g.is("person") =>
-    println(s"${g.stringField("name").get}, age ${g.intField("age").get}")
-  case _ => ()
-}
-
-// Transform
-val updated = module.transform {
-  case g: GenericOp if g.is("person") && g.intField("age").exists(_ < 18) =>
-    g.withField("minor", true)
-}
-
-// Pipeline
-val pipeline = Pipeline("process", pass)
-val result = pipeline.run(module, PassContext())
+val validateAge = IrcraftSchema[Person].transformPass("validate-age"):
+  case p if p.intField("age").exists(_ < 0) => p.withField("age", 0)
 ```
 
-### Supported Field Types
-
-| Scala type | IR representation | Round-trip |
-|-----------|-------------------|-----------|
-| `String` | `StringAttr` | Yes |
-| `Int` | `IntAttr` | Yes |
-| `Long` | `LongAttr` | Yes |
-| `Boolean` | `BoolAttr` | Yes |
-| `List[String]` | `StringListAttr` | Yes |
-| Case class with `derives IrcraftSchema` | Child `GenericOp` in `Region` | Yes |
-
-### How It Maps
+### How Fields Map to IR
 
 ```
 case class Person(name: String, age: Int, address: Address)
@@ -138,55 +104,88 @@ case class Person(name: String, age: Int, address: Address)
               (attribute)   (attribute)   (child operation)
 ```
 
-The rule is simple: primitives → attributes, case classes → regions.
+| Scala type | IR representation |
+|-----------|-------------------|
+| `String` | `StringAttr` |
+| `Int` | `IntAttr` |
+| `Long` | `LongAttr` |
+| `Boolean` | `BoolAttr` |
+| `List[String]` | `StringListAttr` |
+| Case class with `derives IrcraftSchema` | Child `GenericOp` in `Region` |
 
-### Complete Example
+### Complete Example: Code Generation
 
 ```scala
 import io.alnovis.ircraft.core.*
-import io.alnovis.ircraft.core.IrcraftSchema.*
-import io.alnovis.ircraft.core.Traversal.*
 
 // 1. Define domain types
-case class Coord(lat: Double, lng: Double) derives IrcraftSchema
-case class Place(name: String, coord: Coord) derives IrcraftSchema
+case class Address(street: String, city: String) derives IrcraftSchema
+case class Person(name: String, age: Int, address: Address) derives IrcraftSchema
 
-// 2. Build IR from data
-val places = Vector(
-  Place("Eiffel Tower", Coord(48.8584, 2.2945)).toOp,
-  Place("Big Ben", Coord(51.5007, -0.1246)).toOp
-)
-val module = Module("places", places)
+// 2. Build schema-only IR for codegen
+val module = IrcraftSchema.module("myapp", IrcraftSchema[Person], IrcraftSchema[Address])
 
-// 3. Generate dialect for passes
-val PlacesDialect = IrcraftSchema.dialect("geo", IrcraftSchema[Place], IrcraftSchema[Coord])
-val PlaceOp = PlacesDialect.extractor("place")
+// 3. Transform with passes
+val addTimestamp = IrcraftSchema[Person].transformPass("add-timestamp"):
+  case p => p.withField("createdAt", "TimestampField")
 
-// 4. Transform
-val addCountry = PlacesDialect.transformPass("add-country"):
-  case p if p.is("place") => p.withField("country", "unknown")
-
-// 5. Run pipeline
-val result = Pipeline("geo-pipeline", addCountry).run(module, PassContext())
-
-// 6. Read back
-result.module.topLevel.foreach:
-  case PlaceOp(p) => println(s"${p.stringField("name").get} — ${p.stringField("country").get}")
-  case _ => ()
+// 4. Run pipeline → emit target code
+val result = Pipeline("codegen", addTimestamp).run(module, PassContext())
 ```
 
-### API Reference: IrcraftSchema
+### Complete Example: Data Round-Trip
+
+```scala
+import io.alnovis.ircraft.core.*
+import io.alnovis.ircraft.core.IrcraftCodec.*
+import io.alnovis.ircraft.core.Traversal.*
+
+// 1. Define types
+case class Person(name: String, age: Int) derives IrcraftSchema
+
+// 2. Encode data to IR
+val module = Module("people", Vector(
+  Person("Alice", 25).toOp,
+  Person("Bob", 30).toOp
+))
+
+// 3. Transform
+val PersonOp = IrcraftSchema[Person].extractor
+val uppercaseNames = IrcraftSchema[Person].transformPass("uppercase"):
+  case p => p.withField("name", p.stringField("name").getOrElse("").toUpperCase)
+
+// 4. Run and read back
+val result = Pipeline("process", uppercaseNames).run(module, PassContext())
+result.module.topLevel.foreach:
+  case PersonOp(p) => println(s"${p.stringField("name").get}, age ${p.intField("age").get}")
+  case _ => ()
+// Output: ALICE, age 25
+//         BOB, age 30
+```
+
+### API Reference
+
+**IrcraftSchema** (structure — `derives IrcraftSchema`):
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `IrcraftSchema[A]` | `IrcraftSchema[A]` | Summon the derived schema |
-| `IrcraftSchema.dialect(ns, schemas*)` | `GenericDialect` | Create a dialect from schemas |
-| `value.toOp` | `GenericOp` | Encode with default `"derived"` namespace |
-| `value.toOp(namespace)` | `GenericOp` | Encode with custom namespace |
-| `op.to[A]` | `A` | Decode back to case class |
 | `schema.opName` | `String` | Operation name (lowercase class name) |
 | `schema.fieldSchemas` | `Vector[(String, FieldType)]` | Primitive field metadata |
 | `schema.childSlots` | `Vector[String]` | Nested type region names |
+| `schema.extractor` | `OpExtractor` | Pattern match extractor for this type |
+| `schema.transformPass(name)(pf)` | `Pass` | Transform pass scoped to this type |
+| `IrcraftSchema.module(ns, schemas*)` | `Module` | Schema-only IR for codegen |
+| `IrcraftSchema.dialect(ns, schemas*)` | `GenericDialect` | Create a dialect from schemas |
+
+**IrcraftCodec** (data — auto-derived, `import IrcraftCodec.*`):
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `IrcraftCodec[A]` | `IrcraftCodec[A]` | Summon the auto-derived codec |
+| `value.toOp` | `GenericOp` | Encode with default `"derived"` namespace |
+| `value.toOp(namespace)` | `GenericOp` | Encode with custom namespace |
+| `op.to[A]` | `A` | Decode back to case class |
 
 ---
 
