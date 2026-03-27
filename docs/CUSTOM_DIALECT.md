@@ -1,13 +1,192 @@
 # Creating a Custom Dialect
 
-IRCraft offers two ways to create dialects:
+IRCraft offers three ways to create dialects:
 
 | Approach | Lines of code | Type safety | Best for |
 |----------|--------------|-------------|----------|
+| **Derived** (zero boilerplate) | 1 line per type | Compile-time | Scala case classes as source of truth |
 | **Generic** (quick start) | ~6 lines | Runtime | Prototyping, scripting, simple dialects |
 | **Typed** (production) | ~60+ lines per op | Compile-time | Exhaustive matching, complex IR, long-lived code |
 
-Both approaches produce Operations that work with Traversal, Pipeline, Pass, and Emitter — no compromises.
+All three produce Operations that work with Traversal, Pipeline, Pass, and Emitter — no compromises. You can mix them in the same Module.
+
+---
+
+## Derived: `derives IrcraftSchema`
+
+The fastest way to get Scala types into the IR. No manual schema definition — the structure is extracted from case classes at compile time via Scala 3 `Mirror`. Zero external dependencies.
+
+### Define Types
+
+```scala
+import io.alnovis.ircraft.core.*
+import io.alnovis.ircraft.core.IrcraftSchema.*
+
+case class Address(street: String, city: String) derives IrcraftSchema
+case class Person(name: String, age: Int, address: Address) derives IrcraftSchema
+```
+
+That's it. Each type now has a compile-time derived `IrcraftSchema` instance.
+
+### Convert to IR
+
+```scala
+val op = Person("John", 30, Address("Main St", "NYC")).toOp
+```
+
+Result:
+```
+GenericOp(
+  kind = "derived.person",
+  attributes = {name: "John", age: 30},
+  regions = [
+    Region("address", [
+      GenericOp(kind = "derived.address", attributes = {street: "Main St", city: "NYC"})
+    ])
+  ]
+)
+```
+
+Primitive fields become attributes. Nested case classes become child operations in regions.
+
+### Convert Back (Round-Trip)
+
+```scala
+val person = op.to[Person]
+// Person("John", 30, Address("Main St", "NYC"))
+
+assert(person == Person("John", 30, Address("Main St", "NYC")))
+```
+
+Round-trip is exact for all supported types.
+
+### Custom Namespace
+
+By default, operations use the `"derived"` namespace. Override per call:
+
+```scala
+val op = Person("John", 30, Address("Main St", "NYC")).toOp("myapp")
+// op.kind == NodeKind("myapp", "person")
+```
+
+### Generate a Dialect
+
+Create a `GenericDialect` from multiple schemas — integrates with extractors, `transformPass`, and `verify`:
+
+```scala
+val MyDialect = IrcraftSchema.dialect("myapp",
+  IrcraftSchema[Person],
+  IrcraftSchema[Address]
+)
+
+// Now use the full Generic Dialect API:
+val PersonOp = MyDialect.extractor("person")
+val AddressOp = MyDialect.extractor("address")
+
+val pass = MyDialect.transformPass("uppercase-names"):
+  case p if p.is("person") =>
+    p.withField("name", p.stringField("name").getOrElse("").toUpperCase)
+```
+
+### Use in Pipeline
+
+Derived operations are standard `GenericOp` instances — they work with all existing infrastructure:
+
+```scala
+import io.alnovis.ircraft.core.Traversal.*
+
+val module = Module("app", Vector(
+  Person("Alice", 25, Address("1st Ave", "NYC")).toOp,
+  Person("Bob", 30, Address("2nd St", "LA")).toOp
+))
+
+// Walk
+module.walkAll {
+  case g: GenericOp if g.is("person") =>
+    println(s"${g.stringField("name").get}, age ${g.intField("age").get}")
+  case _ => ()
+}
+
+// Transform
+val updated = module.transform {
+  case g: GenericOp if g.is("person") && g.intField("age").exists(_ < 18) =>
+    g.withField("minor", true)
+}
+
+// Pipeline
+val pipeline = Pipeline("process", pass)
+val result = pipeline.run(module, PassContext())
+```
+
+### Supported Field Types
+
+| Scala type | IR representation | Round-trip |
+|-----------|-------------------|-----------|
+| `String` | `StringAttr` | Yes |
+| `Int` | `IntAttr` | Yes |
+| `Long` | `LongAttr` | Yes |
+| `Boolean` | `BoolAttr` | Yes |
+| `List[String]` | `StringListAttr` | Yes |
+| Case class with `derives IrcraftSchema` | Child `GenericOp` in `Region` | Yes |
+
+### How It Maps
+
+```
+case class Person(name: String, age: Int, address: Address)
+                   ↓              ↓           ↓
+              StringAttr      IntAttr     Region("address", [GenericOp])
+              (attribute)   (attribute)   (child operation)
+```
+
+The rule is simple: primitives → attributes, case classes → regions.
+
+### Complete Example
+
+```scala
+import io.alnovis.ircraft.core.*
+import io.alnovis.ircraft.core.IrcraftSchema.*
+import io.alnovis.ircraft.core.Traversal.*
+
+// 1. Define domain types
+case class Coord(lat: Double, lng: Double) derives IrcraftSchema
+case class Place(name: String, coord: Coord) derives IrcraftSchema
+
+// 2. Build IR from data
+val places = Vector(
+  Place("Eiffel Tower", Coord(48.8584, 2.2945)).toOp,
+  Place("Big Ben", Coord(51.5007, -0.1246)).toOp
+)
+val module = Module("places", places)
+
+// 3. Generate dialect for passes
+val PlacesDialect = IrcraftSchema.dialect("geo", IrcraftSchema[Place], IrcraftSchema[Coord])
+val PlaceOp = PlacesDialect.extractor("place")
+
+// 4. Transform
+val addCountry = PlacesDialect.transformPass("add-country"):
+  case p if p.is("place") => p.withField("country", "unknown")
+
+// 5. Run pipeline
+val result = Pipeline("geo-pipeline", addCountry).run(module, PassContext())
+
+// 6. Read back
+result.module.topLevel.foreach:
+  case PlaceOp(p) => println(s"${p.stringField("name").get} — ${p.stringField("country").get}")
+  case _ => ()
+```
+
+### API Reference: IrcraftSchema
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `IrcraftSchema[A]` | `IrcraftSchema[A]` | Summon the derived schema |
+| `IrcraftSchema.dialect(ns, schemas*)` | `GenericDialect` | Create a dialect from schemas |
+| `value.toOp` | `GenericOp` | Encode with default `"derived"` namespace |
+| `value.toOp(namespace)` | `GenericOp` | Encode with custom namespace |
+| `op.to[A]` | `A` | Decode back to case class |
+| `schema.opName` | `String` | Operation name (lowercase class name) |
+| `schema.fieldSchemas` | `Vector[(String, FieldType)]` | Primitive field metadata |
+| `schema.childSlots` | `Vector[String]` | Nested type region names |
 
 ---
 
@@ -402,16 +581,26 @@ class TomlEmitter extends Emitter with EmitterUtils:
 
 | Scenario | Approach |
 |----------|----------|
+| Scala case classes as source of truth | **Derived** |
+| Need round-trip Scala ↔ IR | **Derived** |
 | Prototyping an idea | Generic |
 | Script or one-off tool | Generic |
-| < 5 operations, simple fields | Generic |
+| Schema defined externally (not in Scala types) | Generic |
 | Need exhaustive match on op types | Typed |
 | Complex field types (TypeRef, Modifier) | Typed |
 | Production dialect with 10+ operations | Typed |
 | IDE auto-complete on op fields | Typed |
 | Started generic, growing complex | Migrate to typed |
 
-You can mix both: define some operations as typed case classes, others as GenericOp. They all implement `Operation` and work together in the same Module, Pipeline, and Traversal.
+You can mix all three: derived schemas, generic dialects, and typed case classes. They all produce `Operation` instances and work together in the same Module, Pipeline, and Traversal.
+
+### Migration Path
+
+```
+Derived (1 line) → Generic (6 lines) → Typed (60+ lines)
+```
+
+Start with `derives IrcraftSchema` for speed. When you need custom field types, extractors, or schema not matching Scala types — switch to Generic. When you need exhaustive matching and compile-time guarantees — go Typed.
 
 ---
 
