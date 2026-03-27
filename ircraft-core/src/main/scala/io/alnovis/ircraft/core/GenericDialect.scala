@@ -28,12 +28,21 @@ case class OpSchema(
   * val ConfigDialect = GenericDialect("config"):
   *   leaf("entry", "key" -> StringField, "value" -> StringField)
   *   container("section", "name" -> StringField)(children = "entries")
+  *
+  * // Create operations
+  * val entry = ConfigDialect("entry", "key" -> "host", "value" -> "localhost")
+  * val section = ConfigDialect("section", "name" -> "server", "entries" -> Vector(entry))
+  *
+  * // Pattern matching with extractors
+  * val Entry = ConfigDialect.extractor("entry")
+  * module.transform:
+  *   case Entry(e) => e.withField("processed", true)
   * }}}
   */
 class GenericDialect private (
   val namespace: String,
   val description: String,
-  schemas: Map[String, OpSchema]
+  private[core] val schemas: Map[String, OpSchema]
 ) extends Dialect:
 
   // ── Dialect trait ────────────────────────────────────────────────────
@@ -85,6 +94,35 @@ class GenericDialect private (
     children: (String, Vector[Operation])*
   ): GenericOp = createOp(opName, fields, childRegions = children.toVector)
 
+  /**
+    * Unified creation: automatically distinguishes leaf and container ops.
+    *
+    * For containers, child regions are passed as fields with `Vector[Operation]` values:
+    * {{{
+    * val entry   = dialect("entry", "key" -> "host", "value" -> "v")
+    * val section = dialect("section", "name" -> "server", "entries" -> Vector(entry))
+    * }}}
+    */
+  def apply(opName: String, fields: (String, Any)*): GenericOp =
+    val opSchema = schemas.getOrElse(
+      opName,
+      throw IllegalArgumentException(
+        s"Unknown operation '$opName' in dialect '$namespace'. Known: ${schemas.keys.mkString(", ")}"
+      )
+    )
+    if opSchema.isLeaf then createOp(opName, fields, childRegions = Vector.empty)
+    else
+      val childSlotSet = opSchema.childSlots.toSet
+      val (regionArgs, fieldArgs) = fields.partition((key, _) => childSlotSet.contains(key))
+      val childRegions = regionArgs.map: (name, value) =>
+        value match
+          case ops: Vector[?] => (name, ops.asInstanceOf[Vector[Operation]])
+          case other =>
+            throw IllegalArgumentException(
+              s"Region '$name' expects Vector[Operation], got ${other.getClass.getSimpleName}"
+            )
+      createOp(opName, fieldArgs, childRegions.toVector)
+
   private def createOp(
     opName: String,
     fields: Seq[(String, Any)],
@@ -97,18 +135,7 @@ class GenericDialect private (
       )
     )
 
-    val attrs = fields.map: (key, value) =>
-      value match
-        case s: String    => Attribute.StringAttr(key, s)
-        case i: Int       => Attribute.IntAttr(key, i)
-        case l: Long      => Attribute.LongAttr(key, l)
-        case b: Boolean   => Attribute.BoolAttr(key, b)
-        case ss: List[?]  => Attribute.StringListAttr(key, ss.asInstanceOf[List[String]])
-        case a: Attribute => a
-        case other =>
-          throw IllegalArgumentException(
-            s"Unsupported field value type for '$key': ${other.getClass.getSimpleName}"
-          )
+    val attrs = fields.map((key, value) => GenericOp.toAttribute(key, value))
 
     val regions: Vector[Region] =
       if opSchema.isLeaf then Vector.empty
@@ -123,7 +150,50 @@ class GenericDialect private (
       regions = regions
     )
 
+  // ── Extractors ────────────────────────────────────────────────────
+
+  /** Create an extractor for pattern matching against operations of the given type. */
+  def extractor(opName: String): GenericDialect.OpExtractor =
+    require(
+      schemas.contains(opName),
+      s"Unknown operation '$opName' in dialect '$namespace'. Known: ${schemas.keys.mkString(", ")}"
+    )
+    GenericDialect.OpExtractor(NodeKind(namespace, opName))
+
+  // ── Pass shorthand ────────────────────────────────────────────────
+
+  /**
+    * Create a transform pass that applies a partial function to all GenericOps in this dialect.
+    *
+    * {{{
+    * val addDefaults = ConfigDialect.transformPass("add-defaults"):
+    *   case e if e.is("entry") && e.stringField("value").isEmpty =>
+    *     e.withField("value", "default")
+    * }}}
+    */
+  def transformPass(passName: String, passDescription: String = "")(
+    pf: PartialFunction[GenericOp, GenericOp]
+  ): Pass =
+    val dialectNs = namespace
+    val desc =
+      if passDescription.nonEmpty then passDescription
+      else s"Transform pass '$passName' for $dialectNs dialect"
+    new Pass:
+      val name: String        = passName
+      val description: String = desc
+      def run(module: Module, context: PassContext): PassResult =
+        import Traversal.transform
+        val transformed = module.transform:
+          case g: GenericOp if g.kind.dialect == dialectNs => pf.lift(g).getOrElse(g)
+        PassResult(transformed)
+
 object GenericDialect:
+
+  /** Extractor for pattern matching GenericOp by kind. */
+  final class OpExtractor(val expectedKind: NodeKind):
+    def unapply(op: Operation): Option[GenericOp] = op match
+      case g: GenericOp if g.kind == expectedKind => Some(g)
+      case _                                      => None
 
   /** Builder context for the DSL. */
   class Builder(val namespace: String):

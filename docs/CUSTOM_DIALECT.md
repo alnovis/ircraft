@@ -13,7 +13,7 @@ Both approaches produce Operations that work with Traversal, Pipeline, Pass, and
 
 ## Quick Start: Generic Dialect API
 
-Define a complete dialect in 6 lines, create operations without writing any case classes.
+Define a complete dialect in 6 lines, create and transform operations in minutes.
 
 ### Define the Dialect
 
@@ -21,9 +21,10 @@ Define a complete dialect in 6 lines, create operations without writing any case
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.core.FieldType.*
 import io.alnovis.ircraft.core.GenericDialect.*
+import io.alnovis.ircraft.core.Traversal.*
 
 val ConfigDialect = GenericDialect("config"):
-  leaf("entry", "key" -> StringField, "value" -> StringField, "type" -> StringField)
+  leaf("entry", "key" -> StringField, "value" -> StringField)
   leaf("comment", "text" -> StringField)
   container("section", "name" -> StringField)("entries")
   container("root")("sections")
@@ -35,21 +36,13 @@ val ConfigDialect = GenericDialect("config"):
 ### Create Operations
 
 ```scala
-// Leaf — just fields
-val entry = ConfigDialect.create("entry",
-  "key" -> "host", "value" -> "localhost", "type" -> "string"
-)
+// Leaf
+val entry = ConfigDialect("entry", "key" -> "host", "value" -> "localhost")
 
-// Container — fields + children
-val section = ConfigDialect.createContainer("section",
-  Seq("name" -> "server"),
-  "entries" -> Vector(entry)
-)
+// Container — child regions mixed with fields, auto-detected from schema
+val section = ConfigDialect("section", "name" -> "server", "entries" -> Vector(entry))
 
-val root = ConfigDialect.createContainer("root",
-  Seq.empty,
-  "sections" -> Vector(section)
-)
+val root = ConfigDialect("root", "sections" -> Vector(section))
 ```
 
 ### Read Fields
@@ -61,24 +54,76 @@ section.stringField("name")  // Some("server")
 section.children("entries")  // Vector(entry)
 ```
 
-### Pattern Match
+### Check Operation Kind
 
 ```scala
-import io.alnovis.ircraft.core.Traversal.*
-
-val module = Module("test", Vector(root))
-module.walkAll:
-  case op: GenericOp if op.kind == ConfigDialect.kind("entry") =>
-    println(s"${op.stringField("key").get} = ${op.stringField("value").get}")
-  case _ => ()
+entry.is("entry")              // true
+entry.is("section")            // false
+entry.isOf(ConfigDialect)      // true
 ```
 
-### Transform
+### Modify Operations (immutable)
 
 ```scala
-val transformed = root.deepTransform:
-  case op: GenericOp if op.kind == ConfigDialect.kind("entry") =>
-    op.copy(attributes = op.attributes + Attribute.BoolAttr("validated", true))
+// Single field
+val updated = entry.withField("value", "127.0.0.1")
+
+// Multiple fields
+val bulk = entry.withFields("key" -> "port", "value" -> "8080")
+
+// Remove a field
+val minimal = entry.without("type")
+
+// Update children
+val newSection = section.withRegion("entries", Vector(entry1, entry2))
+```
+
+### Pattern Match with Extractors
+
+Create extractors for ergonomic pattern matching — no verbose kind checks:
+
+```scala
+val Entry   = ConfigDialect.extractor("entry")
+val Section = ConfigDialect.extractor("section")
+
+// Use in transforms
+val module = Module("test", Vector(root))
+val transformed = module.transform:
+  case Entry(e)   => e.withField("processed", true)
+  case Section(s) => s.withField("name", s.stringField("name").getOrElse("").toUpperCase)
+```
+
+Compare with the raw approach:
+```scala
+// Before: 79 chars of ceremony
+case op: GenericOp if op.kind == ConfigDialect.kind("entry") =>
+  op.copy(attributes = op.attributes + Attribute.StringAttr("key", "new"))
+
+// After: 38 chars of intent
+case Entry(e) => e.withField("key", "new")
+```
+
+### Create Passes in One Expression
+
+No need to write a full `Pass` class for simple transformations:
+
+```scala
+val addDefaults = ConfigDialect.transformPass("add-defaults"):
+  case e if e.is("entry") && e.stringField("value").isEmpty =>
+    e.withField("value", "default")
+
+val uppercaseKeys = ConfigDialect.transformPass("uppercase-keys"):
+  case e if e.is("entry") =>
+    e.withField("key", e.stringField("key").getOrElse("").toUpperCase)
+```
+
+The partial function receives `GenericOp` instances scoped to this dialect — ops from other dialects are left untouched.
+
+### Compose a Pipeline
+
+```scala
+val pipeline = Pipeline("config-pipeline", addDefaults, uppercaseKeys)
+val result = pipeline.run(module, PassContext())
 ```
 
 ### Verify
@@ -90,24 +135,16 @@ val incomplete = GenericOp(ConfigDialect.kind("entry"),
   AttributeMap(Attribute.StringAttr("key", "x"))
 )
 ConfigDialect.verify(incomplete)
-// List(DiagnosticMessage(Warning, "... missing fields: value, type"))
+// List(DiagnosticMessage(Warning, "... missing fields: value"))
 ```
 
-### Use in Pipeline
+### Inspect Results
 
 ```scala
-val myPass = new Pass:
-  val name = "uppercase-keys"
-  val description = "Uppercases all entry keys"
-  def run(module: Module, context: PassContext): PassResult =
-    val transformed = module.transform:
-      case op: GenericOp if op.kind == ConfigDialect.kind("entry") =>
-        val upper = op.stringField("key").map(_.toUpperCase).getOrElse("")
-        op.copy(attributes = op.attributes + Attribute.StringAttr("key", upper))
-    PassResult(transformed)
-
-val pipeline = Pipeline("config-pipeline", myPass)
-val result = pipeline.run(module, PassContext())
+result.module.topLevel.flatMap(_.collectAll:
+  case Entry(e) => s"${e.stringField("key").get} = ${e.stringField("value").get}"
+)
+// Vector("HOST = localhost", "PORT = 8080")
 ```
 
 ### Supported Field Types
@@ -123,9 +160,48 @@ val result = pipeline.run(module, PassContext())
 For richer types, pass raw `Attribute` instances:
 
 ```scala
-ConfigDialect.create("entry",
+ConfigDialect("entry",
   "key" -> "host",
   "ref" -> Attribute.RefAttr("ref", someNodeId)
+)
+```
+
+### Complete Example: 5-Minute Workflow
+
+```scala
+import io.alnovis.ircraft.core.*
+import io.alnovis.ircraft.core.FieldType.*
+import io.alnovis.ircraft.core.GenericDialect.*
+import io.alnovis.ircraft.core.Traversal.*
+
+// 1. Define dialect
+val D = GenericDialect("config"):
+  leaf("entry", "key" -> StringField, "value" -> StringField)
+  container("section", "name" -> StringField)("entries")
+
+// 2. Create IR
+val entries = Vector(
+  D("entry", "key" -> "host", "value" -> "localhost"),
+  D("entry", "key" -> "port", "value" -> "8080")
+)
+val section = D("section", "name" -> "server", "entries" -> entries)
+val module = Module("my-config", Vector(section))
+
+// 3. Define extractors
+val Entry   = D.extractor("entry")
+val Section = D.extractor("section")
+
+// 4. Transform
+val pass = D.transformPass("validate"):
+  case e if e.is("entry") && e.stringField("key").exists(_.isEmpty) =>
+    e.withField("key", "UNKNOWN")
+
+// 5. Run pipeline
+val result = Pipeline("config", pass).run(module, PassContext())
+
+// 6. Collect results
+val kvs = result.module.topLevel.flatMap(_.collectAll:
+  case Entry(e) => e.stringField("key").get -> e.stringField("value").get
 )
 ```
 
@@ -336,6 +412,38 @@ class TomlEmitter extends Emitter with EmitterUtils:
 | Started generic, growing complex | Migrate to typed |
 
 You can mix both: define some operations as typed case classes, others as GenericOp. They all implement `Operation` and work together in the same Module, Pipeline, and Traversal.
+
+---
+
+## API Reference: GenericOp
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `is(opName)` | `Boolean` | Check operation name (ignoring dialect) |
+| `isOf(dialect)` | `Boolean` | Check dialect ownership |
+| `stringField(name)` | `Option[String]` | Read string field |
+| `intField(name)` | `Option[Int]` | Read int field |
+| `longField(name)` | `Option[Long]` | Read long field |
+| `boolField(name)` | `Option[Boolean]` | Read boolean field |
+| `stringListField(name)` | `Option[List[String]]` | Read string list field |
+| `children(regionName)` | `Vector[Operation]` | Get child operations from region |
+| `withField(name, value)` | `GenericOp` | Immutable update: add/replace field |
+| `withFields(pairs*)` | `GenericOp` | Immutable update: add/replace multiple fields |
+| `without(fieldName)` | `GenericOp` | Immutable update: remove field |
+| `withRegion(name, ops)` | `GenericOp` | Immutable update: replace/add region |
+
+## API Reference: GenericDialect
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `apply(opName, fields*)` | `GenericOp` | Unified creation (auto leaf/container) |
+| `create(opName, fields*)` | `GenericOp` | Create leaf operation |
+| `createContainer(opName, fields, children*)` | `GenericOp` | Create container operation |
+| `extractor(opName)` | `OpExtractor` | Create pattern match extractor |
+| `transformPass(name)(pf)` | `Pass` | Create transform pass from PartialFunction |
+| `kind(opName)` | `NodeKind` | Get NodeKind for operation name |
+| `schema(opName)` | `Option[OpSchema]` | Get operation schema |
+| `verify(op)` | `List[DiagnosticMessage]` | Validate operation against schema |
 
 ---
 
