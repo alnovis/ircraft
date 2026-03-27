@@ -10,9 +10,9 @@ import io.alnovis.ircraft.dialect.semantic.expr.*
 /** Emits Scala 3 source code from Semantic Dialect IR. */
 class DirectScalaEmitter extends BaseEmitter:
 
-  protected val tm: LanguageTypeMapping    = ScalaTypeMapping
-  protected val fileExtension: String      = "scala"
-  protected val commentStyle: CommentStyle = CommentStyle.ScalaDoc
+  protected val tm: LanguageTypeMapping     = ScalaTypeMapping
+  protected val fileExtension: String       = "scala"
+  protected val commentStyle: CommentStyle  = CommentStyle.ScalaDoc
   protected val statementTerminator: String = ""
 
   // ── Expression hooks ──────────────────────────────────────────────────

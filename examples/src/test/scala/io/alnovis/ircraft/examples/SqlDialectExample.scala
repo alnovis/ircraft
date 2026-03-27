@@ -19,17 +19,8 @@ class SqlDialectExample extends munit.FunSuite:
   // ── 1. Define the dialect ────────────────────────────────────────────
 
   val Sql = GenericDialect("sql", "SQL schema definition"):
-    leaf("column",
-      "name"     -> StringField,
-      "type"     -> StringField,
-      "nullable" -> BoolField,
-      "default"  -> StringField
-    )
-    leaf("index",
-      "name"    -> StringField,
-      "columns" -> StringListField,
-      "unique"  -> BoolField
-    )
+    leaf("column", "name" -> StringField, "type"    -> StringField, "nullable"   -> BoolField, "default" -> StringField)
+    leaf("index", "name"  -> StringField, "columns" -> StringListField, "unique" -> BoolField)
     container("table", "name" -> StringField)("columns", "indexes")
 
   // ── 2. Extractors for pattern matching ───────────────────────────────
@@ -69,9 +60,11 @@ class SqlDialectExample extends munit.FunSuite:
   /** Adds a primary key index on 'id' column if the table has one. */
   val addPrimaryKeyIndex = Sql.transformPass("add-pk-index"):
     case t if t.is("table") =>
-      val hasId = t.children("columns").exists:
-        case Column(c) => c.stringField("name").contains("id")
-        case _         => false
+      val hasId = t
+        .children("columns")
+        .exists:
+          case Column(c) => c.stringField("name").contains("id")
+          case _         => false
       if !hasId then t
       else
         val existingIndexes = t.children("indexes")
@@ -81,7 +74,7 @@ class SqlDialectExample extends munit.FunSuite:
         if hasPk then t
         else
           val tableName = t.stringField("name").getOrElse("unknown")
-          val pk = index(s"${tableName}_pkey", List("id"), unique = true)
+          val pk        = index(s"${tableName}_pkey", List("id"), unique = true)
           t.withRegion("indexes", existingIndexes :+ pk)
 
   // ── 5. Simple DDL emitter ────────────────────────────────────────────
@@ -92,23 +85,26 @@ class SqlDialectExample extends munit.FunSuite:
       case Table(t) =>
         val name = t.stringField("name").getOrElse("unknown")
         sb.append(s"CREATE TABLE $name (\n")
-        val cols = t.children("columns").collect:
-          case Column(c) =>
-            val colName  = c.stringField("name").getOrElse("?")
-            val colType  = c.stringField("type").getOrElse("TEXT")
-            val nullable = if c.boolField("nullable").getOrElse(false) then "" else " NOT NULL"
-            val default  = c.stringField("default").filter(_.nonEmpty).map(d => s" DEFAULT $d").getOrElse("")
-            s"  $colName $colType$nullable$default"
+        val cols = t
+          .children("columns")
+          .collect:
+            case Column(c) =>
+              val colName  = c.stringField("name").getOrElse("?")
+              val colType  = c.stringField("type").getOrElse("TEXT")
+              val nullable = if c.boolField("nullable").getOrElse(false) then "" else " NOT NULL"
+              val default  = c.stringField("default").filter(_.nonEmpty).map(d => s" DEFAULT $d").getOrElse("")
+              s"  $colName $colType$nullable$default"
         sb.append(cols.mkString(",\n"))
         sb.append("\n);\n\n")
 
-        t.children("indexes").foreach:
-          case Index(i) =>
-            val idxName = i.stringField("name").getOrElse("idx")
-            val unique  = if i.boolField("unique").getOrElse(false) then "UNIQUE " else ""
-            val idxCols = i.stringListField("columns").getOrElse(Nil).mkString(", ")
-            sb.append(s"CREATE ${unique}INDEX $idxName ON $name ($idxCols);\n")
-          case _ => ()
+        t.children("indexes")
+          .foreach:
+            case Index(i) =>
+              val idxName = i.stringField("name").getOrElse("idx")
+              val unique  = if i.boolField("unique").getOrElse(false) then "UNIQUE " else ""
+              val idxCols = i.stringListField("columns").getOrElse(Nil).mkString(", ")
+              sb.append(s"CREATE ${unique}INDEX $idxName ON $name ($idxCols);\n")
+            case _ => ()
         sb.append("\n")
       case _ => ()
     sb.result().trim
@@ -116,11 +112,14 @@ class SqlDialectExample extends munit.FunSuite:
   // ── Tests ────────────────────────────────────────────────────────────
 
   test("define and emit a simple table"):
-    val users = table("users", Vector(
-      column("id", "BIGSERIAL"),
-      column("email", "VARCHAR(255)"),
-      column("name", "VARCHAR(100)", nullable = true)
-    ))
+    val users = table(
+      "users",
+      Vector(
+        column("id", "BIGSERIAL"),
+        column("email", "VARCHAR(255)"),
+        column("name", "VARCHAR(100)", nullable = true)
+      )
+    )
     val ddl = emitDdl(Module("schema", Vector(users)))
 
     assert(ddl.contains("CREATE TABLE users"))
@@ -135,19 +134,20 @@ class SqlDialectExample extends munit.FunSuite:
     assert(result.isSuccess)
 
     val cols = result.module.topLevel.flatMap(_.collectAll:
-      case Column(c) => c.stringField("name").get
-    )
+      case Column(c) => c.stringField("name").get)
     assertEquals(cols.toSet, Set("id", "created_at", "updated_at"))
 
   test("audit pass is idempotent"):
-    val users = table("users", Vector(
-      column("id", "BIGSERIAL"),
-      column("created_at", "TIMESTAMP")
-    ))
+    val users = table(
+      "users",
+      Vector(
+        column("id", "BIGSERIAL"),
+        column("created_at", "TIMESTAMP")
+      )
+    )
     val result = addAuditColumns.run(Module("schema", Vector(users)), PassContext())
     val cols = result.module.topLevel.flatMap(_.collectAll:
-      case Column(c) => c.stringField("name").get
-    )
+      case Column(c) => c.stringField("name").get)
     assertEquals(cols.count(_ == "created_at"), 1)
 
   test("pk index pass adds primary key"):
@@ -155,21 +155,26 @@ class SqlDialectExample extends munit.FunSuite:
     val result = addPrimaryKeyIndex.run(Module("schema", Vector(users)), PassContext())
 
     val indexes = result.module.topLevel.flatMap(_.collectAll:
-      case Index(i) => i.stringField("name").get
-    )
+      case Index(i) => i.stringField("name").get)
     assertEquals(indexes, Vector("users_pkey"))
 
   test("full pipeline: schema → audit → pk → DDL"):
-    val users = table("users", Vector(
-      column("id", "BIGSERIAL"),
-      column("email", "VARCHAR(255)"),
-      column("name", "VARCHAR(100)", nullable = true)
-    ))
-    val orders = table("orders", Vector(
-      column("id", "BIGSERIAL"),
-      column("user_id", "BIGINT"),
-      column("total", "DECIMAL(10,2)")
-    ))
+    val users = table(
+      "users",
+      Vector(
+        column("id", "BIGSERIAL"),
+        column("email", "VARCHAR(255)"),
+        column("name", "VARCHAR(100)", nullable = true)
+      )
+    )
+    val orders = table(
+      "orders",
+      Vector(
+        column("id", "BIGSERIAL"),
+        column("user_id", "BIGINT"),
+        column("total", "DECIMAL(10,2)")
+      )
+    )
 
     val pipeline = Pipeline("sql-schema", addAuditColumns, addPrimaryKeyIndex)
     val result   = pipeline.run(Module("schema", Vector(users, orders)), PassContext())
@@ -190,10 +195,13 @@ class SqlDialectExample extends munit.FunSuite:
     assert(ddl.contains("user_id BIGINT NOT NULL"))
 
   test("extractor + withField in transform"):
-    val users = table("users", Vector(
-      column("id", "BIGSERIAL"),
-      column("email", "TEXT")
-    ))
+    val users = table(
+      "users",
+      Vector(
+        column("id", "BIGSERIAL"),
+        column("email", "TEXT")
+      )
+    )
 
     val fixTypes = Sql.transformPass("fix-text-types"):
       case c if c.is("column") && c.stringField("type").contains("TEXT") =>
@@ -201,6 +209,5 @@ class SqlDialectExample extends munit.FunSuite:
 
     val result = fixTypes.run(Module("schema", Vector(users)), PassContext())
     val types = result.module.topLevel.flatMap(_.collectAll:
-      case Column(c) => c.stringField("type").get
-    )
+      case Column(c) => c.stringField("type").get)
     assertEquals(types, Vector("BIGSERIAL", "VARCHAR(255)"))

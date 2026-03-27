@@ -266,10 +266,12 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
               Statement.ThrowStmt(
                 Expression.NewInstance(
                   TypeRef.NamedType("UnsupportedOperationException"),
-                  List(Expression.Literal(
-                    s"\"Field '${f.javaName}' is not present in version $version\"",
-                    TypeRef.STRING
-                  ))
+                  List(
+                    Expression.Literal(
+                      s"\"Field '${f.javaName}' is not present in version $version\"",
+                      TypeRef.STRING
+                    )
+                  )
                 )
               )
             )
@@ -380,10 +382,12 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
               Statement.ThrowStmt(
                 Expression.NewInstance(
                   TypeRef.NamedType("UnsupportedOperationException"),
-                  List(Expression.Literal(
-                    s"\"Field '${f.javaName}' is not present in version $version\"",
-                    TypeRef.STRING
-                  ))
+                  List(
+                    Expression.Literal(
+                      s"\"Field '${f.javaName}' is not present in version $version\"",
+                      TypeRef.STRING
+                    )
+                  )
                 )
               )
             )

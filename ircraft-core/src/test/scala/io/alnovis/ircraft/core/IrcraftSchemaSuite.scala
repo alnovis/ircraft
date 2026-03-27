@@ -101,7 +101,7 @@ class IrcraftSchemaSuite extends munit.FunSuite:
     assert(dialect.schema("simpleentry").get.isLeaf)
 
   test("dialect generation with nested type creates container"):
-    val dialect = IrcraftSchema.dialect("test", IrcraftSchema[Outer])
+    val dialect     = IrcraftSchema.dialect("test", IrcraftSchema[Outer])
     val outerSchema = dialect.schema("outer")
     assert(outerSchema.isDefined)
     assert(outerSchema.get.isContainer)
@@ -120,8 +120,8 @@ class IrcraftSchemaSuite extends munit.FunSuite:
     assertEquals(count, 2) // outer + inner
 
   test("derived ops work with transform"):
-    val op      = SimpleEntry("old", "value").toOp
-    val module  = Module("test", Vector(op))
+    val op     = SimpleEntry("old", "value").toOp
+    val module = Module("test", Vector(op))
     val updated = module.transform {
       case g: GenericOp if g.is("simpleentry") => g.withField("key", "new")
     }

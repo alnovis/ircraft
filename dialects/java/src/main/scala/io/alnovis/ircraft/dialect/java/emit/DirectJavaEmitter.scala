@@ -14,9 +14,9 @@ import io.alnovis.ircraft.dialect.semantic.expr.*
   */
 class DirectJavaEmitter extends BaseEmitter:
 
-  protected val tm: LanguageTypeMapping  = JavaTypeMapping
-  protected val fileExtension: String    = "java"
-  protected val commentStyle: CommentStyle = CommentStyle.JavaDoc
+  protected val tm: LanguageTypeMapping     = JavaTypeMapping
+  protected val fileExtension: String       = "java"
+  protected val commentStyle: CommentStyle  = CommentStyle.JavaDoc
   protected val statementTerminator: String = ";"
 
   // ── Expression hooks ──────────────────────────────────────────────────
@@ -56,8 +56,7 @@ class DirectJavaEmitter extends BaseEmitter:
     val annots = emitAnnotations(i.annotations, level)
     val mods   = emitModifiers(i.modifiers - Modifier.Abstract)
     val ext =
-      if i.extendsTypes.nonEmpty then
-        s" extends ${i.extendsTypes.map(t => tm.toLanguageType(t)).mkString(", ")}"
+      if i.extendsTypes.nonEmpty then s" extends ${i.extendsTypes.map(t => tm.toLanguageType(t)).mkString(", ")}"
       else ""
     val typeParams = emitTypeParams(i.typeParams)
 
@@ -133,8 +132,8 @@ class DirectJavaEmitter extends BaseEmitter:
     block(s"$mods$className($params)", level)(bodyStr)
 
   private def emitMethod(m: MethodOp, level: Int): String =
-    val doc    = m.javadoc.map(d => wrapComment(commentStyle, d, level) + "\n").getOrElse("")
-    val annots = emitAnnotations(m.annotations, level)
+    val doc                        = m.javadoc.map(d => wrapComment(commentStyle, d, level) + "\n").getOrElse("")
+    val annots                     = emitAnnotations(m.annotations, level)
     val modsWithoutAbstractDefault = emitModifiers(m.modifiers - Modifier.Abstract - Modifier.Default)
     val typeParams                 = emitTypeParams(m.typeParams)
     val returnType                 = tm.toLanguageType(m.returnType)
@@ -186,9 +185,16 @@ class DirectJavaEmitter extends BaseEmitter:
 
   private def emitModifiers(mods: Set[Modifier]): String =
     val order = List(
-      Modifier.Public, Modifier.Protected, Modifier.Private,
-      Modifier.Abstract, Modifier.Static, Modifier.Final,
-      Modifier.Synchronized, Modifier.Volatile, Modifier.Transient, Modifier.Native
+      Modifier.Public,
+      Modifier.Protected,
+      Modifier.Private,
+      Modifier.Abstract,
+      Modifier.Static,
+      Modifier.Final,
+      Modifier.Synchronized,
+      Modifier.Volatile,
+      Modifier.Transient,
+      Modifier.Native
     )
     val result = order.filter(mods.contains).map(modStr).mkString(" ")
     if result.isEmpty then "" else result + " "
@@ -213,8 +219,7 @@ class DirectJavaEmitter extends BaseEmitter:
     if tps.isEmpty then ""
     else
       val params = tps.map: tp =>
-        if tp.upperBounds.nonEmpty then
-          s"${tp.name} extends ${tp.upperBounds.map(tm.toLanguageType).mkString(" & ")}"
+        if tp.upperBounds.nonEmpty then s"${tp.name} extends ${tp.upperBounds.map(tm.toLanguageType).mkString(" & ")}"
         else tp.name
       s"<${params.mkString(", ")}>"
 

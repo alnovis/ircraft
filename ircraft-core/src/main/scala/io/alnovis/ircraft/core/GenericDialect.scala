@@ -112,7 +112,7 @@ class GenericDialect private (
     )
     if opSchema.isLeaf then createOp(opName, fields, childRegions = Vector.empty)
     else
-      val childSlotSet = opSchema.childSlots.toSet
+      val childSlotSet            = opSchema.childSlots.toSet
       val (regionArgs, fieldArgs) = fields.partition((key, _) => childSlotSet.contains(key))
       val childRegions = regionArgs.map: (name, value) =>
         value match
@@ -191,6 +191,7 @@ object GenericDialect:
 
   /** Extractor for pattern matching GenericOp by kind. */
   final class OpExtractor(val expectedKind: NodeKind):
+
     def unapply(op: Operation): Option[GenericOp] = op match
       case g: GenericOp if g.kind == expectedKind => Some(g)
       case _                                      => None

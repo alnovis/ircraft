@@ -10,9 +10,9 @@ import io.alnovis.ircraft.dialect.semantic.expr.*
 /** Emits Kotlin source code from Semantic Dialect IR. */
 class DirectKotlinEmitter extends BaseEmitter:
 
-  protected val tm: LanguageTypeMapping    = KotlinTypeMapping
-  protected val fileExtension: String      = "kt"
-  protected val commentStyle: CommentStyle = CommentStyle.KDoc
+  protected val tm: LanguageTypeMapping     = KotlinTypeMapping
+  protected val fileExtension: String       = "kt"
+  protected val commentStyle: CommentStyle  = CommentStyle.KDoc
   protected val statementTerminator: String = ""
 
   // ── Expression hooks ──────────────────────────────────────────────────
@@ -232,6 +232,4 @@ class DirectKotlinEmitter extends BaseEmitter:
       s"<${params.mkString(", ")}> "
 
   private def emitAnnotations(anns: List[String], level: Int, sb: StringBuilder): Unit =
-    for a <- anns do
-      if a != "Override" then
-        sb.append(indent(level, s"@$a\n"))
+    for a <- anns do if a != "Override" then sb.append(indent(level, s"@$a\n"))

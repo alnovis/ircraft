@@ -245,9 +245,9 @@ class GenericDialectSuite extends munit.FunSuite:
       leaf("item", "name" -> StringField)
     val pass = ConfigDialect.transformPass("noop"):
       case e if e.is("item") => e.withField("name", "changed")
-    val item   = otherDialect.create("item", "name" -> "original")
-    val module = Module("test", Vector(item))
-    val result = pass.run(module, PassContext())
+    val item      = otherDialect.create("item", "name" -> "original")
+    val module    = Module("test", Vector(item))
+    val result    = pass.run(module, PassContext())
     val unchanged = result.module.topLevel.head.asInstanceOf[GenericOp]
     assertEquals(unchanged.stringField("name"), Some("original"))
 

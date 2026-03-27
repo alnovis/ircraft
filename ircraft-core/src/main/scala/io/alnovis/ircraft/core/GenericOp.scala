@@ -65,7 +65,7 @@ case class GenericOp(
   /** Return a copy with the named region replaced or added. */
   def withRegion(name: String, ops: Vector[Operation]): GenericOp =
     val newRegion = Region(name, ops)
-    val idx = regions.indexWhere(_.name == name)
+    val idx       = regions.indexWhere(_.name == name)
     if idx >= 0 then copy(regions = regions.updated(idx, newRegion))
     else copy(regions = regions :+ newRegion)
 

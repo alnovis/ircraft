@@ -65,7 +65,7 @@ abstract class BaseEmitter extends Emitter with EmitterUtils:
       .toMap
 
   /** Assemble a source file: package + imports + type declaration. */
-  protected final def emitSource(pkg: String, imports: Set[String], op: Operation): String =
+  final protected def emitSource(pkg: String, imports: Set[String], op: Operation): String =
     val sb = StringBuilder()
     sb.append(s"package $pkg$statementTerminator\n")
     val sorted = imports.toList.sorted
@@ -78,36 +78,36 @@ abstract class BaseEmitter extends Emitter with EmitterUtils:
     sb.result()
 
   /** Emit a block of statements. */
-  protected final def emitBlock(b: Block, level: Int): String =
+  final protected def emitBlock(b: Block, level: Int): String =
     b.statements.map(s => emitStmt(s, level)).mkString("\n")
 
   /** Emit an expression (shared core, calls hooks for language-specific forms). */
-  protected final def emitExpr(e: Expression): String = e match
-    case Expression.Literal(v, _)                  => v
-    case Expression.Identifier(n)                  => n
+  final protected def emitExpr(e: Expression): String = e match
+    case Expression.Literal(v, _) => v
+    case Expression.Identifier(n) => n
     case Expression.MethodCall(recv, name, args, _) =>
       val r = recv.map(r => s"${emitExpr(r)}.").getOrElse("")
       s"$r$name(${args.map(emitExpr).mkString(", ")})"
-    case Expression.FieldAccess(recv, name)         => s"${emitExpr(recv)}.$name"
-    case Expression.NewInstance(t, args)             => emitNewInstance(t, args)
-    case Expression.Cast(expr, t)                   => emitCast(expr, t)
-    case Expression.Conditional(cond, t, f)         => emitConditional(cond, t, f)
-    case Expression.BinaryOp(l, op, r)              => emitBinaryOp(l, op, r)
-    case Expression.UnaryOp(op, expr)               => emitUnaryOp(op, expr)
-    case Expression.Lambda(params, body)            => emitLambda(params, body)
-    case Expression.NullLiteral                     => "null"
-    case Expression.ThisRef                         => "this"
-    case Expression.SuperRef                        => "super"
+    case Expression.FieldAccess(recv, name) => s"${emitExpr(recv)}.$name"
+    case Expression.NewInstance(t, args)    => emitNewInstance(t, args)
+    case Expression.Cast(expr, t)           => emitCast(expr, t)
+    case Expression.Conditional(cond, t, f) => emitConditional(cond, t, f)
+    case Expression.BinaryOp(l, op, r)      => emitBinaryOp(l, op, r)
+    case Expression.UnaryOp(op, expr)       => emitUnaryOp(op, expr)
+    case Expression.Lambda(params, body)    => emitLambda(params, body)
+    case Expression.NullLiteral             => "null"
+    case Expression.ThisRef                 => "this"
+    case Expression.SuperRef                => "super"
 
   /** Extract the type name from an operation. */
-  protected final def typeOpName(op: Operation): String = op match
+  final protected def typeOpName(op: Operation): String = op match
     case i: InterfaceOp => i.name
     case c: ClassOp     => c.name
     case e: EnumClassOp => e.name
     case _              => "Unknown"
 
   /** Collect import statements by walking the operation tree. */
-  protected final def collectImports(op: Operation): Set[String] =
+  final protected def collectImports(op: Operation): Set[String] =
     val imports = scala.collection.mutable.Set.empty[String]
     def walk(o: Operation): Unit = o match
       case c: ClassOp =>
@@ -157,4 +157,3 @@ abstract class BaseEmitter extends Emitter with EmitterUtils:
     case BinOperator.BitAnd => "&"
     case BinOperator.BitOr  => "|"
     case BinOperator.BitXor => "^"
-
