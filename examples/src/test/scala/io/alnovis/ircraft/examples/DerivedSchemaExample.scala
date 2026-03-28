@@ -27,10 +27,13 @@ class DerivedSchemaExample extends munit.FunSuite:
   test("schema extracts type structure without data"):
     val schema = IrcraftSchema[Entity]
     assertEquals(schema.opName, "entity")
-    assertEquals(schema.fieldSchemas, Vector(
-      "name"  -> FieldType.StringField,
-      "table" -> FieldType.StringField
-    ))
+    assertEquals(
+      schema.fieldSchemas,
+      Vector(
+        "name"  -> FieldType.StringField,
+        "table" -> FieldType.StringField
+      )
+    )
     assertEquals(schema.childSlots, Vector("pk"))
 
   test("schema module creates codegen-ready IR"):
@@ -46,9 +49,9 @@ class DerivedSchemaExample extends munit.FunSuite:
   // ── 3. Codec: data round-trip ────────────────────────────────────────
 
   test("codec encodes domain objects to IR"):
-    val id = Field("id", "BIGSERIAL", nullable = false)
+    val id   = Field("id", "BIGSERIAL", nullable = false)
     val user = Entity("User", "users", id)
-    val op = user.toOp
+    val op   = user.toOp
 
     assertEquals(op.stringField("name"), Some("User"))
     assertEquals(op.stringField("table"), Some("users"))
@@ -58,7 +61,7 @@ class DerivedSchemaExample extends munit.FunSuite:
     assertEquals(pkOp.boolField("nullable"), Some(false))
 
   test("codec round-trips nested domain objects"):
-    val id = Field("id", "BIGSERIAL", nullable = false)
+    val id   = Field("id", "BIGSERIAL", nullable = false)
     val user = Entity("User", "users", id)
     assertEquals(user.toOp.to[Entity], user)
 
@@ -66,10 +69,10 @@ class DerivedSchemaExample extends munit.FunSuite:
 
   test("extractor matches only its type"):
     val EntityOp = IrcraftSchema[Entity].extractor
-    val FieldOp = IrcraftSchema[Field].extractor
+    val FieldOp  = IrcraftSchema[Field].extractor
 
     val user = Entity("User", "users", Field("id", "BIGSERIAL", nullable = false))
-    val op = user.toOp
+    val op   = user.toOp
 
     op match
       case EntityOp(e) => assertEquals(e.stringField("name"), Some("User"))
@@ -84,12 +87,15 @@ class DerivedSchemaExample extends munit.FunSuite:
     val addPrefix = IrcraftSchema[Entity].transformPass("add-prefix"):
       case e => e.withField("table", "app_" + e.stringField("table").getOrElse(""))
 
-    val module = Module("test", Vector(
-      Entity("User", "users", Field("id", "BIGSERIAL", nullable = false)).toOp,
-      Entity("Order", "orders", Field("id", "BIGSERIAL", nullable = false)).toOp
-    ))
+    val module = Module(
+      "test",
+      Vector(
+        Entity("User", "users", Field("id", "BIGSERIAL", nullable = false)).toOp,
+        Entity("Order", "orders", Field("id", "BIGSERIAL", nullable = false)).toOp
+      )
+    )
 
-    val result = addPrefix.run(module, PassContext())
+    val result   = addPrefix.run(module, PassContext())
     val EntityOp = IrcraftSchema[Entity].extractor
     val names = result.module.topLevel.collect:
       case EntityOp(e) => e.stringField("table").get
@@ -103,10 +109,13 @@ class DerivedSchemaExample extends munit.FunSuite:
 
     val ColOp = IrcraftSchema[Col].extractor
 
-    val module = Module("db", Vector(
-      Tab("users", Col("id", "serial")).toOp,
-      Tab("orders", Col("order_id", "uuid")).toOp
-    ))
+    val module = Module(
+      "db",
+      Vector(
+        Tab("users", Col("id", "serial")).toOp,
+        Tab("orders", Col("order_id", "uuid")).toOp
+      )
+    )
 
     val normalizeTypes = IrcraftSchema[Col].transformPass("normalize"):
       case c => c.withField("kind", c.stringField("kind").getOrElse("").toUpperCase)
@@ -115,8 +124,7 @@ class DerivedSchemaExample extends munit.FunSuite:
     assert(result.isSuccess)
 
     val types = result.module.topLevel.flatMap(_.collectAll:
-      case ColOp(c) => c.stringField("kind").get
-    )
+      case ColOp(c) => c.stringField("kind").get)
     assertEquals(types, Vector("SERIAL", "UUID"))
 
   // ── 6. Dialect generation from schemas ───────────────────────────────

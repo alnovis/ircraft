@@ -33,7 +33,7 @@ val munitVersion = "1.1.0"
 // ─── Modules ─────────────────────────────────────────────────────────────────
 
 lazy val root = (project in file("."))
-  .aggregate(core, dialectProto, dialectSemantic, dialectJava, dialectKotlin, dialectScala, pipelineProtoToJava, examples)
+  .aggregate(core, dialectProto, dialectSemantic, dialectJava, dialectKotlin, dialectScala, pipelineProtoToJava, pipelineProtoToKotlin, pipelineProtoToScala, examples)
   .settings(
     name := "ircraft",
     publish / skip := true,
@@ -120,6 +120,26 @@ lazy val pipelineProtoToJava = (project in file("pipelines/proto-to-java"))
   .settings(commonSettings)
   .settings(
     name := "ircraft-pipeline-proto-to-java",
+    libraryDependencies ++= Seq(
+      "org.scalameta" %% "munit" % munitVersion % Test,
+    ),
+  )
+
+lazy val pipelineProtoToKotlin = (project in file("pipelines/proto-to-kotlin"))
+  .dependsOn(core, dialectProto, dialectSemantic, dialectKotlin)
+  .settings(commonSettings)
+  .settings(
+    name := "ircraft-pipeline-proto-to-kotlin",
+    libraryDependencies ++= Seq(
+      "org.scalameta" %% "munit" % munitVersion % Test,
+    ),
+  )
+
+lazy val pipelineProtoToScala = (project in file("pipelines/proto-to-scala"))
+  .dependsOn(core, dialectProto, dialectSemantic, dialectScala)
+  .settings(commonSettings)
+  .settings(
+    name := "ircraft-pipeline-proto-to-scala",
     libraryDependencies ++= Seq(
       "org.scalameta" %% "munit" % munitVersion % Test,
     ),
