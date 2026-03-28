@@ -16,3 +16,18 @@ trait Emitter:
     *   Map of file path (relative) -> source code content
     */
   def emit(module: Module): Map[String, String]
+
+  /**
+    * Emit a Module with file-to-entity mapping for incremental generation.
+    *
+    * @param sourceEntityKey
+    *   attribute key to extract entity name from FileOp (None to skip mapping)
+    * @return
+    *   (file path -> source code, file path -> entity name or None for global files)
+    */
+  def emitWithMapping(
+    module: Module,
+    sourceEntityKey: Option[String]
+  ): (Map[String, String], Map[String, Option[String]]) =
+    val files = emit(module)
+    (files, files.map((k, _) => k -> None))

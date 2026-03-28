@@ -55,14 +55,28 @@ abstract class BaseEmitter extends Emitter with EmitterUtils:
 
   /** Entry point: emit Module to Map[filePath, sourceCode]. */
   final def emit(module: Module): Map[String, String] =
+    emitWithMapping(module, sourceEntityKey = None)._1
+
+  /**
+    * Emit Module with file-to-entity mapping. Files whose FileOp carries `sourceEntityKey` are mapped to the entity
+    * name; files without it map to None (global files).
+    */
+  final override def emitWithMapping(
+    module: Module,
+    sourceEntityKey: Option[String]
+  ): (Map[String, String], Map[String, Option[String]]) =
+    val files        = Map.newBuilder[String, String]
+    val fileToEntity = Map.newBuilder[String, Option[String]]
     module.topLevel
       .collect { case f: FileOp => f }
-      .flatMap: f =>
-        f.types.map: op =>
+      .foreach: f =>
+        val entity = sourceEntityKey.flatMap(f.attributes.getString)
+        f.types.foreach: op =>
           val path   = f.packageName.replace('.', '/') + s"/${typeOpName(op)}.$fileExtension"
           val source = emitSource(f.packageName, collectImports(op), op)
-          path -> source
-      .toMap
+          files += path        -> source
+          fileToEntity += path -> entity
+    (files.result(), fileToEntity.result())
 
   /** Assemble a source file: package + imports + type declaration. */
   final protected def emitSource(pkg: String, imports: Set[String], op: Operation): String =
@@ -108,30 +122,28 @@ abstract class BaseEmitter extends Emitter with EmitterUtils:
 
   /** Collect import statements by walking the operation tree. */
   final protected def collectImports(op: Operation): Set[String] =
-    val imports = scala.collection.mutable.Set.empty[String]
-    def walk(o: Operation): Unit = o match
+    def walk(o: Operation): Set[String] = o match
       case c: ClassOp =>
-        c.superClass.foreach(t => imports ++= tm.importsFor(t))
-        c.implementsTypes.foreach(t => imports ++= tm.importsFor(t))
-        c.fields.foreach(f => imports ++= tm.importsFor(f.fieldType))
-        c.constructors.foreach(ct => ct.parameters.foreach(p => imports ++= tm.importsFor(p.paramType)))
-        c.methods.foreach(walk)
-        c.nestedTypes.foreach(walk)
+        c.superClass.toSet.flatMap(tm.importsFor) ++
+          c.implementsTypes.flatMap(tm.importsFor) ++
+          c.fields.flatMap(f => tm.importsFor(f.fieldType)) ++
+          c.constructors.flatMap(_.parameters.flatMap(p => tm.importsFor(p.paramType))) ++
+          c.methods.flatMap(walk) ++
+          c.nestedTypes.flatMap(walk)
       case i: InterfaceOp =>
-        i.extendsTypes.foreach(t => imports ++= tm.importsFor(t))
-        i.methods.foreach(walk)
-        i.nestedTypes.foreach(walk)
+        i.extendsTypes.toSet.flatMap(tm.importsFor) ++
+          i.methods.flatMap(walk) ++
+          i.nestedTypes.flatMap(walk)
       case m: MethodOp =>
-        imports ++= tm.importsFor(m.returnType)
-        m.parameters.foreach(p => imports ++= tm.importsFor(p.paramType))
+        tm.importsFor(m.returnType) ++
+          m.parameters.flatMap(p => tm.importsFor(p.paramType))
       case e: EnumClassOp =>
-        e.implementsTypes.foreach(t => imports ++= tm.importsFor(t))
-        e.fields.foreach(f => imports ++= tm.importsFor(f.fieldType))
-        e.constructors.foreach(ct => ct.parameters.foreach(p => imports ++= tm.importsFor(p.paramType)))
-        e.methods.foreach(walk)
-      case _ => ()
+        e.implementsTypes.toSet.flatMap(tm.importsFor) ++
+          e.fields.flatMap(f => tm.importsFor(f.fieldType)) ++
+          e.constructors.flatMap(_.parameters.flatMap(p => tm.importsFor(p.paramType))) ++
+          e.methods.flatMap(walk)
+      case _ => Set.empty
     walk(op)
-    imports.toSet
 
   // ── Shared with default (overridable) ─────────────────────────────────
 

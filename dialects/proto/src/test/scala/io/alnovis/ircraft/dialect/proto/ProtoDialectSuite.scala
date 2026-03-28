@@ -185,6 +185,54 @@ class ProtoDialectSuite extends munit.FunSuite:
     }
     assertEquals(schema.messages.head.fields.head.javaName, "myFieldName")
 
+  test("messageHashes returns per-message content hashes"):
+    val schema = ProtoSchema.build("v1") { s =>
+      s.message("Money") { m =>
+        m.field("amount", 1, TypeRef.LONG)
+      }
+      s.message("Order") { m =>
+        m.field("id", 1, TypeRef.LONG)
+      }
+    }
+
+    val hashes = schema.messageHashes
+    assertEquals(hashes.size, 2)
+    assert(hashes.contains("Money"))
+    assert(hashes.contains("Order"))
+    assertNotEquals(hashes("Money"), hashes("Order"))
+
+  test("enumHashes returns per-enum content hashes"):
+    val schema = ProtoSchema.build("v1") { s =>
+      s.enum_("Status") { e =>
+        e.value("UNKNOWN", 0)
+        e.value("ACTIVE", 1)
+      }
+      s.enum_("Currency") { e =>
+        e.value("USD", 0)
+        e.value("EUR", 1)
+      }
+    }
+
+    val hashes = schema.enumHashes
+    assertEquals(hashes.size, 2)
+    assert(hashes.contains("Status"))
+    assert(hashes.contains("Currency"))
+
+  test("messageHashes is stable across identical builds"):
+    def buildSchema() = ProtoSchema.build("v1") { s =>
+      s.message("Foo")(m => m.field("bar", 1, TypeRef.STRING))
+    }
+    assertEquals(buildSchema().messageHashes, buildSchema().messageHashes)
+
+  test("messageHashes changes when field type changes"):
+    val s1 = ProtoSchema.build("v1") { s =>
+      s.message("Foo")(m => m.field("bar", 1, TypeRef.STRING))
+    }
+    val s2 = ProtoSchema.build("v1") { s =>
+      s.message("Foo")(m => m.field("bar", 1, TypeRef.INT))
+    }
+    assertNotEquals(s1.messageHashes("Foo"), s2.messageHashes("Foo"))
+
   test("pipeline with verifier pass"):
     val schema = ProtoSchema.build("v1", "v2") { s =>
       s.message("Money") { m =>

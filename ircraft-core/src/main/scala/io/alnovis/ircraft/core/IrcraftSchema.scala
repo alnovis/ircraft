@@ -262,16 +262,9 @@ object IrcraftCodec:
 
       def encode(value: A): GenericOp =
         val product = value.asInstanceOf[Product]
-        var attrs   = AttributeMap.empty
-        var regs    = Vector.empty[Region]
-        var i       = 0
-        for (_, codec) <- fieldPairs do
-          val c          = codec.asInstanceOf[FieldCodec[Any]]
-          val fieldValue = product.productElement(i)
-          val (a, r)     = c.encode(labels(i), fieldValue, attrs, regs)
-          attrs = a
-          regs = r
-          i += 1
+        val (attrs, regs) = fieldPairs.zipWithIndex.foldLeft((AttributeMap.empty, Vector.empty[Region])):
+          case ((attrs, regs), ((label, codec), idx)) =>
+            codec.asInstanceOf[FieldCodec[Any]].encode(label, product.productElement(idx), attrs, regs)
         GenericOp(kind = NodeKind(IrcraftSchema.DefaultNamespace, s.opName), attributes = attrs, regions = regs)
 
       def decode(op: GenericOp): A =

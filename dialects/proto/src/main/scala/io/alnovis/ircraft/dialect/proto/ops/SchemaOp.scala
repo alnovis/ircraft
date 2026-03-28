@@ -28,6 +28,12 @@ case class SchemaOp(
   lazy val enums: Vector[EnumOp]                 = regionOps("enums")
   lazy val conflictEnums: Vector[ConflictEnumOp] = regionOps("conflictEnums")
 
+  /** Per-message content hashes for incremental generation. */
+  lazy val messageHashes: Map[String, Int] = messages.map(m => m.name -> m.contentHash).toMap
+
+  /** Per-enum content hashes for incremental generation. */
+  lazy val enumHashes: Map[String, Int] = enums.map(e => e.name -> e.contentHash).toMap
+
   override def mapChildren(f: Operation => Operation): SchemaOp =
     copy(regions = regions.map(r => Region(r.name, r.operations.map(f))))
 

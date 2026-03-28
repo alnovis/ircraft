@@ -1,5 +1,7 @@
 package io.alnovis.ircraft.pipeline.prototoscala
 
+import java.nio.file.Path
+
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.scala3.emit.DirectScalaEmitter
 import io.alnovis.ircraft.dialect.proto.lowering.LoweringConfig
@@ -25,3 +27,10 @@ class ProtoToScalaPipeline(config: LoweringConfig):
     context: PassContext = PassContext()
   ): Either[List[DiagnosticMessage], Map[String, String]] =
     delegate.execute(module, context)
+
+  def executeIncremental(
+    module: Module,
+    cacheDir: Path,
+    context: PassContext = PassContext()
+  ): Either[List[DiagnosticMessage], Map[String, String]] =
+    delegate.executeIncremental(module, cacheDir, context)

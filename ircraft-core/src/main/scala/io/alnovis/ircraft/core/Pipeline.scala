@@ -17,32 +17,32 @@ case class Pipeline(
 
   /** Execute the pipeline on the given module. */
   def run(module: Module, context: PassContext): PipelineResult =
-    import scala.util.boundary, boundary.break
+    case class State(module: Module, diagnostics: List[DiagnosticMessage], results: Vector[(String, PassResult)])
 
-    var current        = module
-    var allDiagnostics = List.empty[DiagnosticMessage]
-    var passResults    = Vector.empty[(String, PassResult)]
+    val init          = State(module, Nil, Vector.empty)
+    val enabledPasses = passes.filter(_.isEnabled(context))
+    passes.filterNot(_.isEnabled(context)).foreach(p => context.logger.debug(s"Skipping disabled pass: ${p.name}"))
 
-    boundary:
-      for pass <- passes do
-        if !pass.isEnabled(context) then context.logger.debug(s"Skipping disabled pass: ${pass.name}")
-        else
-          context.logger.info(s"Running pass: ${pass.name}")
-          val start   = System.nanoTime()
-          val result  = pass.run(current, context)
-          val elapsed = (System.nanoTime() - start) / 1_000_000
+    enabledPasses.foldLeft(init): (state, pass) =>
+      if state.diagnostics.exists(_.isError) && failFast then state
+      else
+        context.logger.info(s"Running pass: ${pass.name}")
+        val start   = System.nanoTime()
+        val result  = pass.run(state.module, context)
+        val elapsed = (System.nanoTime() - start) / 1_000_000
+        context.logger.debug(s"  ${pass.name} completed in ${elapsed}ms")
 
-          context.logger.debug(s"  ${pass.name} completed in ${elapsed}ms")
+        val next = State(
+          if result.hasErrors then state.module else result.module,
+          state.diagnostics ++ result.diagnostics,
+          state.results :+ (pass.name, result)
+        )
 
-          allDiagnostics = allDiagnostics ++ result.diagnostics
-          passResults = passResults :+ (pass.name, result)
-
-          if result.hasErrors && failFast then
-            context.logger.error(s"  ${pass.name} failed with errors, stopping pipeline")
-            break(PipelineResult(current, allDiagnostics, passResults))
-          else current = result.module
-
-      PipelineResult(current, allDiagnostics, passResults)
+        if result.hasErrors && failFast then
+          context.logger.error(s"  ${pass.name} failed with errors, stopping pipeline")
+        next
+    match
+      case State(m, d, r) => PipelineResult(m, d, r)
 
   /** Append another pass to this pipeline. */
   def andThen(pass: Pass): Pipeline = copy(passes = passes :+ pass)

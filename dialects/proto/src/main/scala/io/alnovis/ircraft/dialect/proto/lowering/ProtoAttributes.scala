@@ -8,6 +8,11 @@ package io.alnovis.ircraft.dialect.proto.lowering
   */
 object ProtoAttributes:
 
+  // ── On FileOp (for incremental generation) ─────────────────────────────
+
+  /** Source entity name (message or enum) that produced this FileOp. Global files have no sourceEntity. */
+  val SourceEntity = "proto.sourceEntity"
+
   // ── On InterfaceOp / ClassOp (message-level) ───────────────────────────
 
   /** List of version identifiers where this message exists. */

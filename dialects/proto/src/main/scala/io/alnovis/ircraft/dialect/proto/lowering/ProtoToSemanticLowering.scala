@@ -80,7 +80,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       constructors = Vector(constructor),
       methods = Vector(getter)
     )
-    FileOp(config.apiPackage, Vector(enumClass))
+    FileOp(config.apiPackage, Vector(enumClass), attributes = sourceEntityAttr(e.name))
 
   private def lowerConflictEnum(c: ConflictEnumOp): FileOp =
     val constants = c.values.map: v =>
@@ -97,7 +97,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       ),
       methods = Vector(MethodOp("getValue", TypeRef.INT, modifiers = Set(Modifier.Public)))
     )
-    FileOp(config.apiPackage, Vector(enumClass))
+    FileOp(config.apiPackage, Vector(enumClass), attributes = sourceEntityAttr(c.enumName))
 
   // ── Message lowering ───────────────────────────────────────────────────
 
@@ -139,7 +139,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
         (nestedEnums: Vector[Operation]) ++ (oneofEnums: Vector[Operation]) ++ (nestedInterfaces: Vector[Operation]),
       attributes = messageAttributes(msg, versions)
     )
-    FileOp(config.apiPackage, Vector(iface))
+    FileOp(config.apiPackage, Vector(iface), attributes = sourceEntityAttr(msg.name))
 
   private def lowerToInterfaceOp(msg: MessageOp): InterfaceOp =
     val getters = msg.fields.map(fieldToGetter)
@@ -218,7 +218,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       nestedTypes = nestedAbstractClasses,
       attributes = messageAttributes(msg, versions)
     )
-    FileOp(config.implSubPackage, Vector(cls))
+    FileOp(config.implSubPackage, Vector(cls), attributes = sourceEntityAttr(msg.name))
 
   private def lowerToImplClass(msg: MessageOp, version: String): FileOp =
     val versionSuffix = version.capitalize
@@ -296,7 +296,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
       nestedTypes = nestedImplClasses,
       attributes = implAttributes(msg, version)
     )
-    FileOp(config.implPackage(version), Vector(cls))
+    FileOp(config.implPackage(version), Vector(cls), attributes = sourceEntityAttr(msg.name))
 
   // ── Nested message helpers (return ClassOp, not FileOp) ─────────────────
 
@@ -432,6 +432,9 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
   // ── Attribute helpers ──────────────────────────────────────────────────
 
   import ProtoAttributes as PA
+
+  private def sourceEntityAttr(name: String): AttributeMap =
+    AttributeMap(Attribute.StringAttr(PA.SourceEntity, name))
 
   private def messageAttributes(msg: MessageOp, versions: List[String]): AttributeMap =
     AttributeMap(
