@@ -43,7 +43,7 @@ object BuilderPass extends Pass:
     val fieldGetters = iface.methods.filter(_.name.startsWith("get"))
 
     val setters = fieldGetters.map: m =>
-      val fieldName = m.name.drop(3) // getAmount → Amount
+      val fieldName = m.name.drop(3) // getAmount -> Amount
       MethodOp(
         s"set$fieldName",
         TypeRef.NamedType("Builder"),
@@ -96,7 +96,7 @@ object BuilderPass extends Pass:
     val extractMethods = cls.methods.filter(_.name.startsWith("extract"))
 
     val doSetMethods = extractMethods.map: m =>
-      val fieldName = m.name.drop(7) // extractAmount → Amount
+      val fieldName = m.name.drop(7) // extractAmount -> Amount
       MethodOp(
         s"doSet$fieldName",
         TypeRef.VOID,

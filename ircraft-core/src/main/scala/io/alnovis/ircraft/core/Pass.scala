@@ -4,7 +4,7 @@ package io.alnovis.ircraft.core
   * A single transformation pass in the compilation pipeline (Nanopass concept).
   *
   * Each pass performs one focused transformation:
-  *   - Has well-defined input and output (Module → PassResult)
+  *   - Has well-defined input and output (Module -> PassResult)
   *   - Is stateless (all state in PassContext)
   *   - Can be tested in isolation
   *   - Can be composed into Pipelines

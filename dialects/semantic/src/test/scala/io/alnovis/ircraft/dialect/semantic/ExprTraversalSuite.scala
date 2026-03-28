@@ -65,7 +65,7 @@ class ExprTraversalSuite extends munit.FunSuite:
       case Expression.Identifier("x") => Expression.Identifier("replaced")
       case Expression.FieldAccess(Expression.Identifier("replaced"), n) =>
         Expression.Identifier(s"found_$n")
-    // Bottom-up: first x→replaced, then FieldAccess(replaced, y) → found_y
+    // Bottom-up: first x->replaced, then FieldAccess(replaced, y) -> found_y
     assertEquals(transformed, Expression.Identifier("found_y"))
 
   // ── Statement.walkExprs ────────────────────────────────────────────────

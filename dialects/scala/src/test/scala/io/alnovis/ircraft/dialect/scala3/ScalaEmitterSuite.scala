@@ -41,7 +41,7 @@ class ScalaEmitterSuite extends munit.FunSuite:
 
   // ── Abstract class ─────────────────────────────────────────────────────
 
-  test("emit abstract class with generics — square brackets"):
+  test("emit abstract class with generics - square brackets"):
     val cls = ClassOp(
       name = "AbstractMoney",
       modifiers = Set(Modifier.Public, Modifier.Abstract),

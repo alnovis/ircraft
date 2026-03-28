@@ -1,7 +1,7 @@
 package io.alnovis.ircraft.dialect.proto.lowering
 
 /**
-  * Configuration for Proto → Semantic lowering.
+  * Configuration for Proto -> Semantic lowering.
   *
   * Mirrors the relevant fields from proto-wrapper-plugin's GeneratorConfig.
   */
@@ -15,7 +15,7 @@ case class LoweringConfig(
   /** Whether to generate Builder interfaces. */
   generateBuilders: Boolean = false,
 
-  /** Whether to convert Well-Known Types (Timestamp→Instant, etc.). */
+  /** Whether to convert Well-Known Types (Timestamp->Instant, etc.). */
   convertWellKnownTypes: Boolean = true,
 
   /** Whether to generate ProtocolVersions utility class. */

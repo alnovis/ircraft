@@ -158,7 +158,7 @@ class SqlDialectExample extends munit.FunSuite:
       case Index(i) => i.stringField("name").get)
     assertEquals(indexes, Vector("users_pkey"))
 
-  test("full pipeline: schema → audit → pk → DDL"):
+  test("full pipeline: schema -> audit -> pk -> DDL"):
     val users = table(
       "users",
       Vector(

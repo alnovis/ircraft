@@ -11,10 +11,10 @@ import io.alnovis.ircraft.dialect.semantic.expr.*
   * Lowers Proto Dialect IR to Semantic Dialect IR.
   *
   * Transforms:
-  *   - SchemaOp → List[FileOp]
-  *   - MessageOp → InterfaceOp + ClassOp(abstract) + ClassOp(impl per version)
-  *   - FieldOp → MethodOp(getter) in interface + FieldDeclOp + MethodOp(extract) in abstract
-  *   - EnumOp → EnumClassOp
+  *   - SchemaOp -> List[FileOp]
+  *   - MessageOp -> InterfaceOp + ClassOp(abstract) + ClassOp(impl per version)
+  *   - FieldOp -> MethodOp(getter) in interface + FieldDeclOp + MethodOp(extract) in abstract
+  *   - EnumOp -> EnumClassOp
   */
 class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
 

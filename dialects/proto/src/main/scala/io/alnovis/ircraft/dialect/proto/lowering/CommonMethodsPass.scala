@@ -9,13 +9,13 @@ import io.alnovis.ircraft.dialect.semantic.expr.*
   * Adds common utility methods to abstract classes: equals, hashCode, toString, serialization.
   *
   * Adds to abstract class:
-  *   - `equals(Object)` — compare versionId + proto
-  *   - `hashCode()` — hash of versionId + proto
-  *   - `toString()` — includes wrapper version + proto content
-  *   - `serializeToBytes()` — abstract, implemented by version impls
-  *   - `toBytes()` — delegates to serializeToBytes()
-  *   - `getTypedProto()` — returns proto field
-  *   - `getWrapperVersionId()` — abstract, implemented by version impls
+  *   - `equals(Object)` - compare versionId + proto
+  *   - `hashCode()` - hash of versionId + proto
+  *   - `toString()` - includes wrapper version + proto content
+  *   - `serializeToBytes()` - abstract, implemented by version impls
+  *   - `toBytes()` - delegates to serializeToBytes()
+  *   - `getTypedProto()` - returns proto field
+  *   - `getWrapperVersionId()` - abstract, implemented by version impls
   */
 object CommonMethodsPass extends Pass:
 
@@ -31,7 +31,7 @@ object CommonMethodsPass extends Pass:
   private def enrichAbstractClass(cls: ClassOp): ClassOp =
     val methods = Vector.newBuilder[MethodOp]
 
-    // getTypedProto() → returns proto
+    // getTypedProto() -> returns proto
     methods += MethodOp(
       "getTypedProto",
       TypeRef.NamedType("com.google.protobuf.Message"),
@@ -43,21 +43,21 @@ object CommonMethodsPass extends Pass:
       )
     )
 
-    // getWrapperVersionId() → abstract
+    // getWrapperVersionId() -> abstract
     methods += MethodOp(
       "getWrapperVersionId",
       TypeRef.STRING,
       modifiers = Set(Modifier.Public, Modifier.Abstract)
     )
 
-    // serializeToBytes() → abstract template method
+    // serializeToBytes() -> abstract template method
     methods += MethodOp(
       "serializeToBytes",
       TypeRef.BYTES,
       modifiers = Set(Modifier.Protected, Modifier.Abstract)
     )
 
-    // toBytes() → delegates to serializeToBytes()
+    // toBytes() -> delegates to serializeToBytes()
     methods += MethodOp(
       "toBytes",
       TypeRef.BYTES,

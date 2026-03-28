@@ -8,13 +8,13 @@ import io.alnovis.ircraft.dialect.semantic.ops.*
   * Converts Well-Known Type fields to Java standard types.
   *
   * Transforms getter return types in interfaces and abstract classes:
-  *   - Timestamp → java.time.Instant
-  *   - Duration → java.time.Duration
-  *   - Struct → java.util.Map<String, Object>
-  *   - Value → Object
-  *   - ListValue → java.util.List<Object>
-  *   - Int32Value → Integer (nullable)
-  *   - StringValue → String (nullable)
+  *   - Timestamp -> java.time.Instant
+  *   - Duration -> java.time.Duration
+  *   - Struct -> java.util.Map<String, Object>
+  *   - Value -> Object
+  *   - ListValue -> java.util.List<Object>
+  *   - Int32Value -> Integer (nullable)
+  *   - StringValue -> String (nullable)
   *   - etc.
   *
   * Controlled by LoweringConfig.convertWellKnownTypes.

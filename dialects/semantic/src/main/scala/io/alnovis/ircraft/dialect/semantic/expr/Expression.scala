@@ -5,7 +5,7 @@ import io.alnovis.ircraft.core.{ ContentHash, ContentHashable, TypeRef }
 /**
   * Language-agnostic code expression. Used in method bodies, field initializers, and constructor bodies.
   *
-  * This is intentionally minimal — it covers the most common patterns needed for code generation. Language-specific
+  * This is intentionally minimal - it covers the most common patterns needed for code generation. Language-specific
   * expressions belong in code dialect operations.
   */
 sealed trait Expression

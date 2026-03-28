@@ -191,7 +191,7 @@ class KotlinEmitterSuite extends munit.FunSuite:
     assert(source.contains("Money(100)"), s"Source:\n$source")
     assert(!source.contains("new Money"), s"Source:\n$source")
 
-  // ── Static → companion object ──────────────────────────────────────────
+  // ── Static -> companion object ──────────────────────────────────────────
 
   test("static fields become companion object"):
     val cls = ClassOp(

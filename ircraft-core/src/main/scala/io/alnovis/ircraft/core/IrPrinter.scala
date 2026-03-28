@@ -3,7 +3,7 @@ package io.alnovis.ircraft.core
 /**
   * Prints IR as human-readable text, similar to MLIR textual format.
   *
-  * Works for any Operation subclass — both typed (MessageOp, ClassOp) and generic (GenericOp). Uses only the Operation
+  * Works for any Operation subclass - both typed (MessageOp, ClassOp) and generic (GenericOp). Uses only the Operation
   * trait interface: kind, attributes, regions.
   *
   * {{{
@@ -40,10 +40,10 @@ object IrPrinter:
     val attrs  = printAttrs(op.attributes)
 
     if op.regions.isEmpty || op.regions.forall(_.operations.isEmpty) then
-      // Leaf — single line
+      // Leaf - single line
       s"$prefix$name$attrs"
     else
-      // Container — block with regions
+      // Container - block with regions
       val sb = StringBuilder()
       sb.append(s"$prefix$name$attrs {\n")
       for r <- op.regions if r.operations.nonEmpty do sb.append(printRegion(r, level + 1))

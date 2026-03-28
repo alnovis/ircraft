@@ -9,7 +9,7 @@ import io.alnovis.ircraft.dialect.semantic.expr.*
   * Enriches Semantic IR with conflict-specific methods based on proto metadata attributes.
   *
   * For each getter method with a non-None conflictType attribute, generates additional methods in the interface and
-  * abstract class. Does not modify impl classes — extract methods handle type conversion.
+  * abstract class. Does not modify impl classes - extract methods handle type conversion.
   *
   * Reads: ProtoAttributes.ConflictType on MethodOp
   */
@@ -167,7 +167,7 @@ object ConflictResolutionPass extends Pass:
         )
       case _ => Vector.empty
 
-  /** Extract field name from getter name: "getAmount" → "Amount", "extractAmount" → "Amount" */
+  /** Extract field name from getter name: "getAmount" -> "Amount", "extractAmount" -> "Amount" */
   private def extractFieldName(methodName: String): String =
     if methodName.startsWith("get") then methodName.drop(3)
     else if methodName.startsWith("extract") then methodName.drop(7)

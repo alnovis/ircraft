@@ -58,7 +58,7 @@ trait Operation extends GreenNode:
       case None =>
         if regions.nonEmpty then
           System.err.println(
-            s"[ircraft] WARNING: regionOps('$name') on ${kind.qualifiedName} — region not found. Available: ${regions.map(_.name).mkString(", ")}"
+            s"[ircraft] WARNING: regionOps('$name') on ${kind.qualifiedName} - region not found. Available: ${regions.map(_.name).mkString(", ")}"
           )
         Vector.empty
 

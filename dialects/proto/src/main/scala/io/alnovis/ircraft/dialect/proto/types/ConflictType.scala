@@ -7,7 +7,7 @@ package io.alnovis.ircraft.dialect.proto.types
   */
 enum ConflictType(val handling: ConflictHandling, val description: String):
 
-  /** No type conflict — same type in all versions. */
+  /** No type conflict - same type in all versions. */
   case None extends ConflictType(ConflictHandling.Native, "Types are identical")
 
   /** int ↔ enum conflict (uses int with enum helper methods). */
@@ -16,10 +16,10 @@ enum ConflictType(val handling: ConflictHandling, val description: String):
   /** enum ↔ enum conflict (different enum types, uses int). */
   case EnumEnum extends ConflictType(ConflictHandling.Converted, "Uses int type for unified access")
 
-  /** Integer type widening: int32 → int64 (uses long). */
+  /** Integer type widening: int32 -> int64 (uses long). */
   case Widening extends ConflictType(ConflictHandling.Converted, "Uses wider type (long)")
 
-  /** Float type widening: float → double (uses double). */
+  /** Float type widening: float -> double (uses double). */
   case FloatDouble extends ConflictType(ConflictHandling.Converted, "Uses double type")
 
   /** Signed/unsigned conflict: int32 ↔ uint32 (uses long for safety). */
@@ -28,7 +28,7 @@ enum ConflictType(val handling: ConflictHandling, val description: String):
   /** Repeated ↔ singular conflict (uses List for both). */
   case RepeatedSingle extends ConflictType(ConflictHandling.Converted, "Uses List<T> for unified access")
 
-  /** Type narrowing: long → int (potential data loss). */
+  /** Type narrowing: long -> int (potential data loss). */
   case Narrowing extends ConflictType(ConflictHandling.Warning, "Potential data loss on narrowing conversion")
 
   /** string ↔ bytes conflict (requires manual conversion). */
@@ -46,7 +46,7 @@ enum ConflictType(val handling: ConflictHandling, val description: String):
 
 /** How the plugin handles a type conflict. */
 enum ConflictHandling:
-  /** No special handling needed — types are compatible. */
+  /** No special handling needed - types are compatible. */
   case Native
 
   /** Automatically converts between types. */

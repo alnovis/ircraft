@@ -6,7 +6,7 @@ import io.alnovis.ircraft.dialect.proto.lowering.LoweringConfig
 import io.alnovis.ircraft.dialect.proto.pipeline.ProtoToCodePipeline
 
 /**
-  * Pre-built pipeline: Proto Schema → Java source files.
+  * Pre-built pipeline: Proto Schema -> Java source files.
   *
   * Convenience wrapper around [[ProtoToCodePipeline]] with [[DirectJavaEmitter]].
   */
@@ -18,7 +18,7 @@ class ProtoToJavaPipeline(config: LoweringConfig):
     * Run the full pipeline and emit Java source files.
     *
     * @return
-    *   Either errors or a map of file path → source code
+    *   Either errors or a map of file path -> source code
     */
   def execute(
     module: Module,

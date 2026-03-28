@@ -8,7 +8,7 @@ import io.alnovis.ircraft.dialect.semantic.ops.*
 import io.alnovis.ircraft.dialect.semantic.expr.*
 
 /**
-  * Direct Java source emitter — no external dependencies.
+  * Direct Java source emitter - no external dependencies.
   *
   * Transforms Semantic Dialect IR (FileOp, ClassOp, InterfaceOp, etc.) into Java source code strings.
   */

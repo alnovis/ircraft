@@ -9,8 +9,8 @@ import io.alnovis.ircraft.dialect.semantic.expr.*
   * Adds version conversion methods to interfaces and abstract classes.
   *
   * Adds to interface:
-  *   - `asVersion(VersionContext)` → converts wrapper to another version
-  *   - `getFieldsInaccessibleInVersion(String)` → lists fields missing in target version
+  *   - `asVersion(VersionContext)` -> converts wrapper to another version
+  *   - `getFieldsInaccessibleInVersion(String)` -> lists fields missing in target version
   *
   * Adds to abstract class:
   *   - Concrete implementations delegating to VersionContext
@@ -60,7 +60,7 @@ object VersionConversionPass extends Pass:
 
   private def enrichAbstractClass(cls: ClassOp): ClassOp =
     val methods = Vector(
-      // asVersion(VersionContext) → wraps toBytes + parseFromBytes on target context
+      // asVersion(VersionContext) -> wraps toBytes + parseFromBytes on target context
       MethodOp(
         "asVersion",
         TypeRef.NamedType(
@@ -92,7 +92,7 @@ object VersionConversionPass extends Pass:
           )
         )
       ),
-      // getFieldsInaccessibleInVersion — abstract, implemented by version impls
+      // getFieldsInaccessibleInVersion - abstract, implemented by version impls
       MethodOp(
         "getFieldsInaccessibleInVersion",
         TypeRef.ListType(TypeRef.STRING),

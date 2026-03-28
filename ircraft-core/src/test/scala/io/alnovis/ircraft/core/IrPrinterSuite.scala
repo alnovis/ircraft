@@ -11,7 +11,7 @@ class IrPrinterSuite extends munit.FunSuite:
     container("section", "name" -> StringField)("entries")
     container("root")("sections")
 
-  test("print leaf op — single line with attributes"):
+  test("print leaf op - single line with attributes"):
     val entry  = TestDialect.create("entry", "key" -> "host", "value" -> "localhost")
     val output = IrPrinter.print(entry)
     assert(output.contains("test.entry"), s"Output:\n$output")
@@ -19,7 +19,7 @@ class IrPrinterSuite extends munit.FunSuite:
     assert(output.contains("""value="localhost""""), s"Output:\n$output")
     assert(!output.contains("{"), "Leaf should be single line")
 
-  test("print container op — block with regions"):
+  test("print container op - block with regions"):
     val entry   = TestDialect.create("entry", "key" -> "x", "value" -> "y")
     val section = TestDialect.createContainer("section", Seq("name" -> "srv"), "entries" -> Vector(entry))
     val output  = IrPrinter.print(section)
@@ -27,7 +27,7 @@ class IrPrinterSuite extends munit.FunSuite:
     assert(output.contains("entries {"), s"Output:\n$output")
     assert(output.contains("test.entry"), s"Output:\n$output")
 
-  test("print module — full tree"):
+  test("print module - full tree"):
     val entry1  = TestDialect.create("entry", "key" -> "host", "value" -> "localhost")
     val entry2  = TestDialect.create("entry", "key" -> "port", "value" -> "8080")
     val section = TestDialect.createContainer("section", Seq("name" -> "server"), "entries" -> Vector(entry1, entry2))
@@ -43,7 +43,7 @@ class IrPrinterSuite extends munit.FunSuite:
     assert(output.contains("""key="host""""), s"Output:\n$output")
     assert(output.contains("""key="port""""), s"Output:\n$output")
 
-  test("print nested regions — correct indentation"):
+  test("print nested regions - correct indentation"):
     val entry   = TestDialect.create("entry", "key" -> "x", "value" -> "y")
     val section = TestDialect.createContainer("section", Seq("name" -> "s"), "entries" -> Vector(entry))
     val root    = TestDialect.createContainer("root", Seq.empty, "sections" -> Vector(section))

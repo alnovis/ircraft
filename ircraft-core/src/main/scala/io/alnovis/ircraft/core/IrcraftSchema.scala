@@ -3,7 +3,7 @@ package io.alnovis.ircraft.core
 import scala.compiletime.{ constValue, constValueTuple, erasedValue, summonInline }
 import scala.deriving.Mirror
 
-// ── FieldTypeOf — lightweight type → FieldType mapping (for schema) ───
+// ── FieldTypeOf - lightweight type -> FieldType mapping (for schema) ───
 
 /** Maps a Scala field type to its FieldType descriptor. None for nested case classes. */
 sealed trait FieldTypeOf[A]:
@@ -29,7 +29,7 @@ object FieldTypeOf:
   given nested[A](using IrcraftSchema[A]): FieldTypeOf[A] with
     def fieldType: Option[FieldType] = None
 
-// ── FieldCodec — full encode/decode for data codec ────────────────────
+// ── FieldCodec - full encode/decode for data codec ────────────────────
 
 /** Encodes/decodes a single field type to/from IR attributes and regions. */
 sealed trait FieldCodec[A]:
@@ -93,7 +93,7 @@ object FieldCodec:
     def decode(key: String, attrs: AttributeMap, regions: Vector[Region]): List[String] =
       attrs.getStringList(key).getOrElse(throw IllegalArgumentException(s"Missing string list field '$key'"))
 
-  /** Nested case class — encode/decode via its IrcraftCodec. */
+  /** Nested case class - encode/decode via its IrcraftCodec. */
   given nested[A](using codec: IrcraftCodec[A]): FieldCodec[A] with
 
     def encode(key: String, value: A, attrs: AttributeMap, regions: Vector[Region]): (AttributeMap, Vector[Region]) =
@@ -110,10 +110,10 @@ object FieldCodec:
       )
       codec.decode(op.asInstanceOf[GenericOp])
 
-// ── IrcraftSchema — type structure metadata (for codegen) ─────────────
+// ── IrcraftSchema - type structure metadata (for codegen) ─────────────
 
 /**
-  * Compile-time schema derivation for case classes — structure only, no data.
+  * Compile-time schema derivation for case classes - structure only, no data.
   *
   * {{{
   * case class Person(name: String, age: Int) derives IrcraftSchema
@@ -163,7 +163,7 @@ object IrcraftSchema:
 
   inline def apply[A](using schema: IrcraftSchema[A]): IrcraftSchema[A] = schema
 
-  /** Derive schema from case class via Mirror — extracts structure only. */
+  /** Derive schema from case class via Mirror - extracts structure only. */
   inline def derived[A <: Product](using m: Mirror.ProductOf[A]): IrcraftSchema[A] =
     val nameStr    = constValue[m.MirroredLabel].toLowerCase
     val labels     = constValueTuple[m.MirroredElemLabels].toList.asInstanceOf[List[String]]
@@ -216,12 +216,12 @@ object IrcraftSchema:
       case _: EmptyTuple => Nil
       case _: (h *: t)   => summonInline[FieldTypeOf[h]] :: summonFieldTypes[t]
 
-// ── IrcraftCodec — data encode/decode (auto-derived from Schema) ──────
+// ── IrcraftCodec - data encode/decode (auto-derived from Schema) ──────
 
 /**
   * Encode/decode case class instances to/from GenericOp.
   *
-  * Auto-derived when `IrcraftSchema[A]` is available — no explicit `derives` needed:
+  * Auto-derived when `IrcraftSchema[A]` is available - no explicit `derives` needed:
   * {{{
   * case class Person(name: String, age: Int) derives IrcraftSchema
   *

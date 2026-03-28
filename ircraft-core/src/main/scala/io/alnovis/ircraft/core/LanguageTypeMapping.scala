@@ -19,7 +19,7 @@ trait LanguageTypeMapping:
   /** Extract import statements needed for a TypeRef. */
   def importsFor(ref: TypeRef): Set[String] = Set.empty
 
-  /** Fully qualified name → simple class name. */
+  /** Fully qualified name -> simple class name. */
   def simpleName(fqn: String): String =
     val lastDot = fqn.lastIndexOf('.')
     if lastDot >= 0 then fqn.substring(lastDot + 1) else fqn

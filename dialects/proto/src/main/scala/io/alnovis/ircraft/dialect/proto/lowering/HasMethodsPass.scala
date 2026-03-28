@@ -7,8 +7,8 @@ import io.alnovis.ircraft.dialect.semantic.ops.*
 /**
   * Adds `hasXxx()` and `supportsXxx()` methods to interfaces and abstract classes.
   *
-  *   - `hasXxx()` for optional fields → delegates to proto `hasXxx()`
-  *   - `supportsXxx()` for fields not present in all versions → returns version check
+  *   - `hasXxx()` for optional fields -> delegates to proto `hasXxx()`
+  *   - `supportsXxx()` for fields not present in all versions -> returns version check
   *
   * Reads: ProtoAttributes.IsOptional, ProtoAttributes.FieldPresentInVersions, ProtoAttributes.SchemaVersions
   */

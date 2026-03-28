@@ -16,7 +16,7 @@ class EndToEndSuite extends munit.FunSuite:
 
   val pipeline: ProtoToJavaPipeline = ProtoToJavaPipeline(config)
 
-  test("end-to-end: simple message → Java source files"):
+  test("end-to-end: simple message -> Java source files"):
     val schema = ProtoSchema.build("v1", "v2") { s =>
       s.message("Money") { m =>
         m.field("amount", 1, TypeRef.LONG)

@@ -220,7 +220,7 @@ object GenericDialect:
     configure(using builder)
     builder.build(if description.isEmpty then s"Generic dialect: $namespace" else description)
 
-  /** DSL entrypoints — available inside GenericDialect(...) { ... } block. */
+  /** DSL entrypoints - available inside GenericDialect(...) { ... } block. */
   def leaf(name: String, fields: (String, FieldType)*)(using b: Builder): Unit =
     b.leaf(name, fields*)
 

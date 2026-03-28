@@ -13,6 +13,6 @@ trait Emitter:
     * Emit a Module to source files.
     *
     * @return
-    *   Map of file path (relative) → source code content
+    *   Map of file path (relative) -> source code content
     */
   def emit(module: Module): Map[String, String]
