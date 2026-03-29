@@ -33,7 +33,7 @@ object IrJsonCodec:
       sb.append("}")
 
     def writeOp(sb: StringBuilder, op: Operation, indent: Int): Unit =
-      val pad = "  " * indent
+      val pad   = "  " * indent
       val inner = "  " * (indent + 1)
       sb.append(s"$pad{\n")
       sb.append(s"""$inner"kind": ${str(op.kind.qualifiedName)},\n""")
@@ -52,7 +52,7 @@ object IrJsonCodec:
       sb.append(s"$pad}")
 
     private def writeRegion(sb: StringBuilder, region: Region, indent: Int): Unit =
-      val pad = "  " * indent
+      val pad   = "  " * indent
       val inner = "  " * (indent + 1)
       sb.append(s"$pad{\n")
       sb.append(s"""$inner"name": ${str(region.name)},\n""")
@@ -71,7 +71,7 @@ object IrJsonCodec:
         sb.append("  " * indent)
 
     private def writeAttrs(sb: StringBuilder, attrs: AttributeMap, indent: Int): Unit =
-      val pad = "  " * (indent + 1)
+      val pad    = "  " * (indent + 1)
       val sorted = attrs.values.toList.sortBy(_.key)
       sb.append('[')
       if sorted.nonEmpty then
@@ -142,9 +142,9 @@ object IrJsonCodec:
 
       def parseModule(): Module =
         expectChar('{')
-        var name = ""
+        var name  = ""
         var attrs = AttributeMap.empty
-        var ops = Vector.empty[Operation]
+        var ops   = Vector.empty[Operation]
 
         while peek() != '}' do
           val key = readString()
@@ -170,8 +170,8 @@ object IrJsonCodec:
 
       private def readOp(): GenericOp =
         expectChar('{')
-        var kind = NodeKind("", "")
-        var attrs = AttributeMap.empty
+        var kind    = NodeKind("", "")
+        var attrs   = AttributeMap.empty
         var regions = Vector.empty[Region]
 
         while peek() != '}' do
@@ -179,7 +179,7 @@ object IrJsonCodec:
           expectChar(':')
           key match
             case "kind" =>
-              val qn = readString()
+              val qn  = readString()
               val dot = qn.indexOf('.')
               kind = if dot > 0 then NodeKind(qn.substring(0, dot), qn.substring(dot + 1)) else NodeKind("", qn)
             case "attributes" => attrs = readAttrs()
@@ -202,7 +202,7 @@ object IrJsonCodec:
       private def readRegion(): Region =
         expectChar('{')
         var name = ""
-        var ops = Vector.empty[Operation]
+        var ops  = Vector.empty[Operation]
 
         while peek() != '}' do
           val key = readString()
@@ -227,24 +227,24 @@ object IrJsonCodec:
 
       private def readAttr(): Attribute =
         expectChar('{')
-        var attrType = ""
-        var key = ""
-        var stringVal = ""
-        var intVal = 0
-        var longVal = 0L
-        var boolVal = false
+        var attrType      = ""
+        var key           = ""
+        var stringVal     = ""
+        var intVal        = 0
+        var longVal       = 0L
+        var boolVal       = false
         var stringListVal = List.empty[String]
-        var intListVal = List.empty[Int]
-        var attrListVal = List.empty[Attribute]
-        var attrMapVal = List.empty[(String, Attribute)]
-        var refVal = 0
+        var intListVal    = List.empty[Int]
+        var attrListVal   = List.empty[Attribute]
+        var attrMapVal    = List.empty[(String, Attribute)]
+        var refVal        = 0
 
         while peek() != '}' do
           val k = readString()
           expectChar(':')
           k match
-            case "type"   => attrType = readString()
-            case "key"    => key = readString()
+            case "type" => attrType = readString()
+            case "key"  => key = readString()
             case "value" =>
               attrType match
                 case "string" => stringVal = readString()
@@ -317,7 +317,7 @@ object IrJsonCodec:
 
       private def readAttrMapEntry(): (String, Attribute) =
         expectChar('{')
-        var mapKey = ""
+        var mapKey          = ""
         var attr: Attribute = Attribute.StringAttr("", "")
 
         while peek() != '}' do
@@ -394,8 +394,7 @@ object IrJsonCodec:
               if input(pos) == '"' then readString()
               else pos += 1
           case _ =>
-            while pos < input.length && input(pos) != ',' && input(pos) != '}' && input(pos) != ']' do
-              pos += 1
+            while pos < input.length && input(pos) != ',' && input(pos) != '}' && input(pos) != ']' do pos += 1
 
       private def peek(): Char =
         skipWhitespace()
@@ -405,8 +404,7 @@ object IrJsonCodec:
 
       private def expectChar(c: Char): Unit =
         skipWhitespace()
-        if input(pos) != c then
-          throw IllegalArgumentException(s"Expected '$c' at position $pos, got '${input(pos)}'")
+        if input(pos) != c then throw IllegalArgumentException(s"Expected '$c' at position $pos, got '${input(pos)}'")
         pos += 1
 
       private def skipWhitespace(): Unit =

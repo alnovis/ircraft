@@ -53,8 +53,7 @@ class IrParserSuite extends munit.FunSuite:
                  |""".stripMargin
     val result = IrParser.parse(text)
     assert(result.isRight)
-    assertEquals(result.toOption.get.topLevel.head.attributes.getString("s"),
-      Some("line1\nline2\t\"quoted\"\\back"))
+    assertEquals(result.toOption.get.topLevel.head.attributes.getString("s"), Some("line1\nline2\t\"quoted\"\\back"))
 
   test("parse long attribute"):
     val text = """module "test" {
@@ -118,14 +117,23 @@ class IrParserSuite extends munit.FunSuite:
   // -- Round-trip with IrPrinter --------------------------------------------
 
   test("round-trip: print -> parse -> print"):
-    val leaf1 = GenericOp(NodeKind("test", "entry"), AttributeMap(Attribute.StringAttr("key", "host"), Attribute.StringAttr("value", "localhost")))
-    val leaf2 = GenericOp(NodeKind("test", "entry"), AttributeMap(Attribute.StringAttr("key", "port"), Attribute.IntAttr("value", 8080)))
-    val root = GenericOp(NodeKind("test", "section"), AttributeMap(Attribute.StringAttr("name", "server")),
-      Vector(Region("entries", Vector(leaf1, leaf2))))
+    val leaf1 = GenericOp(
+      NodeKind("test", "entry"),
+      AttributeMap(Attribute.StringAttr("key", "host"), Attribute.StringAttr("value", "localhost"))
+    )
+    val leaf2 = GenericOp(
+      NodeKind("test", "entry"),
+      AttributeMap(Attribute.StringAttr("key", "port"), Attribute.IntAttr("value", 8080))
+    )
+    val root = GenericOp(
+      NodeKind("test", "section"),
+      AttributeMap(Attribute.StringAttr("name", "server")),
+      Vector(Region("entries", Vector(leaf1, leaf2)))
+    )
     val module = Module("my-project", Vector(root))
 
     val printed1 = IrPrinter.print(module)
-    val parsed = IrParser.parse(printed1)
+    val parsed   = IrParser.parse(printed1)
     assert(parsed.isRight, s"Parse failed: ${parsed.left.getOrElse("")}")
     val printed2 = IrPrinter.print(parsed.toOption.get)
     assertEquals(printed2, printed1)
@@ -141,23 +149,23 @@ class IrParserSuite extends munit.FunSuite:
         Attribute.StringListAttr("sl", List("x", "y")),
         Attribute.IntListAttr("il", List(1, 2)),
         Attribute.RefAttr("r", NodeId(777)),
-        Attribute.AttrMapAttr("m", Map("a" -> Attribute.IntAttr("a", 1))),
-      ),
+        Attribute.AttrMapAttr("m", Map("a" -> Attribute.IntAttr("a", 1)))
+      )
     )
-    val module = Module("test", Vector(op))
+    val module   = Module("test", Vector(op))
     val printed1 = IrPrinter.print(module)
-    val parsed = IrParser.parse(printed1)
+    val parsed   = IrParser.parse(printed1)
     assert(parsed.isRight, s"Parse failed: ${parsed.left.getOrElse("")}\n\nInput:\n$printed1")
     val printed2 = IrPrinter.print(parsed.toOption.get)
     assertEquals(printed2, printed1)
 
   test("round-trip deeply nested"):
-    val l3 = GenericOp(NodeKind("t", "leaf"), AttributeMap(Attribute.StringAttr("d", "deep")))
-    val l2 = GenericOp(NodeKind("t", "mid"), regions = Vector(Region("inner", Vector(l3))))
-    val l1 = GenericOp(NodeKind("t", "outer"), regions = Vector(Region("body", Vector(l2))))
-    val module = Module("deep", Vector(l1))
+    val l3       = GenericOp(NodeKind("t", "leaf"), AttributeMap(Attribute.StringAttr("d", "deep")))
+    val l2       = GenericOp(NodeKind("t", "mid"), regions = Vector(Region("inner", Vector(l3))))
+    val l1       = GenericOp(NodeKind("t", "outer"), regions = Vector(Region("body", Vector(l2))))
+    val module   = Module("deep", Vector(l1))
     val printed1 = IrPrinter.print(module)
-    val parsed = IrParser.parse(printed1)
+    val parsed   = IrParser.parse(printed1)
     assert(parsed.isRight)
     assertEquals(IrPrinter.print(parsed.toOption.get), printed1)
 

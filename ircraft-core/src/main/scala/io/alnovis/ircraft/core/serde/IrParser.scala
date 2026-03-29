@@ -31,8 +31,8 @@ object IrParser:
 
     private def lineAndColumn: (Int, Int) =
       var line = 1
-      var col = 1
-      var i = 0
+      var col  = 1
+      var i    = 0
       while i < pos && i < input.length do
         if input(i) == '\n' then
           line += 1
@@ -50,7 +50,7 @@ object IrParser:
     def parseModule(): Module =
       skipWs()
       expectKeyword("module")
-      val name = readQuotedString()
+      val name  = readQuotedString()
       val attrs = if peekChar() == '[' then parseAttrs() else AttributeMap.empty
       expectChar('{')
       val ops = parseOperations()
@@ -62,7 +62,7 @@ object IrParser:
     def parseOperation(): GenericOp =
       skipWs()
       val qualName = readQualifiedName()
-      val dot = qualName.indexOf('.')
+      val dot      = qualName.indexOf('.')
       val kind =
         if dot > 0 then NodeKind(qualName.substring(0, dot), qualName.substring(dot + 1))
         else NodeKind("", qualName)
@@ -254,7 +254,8 @@ object IrParser:
       skipWs()
       val start = pos
       while pos < input.length && isIdentChar(input(pos)) do pos += 1
-      if pos == start then throw error(s"Expected identifier, got '${if pos < input.length then input(pos) else "EOF"}'")
+      if pos == start then
+        throw error(s"Expected identifier, got '${if pos < input.length then input(pos) else "EOF"}'")
       input.substring(start, pos)
 
     private def readQualifiedName(): String =
