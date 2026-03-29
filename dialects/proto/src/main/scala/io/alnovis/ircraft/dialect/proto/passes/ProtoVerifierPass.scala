@@ -3,13 +3,13 @@ package io.alnovis.ircraft.dialect.proto.passes
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.proto.ops.*
 
-/** Validates that a Module contains well-formed proto dialect operations. */
+/** Validates that a IrModule contains well-formed proto dialect operations. */
 object ProtoVerifierPass extends Pass:
 
   val name: String        = "proto-verifier"
   val description: String = "Validates proto dialect IR for structural correctness"
 
-  def run(module: Module, context: PassContext): PassResult =
+  def run(module: IrModule, context: PassContext): PassResult =
     val diagnostics = module.topLevel.flatMap(verifyOp).toList
     PassResult(module, diagnostics)
 

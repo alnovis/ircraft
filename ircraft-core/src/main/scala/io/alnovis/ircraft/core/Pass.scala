@@ -4,7 +4,7 @@ package io.alnovis.ircraft.core
   * A single transformation pass in the compilation pipeline (Nanopass concept).
   *
   * Each pass performs one focused transformation:
-  *   - Has well-defined input and output (Module -> PassResult)
+  *   - Has well-defined input and output (IrModule -> PassResult)
   *   - Is stateless (all state in PassContext)
   *   - Can be tested in isolation
   *   - Can be composed into Pipelines
@@ -21,7 +21,7 @@ trait Pass:
   def description: String
 
   /** Apply this pass to the module. */
-  def run(module: Module, context: PassContext): PassResult
+  def run(module: IrModule, context: PassContext): PassResult
 
   /** Whether this pass is enabled for the given context. Allows conditional passes. */
   def isEnabled(context: PassContext): Boolean = true
@@ -37,7 +37,7 @@ trait Lowering extends Pass:
 
 /** Result of running a Pass. */
 case class PassResult(
-  module: Module,
+  module: IrModule,
   diagnostics: List[DiagnosticMessage] = Nil
 ):
   def hasErrors: Boolean = diagnostics.exists(_.isError)

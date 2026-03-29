@@ -151,7 +151,7 @@ trait IrcraftSchema[A]:
     new Pass:
       val name: String        = passName
       val description: String = desc
-      def run(module: Module, context: PassContext): PassResult =
+      def run(module: IrModule, context: PassContext): PassResult =
         import Traversal.transform
         val transformed = module.transform:
           case g: GenericOp if g.kind == expectedKind => pf.lift(g).getOrElse(g)
@@ -195,10 +195,10 @@ object IrcraftSchema:
       else builder.container(s.opName, s.fieldSchemas*)(s.childSlots*)
     builder.build(s"Derived dialect: $namespace")
 
-  /** Create a Module from type schemas (structure only, no data). */
-  def module(namespace: String, schemas: IrcraftSchema[?]*): Module =
+  /** Create a IrModule from type schemas (structure only, no data). */
+  def module(namespace: String, schemas: IrcraftSchema[?]*): IrModule =
     val ops = schemas.map(schemaToOp(_, namespace)).toVector
-    Module(namespace, ops)
+    IrModule(namespace, ops)
 
   private def schemaToOp(s: IrcraftSchema[?], namespace: String): GenericOp =
     val fieldAttrs = s.fieldSchemas.map { (name, ft) =>

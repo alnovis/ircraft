@@ -11,7 +11,7 @@ import io.alnovis.ircraft.core.*
 object IrParser:
 
   /** Parse a complete module from textual IR. */
-  def parse(text: String): Either[ParseError, Module] =
+  def parse(text: String): Either[ParseError, IrModule] =
     try Right(new Parser(text).parseModule())
     catch case e: ParserException => Left(e.toParseError)
 
@@ -45,9 +45,9 @@ object IrParser:
       val (line, col) = lineAndColumn
       new ParserException(msg, line, col)
 
-    // -- Module -------------------------------------------------------------
+    // -- IrModule -------------------------------------------------------------
 
-    def parseModule(): Module =
+    def parseModule(): IrModule =
       skipWs()
       expectKeyword("module")
       val name  = readQuotedString()
@@ -55,7 +55,7 @@ object IrParser:
       expectChar('{')
       val ops = parseOperations()
       expectChar('}')
-      Module(name, ops.toVector, attrs)
+      IrModule(name, ops.toVector, attrs)
 
     // -- Operations ---------------------------------------------------------
 

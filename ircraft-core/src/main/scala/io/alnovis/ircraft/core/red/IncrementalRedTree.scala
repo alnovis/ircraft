@@ -1,6 +1,6 @@
 package io.alnovis.ircraft.core.red
 
-import io.alnovis.ircraft.core.{ Module, Operation }
+import io.alnovis.ircraft.core.{ IrModule, Operation }
 
 /**
   * Incremental Red Tree: compare old and new green trees, identify changes.
@@ -15,11 +15,11 @@ object IncrementalRedTree:
     case Added, Removed, Modified
 
   /** Rebuild Red Tree from a new module. */
-  def rebuild(oldRoot: RedNode[Module], newModule: Module): RedNode[Module] =
+  def rebuild(oldRoot: RedNode[IrModule], newModule: IrModule): RedNode[IrModule] =
     RedTree.from(newModule)
 
   /** Compare old and new modules, returning paths to changed operations. */
-  def diff(oldModule: Module, newModule: Module): Vector[DiffEntry] =
+  def diff(oldModule: IrModule, newModule: IrModule): Vector[DiffEntry] =
     if oldModule.contentHash == newModule.contentHash then Vector.empty
     else diffChildren(oldModule.topLevel, newModule.topLevel, Vector.empty)
 

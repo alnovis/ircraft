@@ -25,14 +25,14 @@ object Traversal:
       val withTransformedChildren = op.mapChildren(_.deepTransform(f))
       f.lift(withTransformedChildren).getOrElse(withTransformedChildren)
 
-  extension (module: Module)
+  extension (module: IrModule)
 
     /** Deep transform: apply f to every operation in the tree, bottom-up. Uses mapChildren for generic rebuild. */
-    def transform(f: PartialFunction[Operation, Operation]): Module =
+    def transform(f: PartialFunction[Operation, Operation]): IrModule =
       module.copy(topLevel = module.topLevel.map(_.deepTransform(f)))
 
     /** Transform top-level operations only (no recursion). */
-    def transformTopLevel(f: PartialFunction[Operation, Operation]): Module =
+    def transformTopLevel(f: PartialFunction[Operation, Operation]): IrModule =
       module.copy(topLevel = module.topLevel.map(op => f.lift(op).getOrElse(op)))
 
     /** Walk all operations in the module depth-first. */

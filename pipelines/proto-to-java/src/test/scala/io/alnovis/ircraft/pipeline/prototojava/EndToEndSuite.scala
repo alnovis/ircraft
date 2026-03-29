@@ -24,7 +24,7 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result = pipeline.execute(Module("test", Vector(schema)))
+    val result = pipeline.execute(IrModule("test", Vector(schema)))
     assert(result.isRight, s"Pipeline failed: ${result.left.getOrElse(Nil)}")
 
     val files = result.toOption.get
@@ -45,7 +45,7 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result      = pipeline.execute(Module("test", Vector(schema)))
+    val result      = pipeline.execute(IrModule("test", Vector(schema)))
     val files       = result.toOption.get
     val ifaceSource = files.find(f => f._1.endsWith("Money.java") && f._2.contains("interface Money")).get._2
 
@@ -62,7 +62,7 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result         = pipeline.execute(Module("test", Vector(schema)))
+    val result         = pipeline.execute(IrModule("test", Vector(schema)))
     val files          = result.toOption.get
     val abstractSource = files.find(_._1.endsWith("AbstractOrder.java")).get._2
 
@@ -81,7 +81,7 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result     = pipeline.execute(Module("test", Vector(schema)))
+    val result     = pipeline.execute(IrModule("test", Vector(schema)))
     val files      = result.toOption.get
     val implSource = files.find(_._1.endsWith("FooV1.java")).get._2
 
@@ -98,7 +98,7 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result     = pipeline.execute(Module("test", Vector(schema)))
+    val result     = pipeline.execute(IrModule("test", Vector(schema)))
     val files      = result.toOption.get
     val enumSource = files.find(_._1.endsWith("Status.java")).get._2
 
@@ -119,7 +119,7 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result      = pipeline.execute(Module("test", Vector(schema)))
+    val result      = pipeline.execute(IrModule("test", Vector(schema)))
     val files       = result.toOption.get
     val ifaceSource = files.find(f => f._1.endsWith("Event.java") && f._2.contains("interface Event")).get._2
 
@@ -134,7 +134,7 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result   = pipeline.execute(Module("test", Vector(schema)))
+    val result   = pipeline.execute(IrModule("test", Vector(schema)))
     val files    = result.toOption.get
     val v1Source = files.find(_._1.endsWith("ItemV1.java")).get._2
     val v2Source = files.find(_._1.endsWith("ItemV2.java")).get._2
@@ -146,7 +146,7 @@ class EndToEndSuite extends munit.FunSuite:
 
   test("pipeline rejects invalid schema"):
     val schema = ProtoSchema.build()(_ => ()) // empty versions
-    val result = pipeline.execute(Module("test", Vector(schema)))
+    val result = pipeline.execute(IrModule("test", Vector(schema)))
     assert(result.isLeft, "Should fail for empty schema")
 
   test("DirectJavaEmitter used standalone with semantic IR"):
@@ -160,7 +160,7 @@ class EndToEndSuite extends munit.FunSuite:
         )
       )
     )
-    val module = Module("test", Vector(file))
+    val module = IrModule("test", Vector(file))
     val result = emitter.emit(module)
 
     assertEquals(result.size, 1)

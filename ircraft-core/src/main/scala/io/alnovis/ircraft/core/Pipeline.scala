@@ -1,7 +1,7 @@
 package io.alnovis.ircraft.core
 
 /**
-  * An ordered sequence of Passes that transforms a Module through multiple stages.
+  * An ordered sequence of Passes that transforms a IrModule through multiple stages.
   *
   * Pipelines:
   *   - Execute passes in order
@@ -16,8 +16,8 @@ case class Pipeline(
 ):
 
   /** Execute the pipeline on the given module. */
-  def run(module: Module, context: PassContext): PipelineResult =
-    case class State(module: Module, diagnostics: List[DiagnosticMessage], results: Vector[(String, PassResult)])
+  def run(module: IrModule, context: PassContext): PipelineResult =
+    case class State(module: IrModule, diagnostics: List[DiagnosticMessage], results: Vector[(String, PassResult)])
 
     val init          = State(module, Nil, Vector.empty)
     val enabledPasses = passes.filter(_.isEnabled(context))
@@ -74,7 +74,7 @@ object Pipeline:
 
 /** Result of running a full pipeline. */
 case class PipelineResult(
-  module: Module,
+  module: IrModule,
   diagnostics: List[DiagnosticMessage],
   passResults: Vector[(String, PassResult)]
 ):

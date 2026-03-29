@@ -23,7 +23,7 @@ class ProtoToSemanticLowering(config: LoweringConfig) extends Lowering:
   val sourceDialect: Dialect = ProtoDialect
   val targetDialect: Dialect = SemanticDialect
 
-  def run(module: Module, context: PassContext): PassResult =
+  def run(module: IrModule, context: PassContext): PassResult =
     val allOps   = Vector.newBuilder[Operation]
     val allDiags = List.newBuilder[DiagnosticMessage]
 

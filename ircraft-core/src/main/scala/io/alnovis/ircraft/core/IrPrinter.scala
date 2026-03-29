@@ -20,8 +20,8 @@ object IrPrinter:
 
   private val Indent = "  "
 
-  /** Print a complete Module. */
-  def print(module: Module): String =
+  /** Print a complete IrModule. */
+  def print(module: IrModule): String =
     val sb    = StringBuilder()
     val attrs = printAttrs(module.attributes)
     sb.append(s"""module "${module.name}"$attrs {\n""")

@@ -111,7 +111,7 @@ class IrcraftSchemaSuite extends munit.FunSuite:
 
   test("derived ops work with walkAll"):
     val op     = Outer("test", Inner("nested")).toOp
-    val module = Module("test", Vector(op))
+    val module = IrModule("test", Vector(op))
     var count  = 0
     module.walkAll {
       case _: GenericOp => count += 1
@@ -121,7 +121,7 @@ class IrcraftSchemaSuite extends munit.FunSuite:
 
   test("derived ops work with transform"):
     val op     = SimpleEntry("old", "value").toOp
-    val module = Module("test", Vector(op))
+    val module = IrModule("test", Vector(op))
     val updated = module.transform {
       case g: GenericOp if g.is("simpleentry") => g.withField("key", "new")
     }
@@ -149,14 +149,14 @@ class IrcraftSchemaSuite extends munit.FunSuite:
   test("schema transformPass applies to matching ops"):
     val pass = IrcraftSchema[SimpleEntry].transformPass("upper"):
       case e => e.withField("key", e.stringField("key").getOrElse("").toUpperCase)
-    val module = Module("test", Vector(SimpleEntry("host", "v").toOp))
+    val module = IrModule("test", Vector(SimpleEntry("host", "v").toOp))
     val result = pass.run(module, PassContext())
     assertEquals(result.module.topLevel.head.asInstanceOf[GenericOp].stringField("key"), Some("HOST"))
 
   test("schema transformPass ignores other types"):
     val pass = IrcraftSchema[SimpleEntry].transformPass("noop"):
       case e => e.withField("key", "changed")
-    val module = Module("test", Vector(Inner("original").toOp))
+    val module = IrModule("test", Vector(Inner("original").toOp))
     val result = pass.run(module, PassContext())
     assertEquals(result.module.topLevel.head.asInstanceOf[GenericOp].stringField("x"), Some("original"))
 

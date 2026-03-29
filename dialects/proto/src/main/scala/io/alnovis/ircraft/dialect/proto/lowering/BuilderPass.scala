@@ -27,7 +27,7 @@ object BuilderPass extends Pass:
   override def isEnabled(context: PassContext): Boolean =
     context.getBool("generateBuilders")
 
-  def run(module: Module, context: PassContext): PassResult =
+  def run(module: IrModule, context: PassContext): PassResult =
     val transformed = module.transform:
       case iface: InterfaceOp if iface.attributes.contains(ProtoAttributes.PresentInVersions) =>
         enrichInterface(iface)

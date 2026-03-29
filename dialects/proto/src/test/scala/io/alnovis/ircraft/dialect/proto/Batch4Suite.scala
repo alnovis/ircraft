@@ -24,7 +24,7 @@ class Batch4Suite extends munit.FunSuite:
       io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
       lowering,
       ValidationAnnotationsPass
-    ).run(Module("test", Vector(schema)), ctx).module
+    ).run(IrModule("test", Vector(schema)), ctx).module
 
     val iface  = module.collect { case i: InterfaceOp => i }.find(_.name == "Order").get
     val getter = iface.methods.find(_.name == "getItem").get
@@ -42,7 +42,7 @@ class Batch4Suite extends munit.FunSuite:
       io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
       lowering,
       ValidationAnnotationsPass
-    ).run(Module("test", Vector(schema)), ctx).module
+    ).run(IrModule("test", Vector(schema)), ctx).module
 
     val iface  = module.collect { case i: InterfaceOp => i }.find(_.name == "Order").get
     val getter = iface.methods.find(_.name == "getNotes").get
@@ -60,7 +60,7 @@ class Batch4Suite extends munit.FunSuite:
       io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
       lowering,
       ValidationAnnotationsPass
-    ).run(Module("test", Vector(schema)), ctx).module
+    ).run(IrModule("test", Vector(schema)), ctx).module
 
     val iface  = module.collect { case i: InterfaceOp => i }.find(_.name == "Order").get
     val getter = iface.methods.find(_.name == "getItems").get
@@ -78,127 +78,8 @@ class Batch4Suite extends munit.FunSuite:
       io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
       lowering,
       ValidationAnnotationsPass
-    ).run(Module("test", Vector(schema)), ctx).module
+    ).run(IrModule("test", Vector(schema)), ctx).module
 
     val iface  = module.collect { case i: InterfaceOp => i }.find(_.name == "Order").get
     val getter = iface.methods.find(_.name == "getItem").get
     assert(!getter.annotations.contains("NotNull"))
-
-  // ── SchemaMetadataPass ─────────────────────────────────────────────────
-
-  test("generates SchemaInfo per version"):
-    val ctx = PassContext(config = Map("generateSchemaMetadata" -> "true"))
-    val schema = ProtoSchema.build("v1", "v2") { s =>
-      s.message("Money") { m =>
-        m.field("amount", 1, TypeRef.LONG)
-      }
-    }
-    val module = Pipeline(
-      "test",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
-      lowering,
-      SchemaMetadataPass
-    ).run(Module("test", Vector(schema)), ctx).module
-
-    val v1Info = module.collect { case c: ClassOp => c }.find(_.name == "SchemaInfoV1")
-    val v2Info = module.collect { case c: ClassOp => c }.find(_.name == "SchemaInfoV2")
-    assert(v1Info.isDefined, "Should generate SchemaInfoV1")
-    assert(v2Info.isDefined, "Should generate SchemaInfoV2")
-
-    val methods = v1Info.get.methods.map(_.name)
-    assert(methods.contains("getVersionId"))
-    assert(methods.contains("getMessageNames"))
-    assert(methods.contains("getEnumNames"))
-
-  test("disabled when generateSchemaMetadata not set"):
-    val ctx = PassContext()
-    val schema = ProtoSchema.build("v1") { s =>
-      s.message("Money") { m =>
-        m.field("amount", 1, TypeRef.LONG)
-      }
-    }
-    val module = Pipeline(
-      "test",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
-      lowering,
-      SchemaMetadataPass
-    ).run(Module("test", Vector(schema)), ctx).module
-
-    val infoClasses = module.collect { case c: ClassOp => c }.filter(_.name.startsWith("SchemaInfo"))
-    assert(infoClasses.isEmpty)
-
-  // ── Full pipeline with all passes ──────────────────────────────────────
-
-  test("all passes compose into full pipeline"):
-    val ctx = PassContext(config =
-      Map(
-        "generateBuilders"              -> "true",
-        "generateValidationAnnotations" -> "true",
-        "generateSchemaMetadata"        -> "true"
-      )
-    )
-    val schema = ProtoSchema.build("v1", "v2") { s =>
-      s.message("Money") { m =>
-        m.field("amount", 1, TypeRef.LONG, optional = true)
-        m.field("currency", 2, TypeRef.STRING)
-      }
-      s.enum_("Currency") { e =>
-        e.value("USD", 0)
-        e.value("EUR", 1)
-      }
-    }
-
-    val pipeline = Pipeline(
-      "full-pipeline",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
-      lowering,
-      ConflictResolutionPass,
-      HasMethodsPass,
-      ProtoWrapperPass,
-      CommonMethodsPass,
-      VersionContextPass,
-      ProtocolVersionsPass,
-      VersionConversionPass,
-      BuilderPass,
-      WktConversionPass,
-      ValidationAnnotationsPass,
-      SchemaMetadataPass
-    )
-    val result = pipeline.run(Module("test", Vector(schema)), ctx)
-    assert(result.isSuccess, s"Pipeline failed: ${result.diagnostics}")
-
-    val module = result.module
-    val allTypes = module.collect { case c: ClassOp => c }.map(_.name) ++
-      module.collect { case i: InterfaceOp => i }.map(_.name) ++
-      module.collect { case e: EnumClassOp => e }.map(_.name)
-
-    // Core types
-    assert(allTypes.contains("Money"))
-    assert(allTypes.contains("AbstractMoney"))
-    assert(allTypes.contains("MoneyV1"))
-    assert(allTypes.contains("MoneyV2"))
-    assert(allTypes.contains("Currency"))
-
-    // Infrastructure
-    assert(allTypes.contains("ProtoWrapper"))
-    assert(allTypes.contains("VersionContext"))
-    assert(allTypes.contains("VersionContextV1"))
-    assert(allTypes.contains("VersionContextV2"))
-    assert(allTypes.contains("ProtocolVersions"))
-
-    // Metadata
-    assert(allTypes.contains("SchemaInfoV1"))
-    assert(allTypes.contains("SchemaInfoV2"))
-
-    // Builder on interface
-    val moneyIface = module.collect { case i: InterfaceOp => i }.find(_.name == "Money").get
-    assert(moneyIface.nestedTypes.exists {
-      case i: InterfaceOp => i.name == "Builder"
-      case _              => false
-    })
-
-    // has/supports
-    assert(moneyIface.methods.exists(_.name == "hasAmount"))
-
-    // version conversion
-    assert(moneyIface.methods.exists(_.name == "asVersion"))

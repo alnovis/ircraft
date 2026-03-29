@@ -3,10 +3,10 @@ package io.alnovis.ircraft.core
 /**
   * Top-level container for an IR program.
   *
-  * A Module is a special Operation that holds all top-level operations in a single region. It serves as the root of the
+  * A IrModule is a special Operation that holds all top-level operations in a single region. It serves as the root of the
   * IR tree and the input/output of Pass transformations.
   */
-case class Module(
+case class IrModule(
   name: String,
   topLevel: Vector[Operation],
   attributes: AttributeMap = AttributeMap.empty,
@@ -26,7 +26,7 @@ case class Module(
 
   lazy val estimatedSize: Int = topLevel.map(_.estimatedSize).sum
 
-  override def mapChildren(f: Operation => Operation): Module =
+  override def mapChildren(f: Operation => Operation): IrModule =
     copy(topLevel = topLevel.map(f))
 
   /** Find all operations of a specific type in the module. */
@@ -38,5 +38,5 @@ case class Module(
         self ++ nested
     go(topLevel)
 
-object Module:
-  def empty(name: String): Module = Module(name, Vector.empty)
+object IrModule:
+  def empty(name: String): IrModule = IrModule(name, Vector.empty)

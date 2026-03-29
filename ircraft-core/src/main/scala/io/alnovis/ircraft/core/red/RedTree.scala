@@ -1,23 +1,23 @@
 package io.alnovis.ircraft.core.red
 
-import io.alnovis.ircraft.core.{ Module, Operation }
+import io.alnovis.ircraft.core.{ IrModule, Operation }
 
 /**
   * Facade for building and querying Red Trees.
   */
 object RedTree:
 
-  /** Build a Red Tree from a Module. Root has no parent, offset 0. */
-  def from(module: Module): RedNode[Module] =
+  /** Build a Red Tree from a IrModule. Root has no parent, offset 0. */
+  def from(module: IrModule): RedNode[IrModule] =
     RedNode(module, parent = None, offset = 0, childIndex = 0)
 
   /** Find the deepest node containing the given absolute position. */
-  def locate(root: RedNode[Module], position: Int): Option[RedNode[Operation]] =
+  def locate(root: RedNode[IrModule], position: Int): Option[RedNode[Operation]] =
     locateIn(root.asInstanceOf[RedNode[Operation]], position)
 
   /** Collect all nodes matching a predicate. */
   def collectWithContext(
-    root: RedNode[Module],
+    root: RedNode[IrModule],
     p: Operation => Boolean
   ): Vector[RedNode[Operation]] =
     root.collect(p)

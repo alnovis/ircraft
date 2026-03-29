@@ -83,7 +83,7 @@ class ProtoDialectSuite extends munit.FunSuite:
       }
     }
 
-    val module = Module("test", Vector(schema))
+    val module = IrModule("test", Vector(schema))
     val result = ProtoVerifierPass.run(module, ctx)
     assert(result.isSuccess, s"Expected success but got: ${result.diagnostics}")
 
@@ -95,7 +95,7 @@ class ProtoDialectSuite extends munit.FunSuite:
       attributes = AttributeMap.empty,
       span = None
     )
-    val module = Module("test", Vector(schema))
+    val module = IrModule("test", Vector(schema))
     val result = ProtoVerifierPass.run(module, ctx)
     assert(result.hasErrors)
     assert(result.diagnostics.exists(_.message.contains("at least one version")))
@@ -107,7 +107,7 @@ class ProtoDialectSuite extends munit.FunSuite:
         MessageOp("", Set("v1"), fields = Vector(FieldOp("f", "f", 1, TypeRef.INT, presentInVersions = Set("v1"))))
       )
     )
-    val module = Module("test", Vector(schema))
+    val module = IrModule("test", Vector(schema))
     val result = ProtoVerifierPass.run(module, ctx)
     assert(result.hasErrors)
     assert(result.diagnostics.exists(_.message.contains("name must not be empty")))
@@ -118,7 +118,7 @@ class ProtoDialectSuite extends munit.FunSuite:
         m.field("bar", 0, TypeRef.STRING)
       }
     }
-    val module = Module("test", Vector(schema))
+    val module = IrModule("test", Vector(schema))
     val result = ProtoVerifierPass.run(module, ctx)
     assert(result.hasErrors)
     assert(result.diagnostics.exists(_.message.contains("positive number")))
@@ -130,7 +130,7 @@ class ProtoDialectSuite extends munit.FunSuite:
         m.field("b", 1, TypeRef.INT)
       }
     }
-    val module = Module("test", Vector(schema))
+    val module = IrModule("test", Vector(schema))
     val result = ProtoVerifierPass.run(module, ctx)
     assert(result.hasErrors)
     assert(result.diagnostics.exists(_.message.contains("duplicate field numbers")))
@@ -146,7 +146,7 @@ class ProtoDialectSuite extends munit.FunSuite:
         )
       )
     )
-    val module = Module("test", Vector(schema))
+    val module = IrModule("test", Vector(schema))
     val result = ProtoVerifierPass.run(module, ctx)
     assert(result.hasErrors)
     assert(result.diagnostics.exists(_.message.contains("at least one field")))
@@ -242,5 +242,5 @@ class ProtoDialectSuite extends munit.FunSuite:
     }
 
     val pipeline = Pipeline("proto-validation", ProtoVerifierPass)
-    val result   = pipeline.run(Module("test", Vector(schema)), ctx)
+    val result   = pipeline.run(IrModule("test", Vector(schema)), ctx)
     assert(result.isSuccess)

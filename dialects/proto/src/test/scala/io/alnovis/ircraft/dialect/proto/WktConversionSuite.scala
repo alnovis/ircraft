@@ -11,9 +11,9 @@ class WktConversionSuite extends munit.FunSuite:
   val lowering: ProtoToSemanticLowering = ProtoToSemanticLowering(config)
   val ctx: PassContext                  = PassContext()
 
-  private def lowerWithWkt(schema: io.alnovis.ircraft.dialect.proto.ops.SchemaOp): Module =
+  private def lowerWithWkt(schema: io.alnovis.ircraft.dialect.proto.ops.SchemaOp): IrModule =
     Pipeline("test", io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, WktConversionPass)
-      .run(Module("test", Vector(schema)), ctx)
+      .run(IrModule("test", Vector(schema)), ctx)
       .module
 
   test("Timestamp field becomes Instant"):

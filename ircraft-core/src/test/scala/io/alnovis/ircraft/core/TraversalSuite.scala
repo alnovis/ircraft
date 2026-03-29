@@ -40,7 +40,7 @@ class TraversalSuite extends munit.FunSuite:
     )
   )
 
-  val module: Module = Module("test", Vector(tree))
+  val module: IrModule = IrModule("test", Vector(tree))
 
   // ── Operation.walk ─────────────────────────────────────────────────────
 
@@ -68,7 +68,7 @@ class TraversalSuite extends munit.FunSuite:
     assertEquals(parents, Vector("root", "a", "c"))
 
   test("collectAll returns empty for no matches"):
-    val none = tree.collectAll { case _: Module => () }
+    val none = tree.collectAll { case _: IrModule => () }
     assertEquals(none, Vector.empty)
 
   // ── Operation.size ─────────────────────────────────────────────────────
@@ -79,9 +79,9 @@ class TraversalSuite extends munit.FunSuite:
   test("size of leaf is 1"):
     assertEquals(LeafOp("x").size, 1)
 
-  // ── Module.walkAll ─────────────────────────────────────────────────────
+  // ── IrModule.walkAll ─────────────────────────────────────────────────────
 
-  test("Module.walkAll visits all operations"):
+  test("IrModule.walkAll visits all operations"):
     var visited = Vector.empty[String]
     module.walkAll:
       case p: ParentOp => visited = visited :+ p.name
@@ -89,15 +89,15 @@ class TraversalSuite extends munit.FunSuite:
 
     assertEquals(visited, Vector("root", "a", "a1", "a2", "b", "c", "c1"))
 
-  test("Module.walkAll on empty module visits nothing"):
+  test("IrModule.walkAll on empty module visits nothing"):
     var count = 0
-    Module.empty("test").walkAll(_ => count += 1)
+    IrModule.empty("test").walkAll(_ => count += 1)
     assertEquals(count, 0)
 
-  // ── Module.transformTopLevel ───────────────────────────────────────────
+  // ── IrModule.transformTopLevel ───────────────────────────────────────────
 
   test("transformTopLevel replaces matching top-level ops"):
-    val flat = Module("test", Vector(LeafOp("a"), LeafOp("b"), LeafOp("c")))
+    val flat = IrModule("test", Vector(LeafOp("a"), LeafOp("b"), LeafOp("c")))
     val transformed = flat.transformTopLevel {
       case l: LeafOp if l.name == "b" =>
         l.copy(name = "B")
@@ -106,7 +106,7 @@ class TraversalSuite extends munit.FunSuite:
     assertEquals(names, Vector("a", "B", "c"))
 
   test("transformTopLevel preserves non-matching ops"):
-    val flat = Module("test", Vector(LeafOp("a"), LeafOp("b")))
+    val flat = IrModule("test", Vector(LeafOp("a"), LeafOp("b")))
     val transformed = flat.transformTopLevel {
       case l: LeafOp if l.name == "x" =>
         l.copy(name = "X")
@@ -114,7 +114,7 @@ class TraversalSuite extends munit.FunSuite:
     val names = transformed.topLevel.collect { case l: LeafOp => l.name }
     assertEquals(names, Vector("a", "b"))
 
-  // ── Module.transform (deep) ────────────────────────────────────────────
+  // ── IrModule.transform (deep) ────────────────────────────────────────────
 
   test("transform applies to deeply nested leaf ops"):
     val transformed = module.transform {
@@ -133,7 +133,7 @@ class TraversalSuite extends munit.FunSuite:
     assertEquals(parents, Vector("root", "a", "c"))
 
   test("transform can replace parent ops"):
-    val flat = Module(
+    val flat = IrModule(
       "test",
       Vector(
         ParentOp("keep", Vector(LeafOp("child"))),

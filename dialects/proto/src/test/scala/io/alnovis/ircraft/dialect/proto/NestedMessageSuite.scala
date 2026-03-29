@@ -11,9 +11,9 @@ class NestedMessageSuite extends munit.FunSuite:
   val lowering: ProtoToSemanticLowering = ProtoToSemanticLowering(config)
   val ctx: PassContext                  = PassContext()
 
-  private def lower(schema: io.alnovis.ircraft.dialect.proto.ops.SchemaOp): Module =
+  private def lower(schema: io.alnovis.ircraft.dialect.proto.ops.SchemaOp): IrModule =
     val pipeline = Pipeline("test", io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering)
-    pipeline.run(Module("test", Vector(schema)), ctx).module
+    pipeline.run(IrModule("test", Vector(schema)), ctx).module
 
   test("nested message generates nested interface"):
     val schema = ProtoSchema.build("v1") { s =>

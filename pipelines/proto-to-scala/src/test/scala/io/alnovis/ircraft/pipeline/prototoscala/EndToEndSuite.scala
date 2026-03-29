@@ -21,7 +21,7 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result = pipeline.execute(Module("test", Vector(schema)))
+    val result = pipeline.execute(IrModule("test", Vector(schema)))
     assert(result.isRight, s"Pipeline failed: ${result.left.getOrElse(Nil)}")
 
     val files = result.toOption.get
@@ -41,7 +41,7 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result      = pipeline.execute(Module("test", Vector(schema)))
+    val result      = pipeline.execute(IrModule("test", Vector(schema)))
     val files       = result.toOption.get
     val ifaceSource = files.find(f => f._1.endsWith("Money.scala") && f._2.contains("trait Money")).get._2
 
@@ -59,7 +59,7 @@ class EndToEndSuite extends munit.FunSuite:
       }
     }
 
-    val result     = pipeline.execute(Module("test", Vector(schema)))
+    val result     = pipeline.execute(IrModule("test", Vector(schema)))
     val files      = result.toOption.get
     val enumSource = files.find(_._1.endsWith("Status.scala")).get._2
 
@@ -69,5 +69,5 @@ class EndToEndSuite extends munit.FunSuite:
 
   test("pipeline rejects invalid schema"):
     val schema = ProtoSchema.build()(_ => ())
-    val result = pipeline.execute(Module("test", Vector(schema)))
+    val result = pipeline.execute(IrModule("test", Vector(schema)))
     assert(result.isLeft, "Should fail for empty schema")

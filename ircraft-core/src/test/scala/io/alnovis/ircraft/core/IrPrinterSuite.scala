@@ -32,7 +32,7 @@ class IrPrinterSuite extends munit.FunSuite:
     val entry2  = TestDialect.create("entry", "key" -> "port", "value" -> "8080")
     val section = TestDialect.createContainer("section", Seq("name" -> "server"), "entries" -> Vector(entry1, entry2))
     val root    = TestDialect.createContainer("root", Seq.empty, "sections" -> Vector(section))
-    val module  = Module("my-project", Vector(root))
+    val module  = IrModule("my-project", Vector(root))
 
     val output = IrPrinter.print(module)
     assert(output.contains("""module "my-project""""), s"Output:\n$output")
@@ -47,7 +47,7 @@ class IrPrinterSuite extends munit.FunSuite:
     val entry   = TestDialect.create("entry", "key" -> "x", "value" -> "y")
     val section = TestDialect.createContainer("section", Seq("name" -> "s"), "entries" -> Vector(entry))
     val root    = TestDialect.createContainer("root", Seq.empty, "sections" -> Vector(section))
-    val module  = Module("test", Vector(root))
+    val module  = IrModule("test", Vector(root))
     val output  = IrPrinter.print(module)
 
     val lines = output.split("\n")
@@ -75,7 +75,7 @@ class IrPrinterSuite extends munit.FunSuite:
     assert(output.contains("""tags=["a","b","c"]"""), s"Output:\n$output")
 
   test("print empty module"):
-    val module = Module.empty("empty")
+    val module = IrModule.empty("empty")
     val output = IrPrinter.print(module)
     assert(output.contains("""module "empty""""), s"Output:\n$output")
     assert(output.contains("}"), s"Output:\n$output")

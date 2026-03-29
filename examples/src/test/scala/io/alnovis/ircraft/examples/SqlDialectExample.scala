@@ -79,7 +79,7 @@ class SqlDialectExample extends munit.FunSuite:
 
   // ── 5. Simple DDL emitter ────────────────────────────────────────────
 
-  private def emitDdl(module: Module): String =
+  private def emitDdl(module: IrModule): String =
     val sb = StringBuilder()
     module.topLevel.foreach:
       case Table(t) =>
@@ -120,7 +120,7 @@ class SqlDialectExample extends munit.FunSuite:
         column("name", "VARCHAR(100)", nullable = true)
       )
     )
-    val ddl = emitDdl(Module("schema", Vector(users)))
+    val ddl = emitDdl(IrModule("schema", Vector(users)))
 
     assert(ddl.contains("CREATE TABLE users"))
     assert(ddl.contains("id BIGSERIAL NOT NULL"))
@@ -130,7 +130,7 @@ class SqlDialectExample extends munit.FunSuite:
 
   test("audit pass adds created_at and updated_at"):
     val users  = table("users", Vector(column("id", "BIGSERIAL")))
-    val result = addAuditColumns.run(Module("schema", Vector(users)), PassContext())
+    val result = addAuditColumns.run(IrModule("schema", Vector(users)), PassContext())
     assert(result.isSuccess)
 
     val cols = result.module.topLevel.flatMap(_.collectAll:
@@ -145,14 +145,14 @@ class SqlDialectExample extends munit.FunSuite:
         column("created_at", "TIMESTAMP")
       )
     )
-    val result = addAuditColumns.run(Module("schema", Vector(users)), PassContext())
+    val result = addAuditColumns.run(IrModule("schema", Vector(users)), PassContext())
     val cols = result.module.topLevel.flatMap(_.collectAll:
       case Column(c) => c.stringField("name").get)
     assertEquals(cols.count(_ == "created_at"), 1)
 
   test("pk index pass adds primary key"):
     val users  = table("users", Vector(column("id", "BIGSERIAL"), column("name", "TEXT")))
-    val result = addPrimaryKeyIndex.run(Module("schema", Vector(users)), PassContext())
+    val result = addPrimaryKeyIndex.run(IrModule("schema", Vector(users)), PassContext())
 
     val indexes = result.module.topLevel.flatMap(_.collectAll:
       case Index(i) => i.stringField("name").get)
@@ -177,7 +177,7 @@ class SqlDialectExample extends munit.FunSuite:
     )
 
     val pipeline = Pipeline("sql-schema", addAuditColumns, addPrimaryKeyIndex)
-    val result   = pipeline.run(Module("schema", Vector(users, orders)), PassContext())
+    val result   = pipeline.run(IrModule("schema", Vector(users, orders)), PassContext())
     assert(result.isSuccess)
 
     val ddl = emitDdl(result.module)
@@ -207,7 +207,7 @@ class SqlDialectExample extends munit.FunSuite:
       case c if c.is("column") && c.stringField("type").contains("TEXT") =>
         c.withField("type", "VARCHAR(255)")
 
-    val result = fixTypes.run(Module("schema", Vector(users)), PassContext())
+    val result = fixTypes.run(IrModule("schema", Vector(users)), PassContext())
     val types = result.module.topLevel.flatMap(_.collectAll:
       case Column(c) => c.stringField("type").get)
     assertEquals(types, Vector("BIGSERIAL", "VARCHAR(255)"))

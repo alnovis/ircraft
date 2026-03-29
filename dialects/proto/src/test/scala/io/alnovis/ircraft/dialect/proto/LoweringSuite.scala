@@ -24,7 +24,7 @@ class LoweringSuite extends munit.FunSuite:
       }
     }
 
-    val module = Module("test", Vector(schema))
+    val module = IrModule("test", Vector(schema))
     val result = lowering.run(module, ctx)
     assert(result.isSuccess)
 
@@ -79,7 +79,7 @@ class LoweringSuite extends munit.FunSuite:
       }
     }
 
-    val module = Module("test", Vector(schema))
+    val module = IrModule("test", Vector(schema))
     val result = lowering.run(module, ctx)
     assert(result.isSuccess)
 
@@ -102,7 +102,7 @@ class LoweringSuite extends munit.FunSuite:
       }
     }
 
-    val module = Module("test", Vector(schema))
+    val module = IrModule("test", Vector(schema))
     val result = lowering.run(module, ctx)
     assert(result.isSuccess)
 
@@ -126,7 +126,7 @@ class LoweringSuite extends munit.FunSuite:
       }
     }
 
-    val module = Module("test", Vector(schema))
+    val module = IrModule("test", Vector(schema))
     val result = lowering.run(module, ctx)
     assert(result.isSuccess)
 
@@ -152,7 +152,7 @@ class LoweringSuite extends munit.FunSuite:
 
     val pipeline = Pipeline("proto-to-semantic", io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering)
 
-    val result = pipeline.run(Module("test", Vector(schema)), ctx)
+    val result = pipeline.run(IrModule("test", Vector(schema)), ctx)
     assert(result.isSuccess)
 
     val files = result.module.topLevel.collect { case f: FileOp => f }
@@ -165,7 +165,7 @@ class LoweringSuite extends munit.FunSuite:
       }
     }
 
-    val module = Module("test", Vector(schema))
+    val module = IrModule("test", Vector(schema))
     val result = lowering.run(module, ctx)
     val files  = result.module.topLevel.collect { case f: FileOp => f }
 

@@ -12,9 +12,9 @@ class BuilderSuite extends munit.FunSuite:
   // Enable generateBuilders in PassContext
   val ctx: PassContext = PassContext(config = Map("generateBuilders" -> "true"))
 
-  private def lowerWithBuilder(schema: io.alnovis.ircraft.dialect.proto.ops.SchemaOp): Module =
+  private def lowerWithBuilder(schema: io.alnovis.ircraft.dialect.proto.ops.SchemaOp): IrModule =
     Pipeline("test", io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, BuilderPass)
-      .run(Module("test", Vector(schema)), ctx)
+      .run(IrModule("test", Vector(schema)), ctx)
       .module
 
   test("interface gets nested Builder interface"):
@@ -86,7 +86,7 @@ class BuilderSuite extends munit.FunSuite:
       }
     }
     val pipeline = Pipeline("test", io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, BuilderPass)
-    val module   = pipeline.run(Module("test", Vector(schema)), ctxDisabled).module
+    val module   = pipeline.run(IrModule("test", Vector(schema)), ctxDisabled).module
     val iface    = module.collect { case i: InterfaceOp => i }.find(_.name == "Money").get
 
     // Should NOT have Builder

@@ -87,7 +87,7 @@ class DerivedSchemaExample extends munit.FunSuite:
     val addPrefix = IrcraftSchema[Entity].transformPass("add-prefix"):
       case e => e.withField("table", "app_" + e.stringField("table").getOrElse(""))
 
-    val module = Module(
+    val module = IrModule(
       "test",
       Vector(
         Entity("User", "users", Field("id", "BIGSERIAL", nullable = false)).toOp,
@@ -109,7 +109,7 @@ class DerivedSchemaExample extends munit.FunSuite:
 
     val ColOp = IrcraftSchema[Col].extractor
 
-    val module = Module(
+    val module = IrModule(
       "db",
       Vector(
         Tab("users", Col("id", "serial")).toOp,

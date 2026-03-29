@@ -21,7 +21,7 @@ object ValidationAnnotationsPass extends Pass:
   override def isEnabled(context: PassContext): Boolean =
     context.getBool("generateValidationAnnotations")
 
-  def run(module: Module, context: PassContext): PassResult =
+  def run(module: IrModule, context: PassContext): PassResult =
     val transformed = module.transform:
       case iface: InterfaceOp if iface.attributes.contains(ProtoAttributes.PresentInVersions) =>
         val updatedMethods = iface.methods.map(addAnnotations)

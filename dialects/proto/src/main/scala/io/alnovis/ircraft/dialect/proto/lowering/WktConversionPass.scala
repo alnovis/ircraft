@@ -27,7 +27,7 @@ object WktConversionPass extends Pass:
   override def isEnabled(context: PassContext): Boolean =
     !context.getBool("skipWktConversion")
 
-  def run(module: Module, context: PassContext): PassResult =
+  def run(module: IrModule, context: PassContext): PassResult =
     val transformed = module.transform:
       case m: MethodOp if hasWkt(m) => convertMethodType(m)
     PassResult(transformed)

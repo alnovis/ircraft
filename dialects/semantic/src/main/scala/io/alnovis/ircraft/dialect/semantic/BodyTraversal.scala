@@ -9,11 +9,11 @@ import io.alnovis.ircraft.dialect.semantic.ops.*
 /**
   * Bridge between Operation-level traversal and Expression-level traversal.
   *
-  * Provides Module-level methods to reach into method/constructor bodies.
+  * Provides IrModule-level methods to reach into method/constructor bodies.
   */
 object BodyTraversal:
 
-  extension (module: Module)
+  extension (module: IrModule)
 
     /** Collect matching values from all expressions in all method/constructor bodies. */
     def collectFromBodies[A](pf: PartialFunction[Expression, A]): Vector[A] =
@@ -25,7 +25,7 @@ object BodyTraversal:
       builder.result()
 
     /** Transform all expressions in all method/constructor bodies across the module. */
-    def transformBodies(f: PartialFunction[Expression, Expression]): Module =
+    def transformBodies(f: PartialFunction[Expression, Expression]): IrModule =
       module.transform:
         case m: MethodOp if m.body.isDefined =>
           m.copy(body = m.body.map(_.transformExprs(f)))

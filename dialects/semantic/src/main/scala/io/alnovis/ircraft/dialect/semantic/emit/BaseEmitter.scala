@@ -53,16 +53,16 @@ abstract class BaseEmitter extends Emitter with EmitterUtils:
 
   // ── Shared (final) ────────────────────────────────────────────────────
 
-  /** Entry point: emit Module to Map[filePath, sourceCode]. */
-  final def emit(module: Module): Map[String, String] =
+  /** Entry point: emit IrModule to Map[filePath, sourceCode]. */
+  final def emit(module: IrModule): Map[String, String] =
     emitWithMapping(module, sourceEntityKey = None)._1
 
   /**
-    * Emit Module with file-to-entity mapping. Files whose FileOp carries `sourceEntityKey` are mapped to the entity
+    * Emit IrModule with file-to-entity mapping. Files whose FileOp carries `sourceEntityKey` are mapped to the entity
     * name; files without it map to None (global files).
     */
   final override def emitWithMapping(
-    module: Module,
+    module: IrModule,
     sourceEntityKey: Option[String]
   ): (Map[String, String], Map[String, Option[String]]) =
     val files        = Map.newBuilder[String, String]

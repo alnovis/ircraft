@@ -11,7 +11,7 @@ class ScalaEmitterSuite extends munit.FunSuite:
 
   private def emitSingle(pkg: String, op: Operation): String =
     val file   = FileOp(pkg, Vector(op))
-    val module = Module("test", Vector(file))
+    val module = IrModule("test", Vector(file))
     emitter.emit(module).values.head
 
   // ── Trait ──────────────────────────────────────────────────────────────

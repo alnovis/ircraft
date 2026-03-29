@@ -7,7 +7,7 @@ import io.alnovis.ircraft.dialect.semantic.BodyTraversal.*
 
 class BodyTraversalSuite extends munit.FunSuite:
 
-  val moduleWithBodies: Module =
+  val moduleWithBodies: IrModule =
     val method1 = MethodOp(
       "getAmount",
       TypeRef.LONG,
@@ -53,7 +53,7 @@ class BodyTraversalSuite extends munit.FunSuite:
       constructors = Vector(constructor),
       methods = Vector(method1, method2)
     )
-    Module("test", Vector(FileOp("com.example", Vector(cls))))
+    IrModule("test", Vector(FileOp("com.example", Vector(cls))))
 
   test("collectFromBodies finds all MethodCalls"):
     val calls = moduleWithBodies.collectFromBodies {
@@ -70,7 +70,7 @@ class BodyTraversalSuite extends munit.FunSuite:
   test("collectFromBodies returns empty for module without bodies"):
     val abstractMethod = MethodOp("foo", TypeRef.VOID, modifiers = Set(Modifier.Public, Modifier.Abstract))
     val iface          = InterfaceOp("Foo", methods = Vector(abstractMethod))
-    val module         = Module("test", Vector(FileOp("com.example", Vector(iface))))
+    val module         = IrModule("test", Vector(FileOp("com.example", Vector(iface))))
     val calls          = module.collectFromBodies { case Expression.MethodCall(_, n, _, _) => n }
     assertEquals(calls, Vector.empty)
 

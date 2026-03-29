@@ -5,7 +5,7 @@ import io.alnovis.ircraft.core.*
 class IrJsonCodecSuite extends munit.FunSuite:
 
   test("round-trip empty module"):
-    val module = Module("empty", Vector.empty)
+    val module = IrModule("empty", Vector.empty)
     val json   = IrJsonCodec.toJson(module)
     val parsed = IrJsonCodec.fromJson(json)
     assertEquals(parsed.name, "empty")
@@ -16,7 +16,7 @@ class IrJsonCodecSuite extends munit.FunSuite:
       NodeKind("test", "entry"),
       AttributeMap(Attribute.StringAttr("name", "hello"), Attribute.IntAttr("count", 42))
     )
-    val module = Module("test", Vector(op))
+    val module = IrModule("test", Vector(op))
     val parsed = IrJsonCodec.fromJson(IrJsonCodec.toJson(module))
     assertEquals(parsed.topLevel.size, 1)
     assertEquals(parsed.topLevel.head.attributes.getString("name"), Some("hello"))
@@ -32,7 +32,7 @@ class IrJsonCodecSuite extends munit.FunSuite:
         Attribute.BoolAttr("b", true)
       )
     )
-    val module = Module("test", Vector(op))
+    val module = IrModule("test", Vector(op))
     val parsed = IrJsonCodec.fromJson(IrJsonCodec.toJson(module))
     val attrs  = parsed.topLevel.head.attributes
     assertEquals(attrs.getString("s"), Some("text"))
@@ -48,7 +48,7 @@ class IrJsonCodecSuite extends munit.FunSuite:
         Attribute.IntListAttr("nums", List(1, 2, 3))
       )
     )
-    val module = Module("test", Vector(op))
+    val module = IrModule("test", Vector(op))
     val parsed = IrJsonCodec.fromJson(IrJsonCodec.toJson(module))
     val attrs  = parsed.topLevel.head.attributes
     assertEquals(attrs.getStringList("tags"), Some(List("a", "b", "c")))
@@ -63,7 +63,7 @@ class IrJsonCodecSuite extends munit.FunSuite:
       NodeKind("test", "nested"),
       AttributeMap(Attribute.AttrListAttr("items", inner))
     )
-    val module   = Module("test", Vector(op))
+    val module   = IrModule("test", Vector(op))
     val parsed   = IrJsonCodec.fromJson(IrJsonCodec.toJson(module))
     val attrList = parsed.topLevel.head.attributes.getAs[Attribute.AttrListAttr]("items").get
     assertEquals(attrList.values.size, 2)
@@ -77,7 +77,7 @@ class IrJsonCodecSuite extends munit.FunSuite:
       NodeKind("test", "config"),
       AttributeMap(Attribute.AttrMapAttr("settings", map))
     )
-    val module  = Module("test", Vector(op))
+    val module  = IrModule("test", Vector(op))
     val parsed  = IrJsonCodec.fromJson(IrJsonCodec.toJson(module))
     val attrMap = parsed.topLevel.head.attributes.getAs[Attribute.AttrMapAttr]("settings").get
     assertEquals(attrMap.values.size, 2)
@@ -88,7 +88,7 @@ class IrJsonCodecSuite extends munit.FunSuite:
       NodeKind("test", "ref"),
       AttributeMap(Attribute.RefAttr("target", NodeId(12345)))
     )
-    val module = Module("test", Vector(op))
+    val module = IrModule("test", Vector(op))
     val parsed = IrJsonCodec.fromJson(IrJsonCodec.toJson(module))
     val ref    = parsed.topLevel.head.attributes.getAs[Attribute.RefAttr]("target").get
     assertEquals(ref.target, NodeId(12345))
@@ -97,7 +97,7 @@ class IrJsonCodecSuite extends munit.FunSuite:
     val leaf       = GenericOp(NodeKind("test", "leaf"), AttributeMap(Attribute.StringAttr("v", "inner")))
     val mid        = GenericOp(NodeKind("test", "mid"), regions = Vector(Region("children", Vector(leaf))))
     val root       = GenericOp(NodeKind("test", "root"), regions = Vector(Region("body", Vector(mid))))
-    val module     = Module("test", Vector(root))
+    val module     = IrModule("test", Vector(root))
     val parsed     = IrJsonCodec.fromJson(IrJsonCodec.toJson(module))
     val parsedRoot = parsed.topLevel.head
     val parsedMid  = parsedRoot.regions.head.operations.head
@@ -109,7 +109,7 @@ class IrJsonCodecSuite extends munit.FunSuite:
       NodeKind("test", "esc"),
       AttributeMap(Attribute.StringAttr("text", "line1\nline2\ttab \"quoted\" back\\"))
     )
-    val module = Module("test", Vector(op))
+    val module = IrModule("test", Vector(op))
     val parsed = IrJsonCodec.fromJson(IrJsonCodec.toJson(module))
     assertEquals(parsed.topLevel.head.attributes.getString("text"), Some("line1\nline2\ttab \"quoted\" back\\"))
 
@@ -121,7 +121,7 @@ class IrJsonCodecSuite extends munit.FunSuite:
         Attribute.LongAttr("min_long", Long.MinValue)
       )
     )
-    val module = Module("test", Vector(op))
+    val module = IrModule("test", Vector(op))
     val parsed = IrJsonCodec.fromJson(IrJsonCodec.toJson(module))
     assertEquals(parsed.topLevel.head.attributes.getInt("min_int"), Some(Int.MinValue))
     assertEquals(parsed.topLevel.head.attributes.getLong("min_long"), Some(Long.MinValue))
@@ -139,6 +139,6 @@ class IrJsonCodecSuite extends munit.FunSuite:
         )
       )
     )
-    val module = Module("proto-wrapper", Vector(op))
+    val module = IrModule("proto-wrapper", Vector(op))
     val parsed = IrJsonCodec.fromJson(IrJsonCodec.toJson(module))
     assertEquals(parsed.topLevel.head.contentHash, op.contentHash)

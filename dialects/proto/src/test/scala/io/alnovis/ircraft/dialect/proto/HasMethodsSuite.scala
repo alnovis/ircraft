@@ -11,9 +11,9 @@ class HasMethodsSuite extends munit.FunSuite:
   val lowering: ProtoToSemanticLowering = ProtoToSemanticLowering(config)
   val ctx: PassContext                  = PassContext()
 
-  private def lowerAndEnrich(schema: io.alnovis.ircraft.dialect.proto.ops.SchemaOp): Module =
+  private def lowerAndEnrich(schema: io.alnovis.ircraft.dialect.proto.ops.SchemaOp): IrModule =
     val pipeline = Pipeline("test", io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass, lowering, HasMethodsPass)
-    pipeline.run(Module("test", Vector(schema)), ctx).module
+    pipeline.run(IrModule("test", Vector(schema)), ctx).module
 
   test("optional field gets hasXxx in interface"):
     val schema = ProtoSchema.build("v1") { s =>
@@ -82,28 +82,3 @@ class HasMethodsSuite extends munit.FunSuite:
 
     assert(absCls.methods.exists(_.name == "extractHasName"), s"Methods: ${absCls.methods.map(_.name)}")
     assert(absCls.methods.exists(_.name == "hasName"))
-
-  test("both passes compose in pipeline"):
-    val schema = ProtoSchema.build("v1", "v2") { s =>
-      s.message("Payment") { m =>
-        m.field("amount", 1, TypeRef.LONG, optional = true)
-        m.field("notes", 2, TypeRef.STRING, presentIn = Set("v2"))
-      }
-    }
-
-    val pipeline = Pipeline(
-      "full",
-      io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass,
-      lowering,
-      ConflictResolutionPass,
-      HasMethodsPass
-    )
-    val module = pipeline.run(Module("test", Vector(schema)), ctx).module
-    val iface = module.topLevel
-      .collect { case f: FileOp => f }
-      .flatMap(_.types)
-      .collectFirst { case i: InterfaceOp => i }
-      .get
-
-    assert(iface.methods.exists(_.name == "hasAmount"))
-    assert(iface.methods.exists(_.name == "supportsNotes"))

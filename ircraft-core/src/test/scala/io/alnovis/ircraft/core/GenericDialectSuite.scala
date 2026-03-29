@@ -69,7 +69,7 @@ class GenericDialectSuite extends munit.FunSuite:
     val section = ConfigDialect.createContainer("section", Seq("name" -> "srv"), "entries" -> Vector(entry))
     val root    = ConfigDialect.createContainer("root", Seq.empty, "sections" -> Vector(section))
 
-    val module = Module("test", Vector(root))
+    val module = IrModule("test", Vector(root))
     var kinds  = List.empty[String]
     module.walkAll:
       case op: GenericOp => kinds = kinds :+ op.opName
@@ -80,7 +80,7 @@ class GenericDialectSuite extends munit.FunSuite:
     val e1      = ConfigDialect.create("entry", "key" -> "a", "value" -> "1", "type" -> "s")
     val e2      = ConfigDialect.create("entry", "key" -> "b", "value" -> "2", "type" -> "s")
     val section = ConfigDialect.createContainer("section", Seq("name" -> "x"), "entries" -> Vector(e1, e2))
-    val module  = Module("test", Vector(section))
+    val module  = IrModule("test", Vector(section))
 
     val keys = module.topLevel.flatMap(_.collectAll:
       case op: GenericOp if op.kind == ConfigDialect.kind("entry") =>
@@ -200,7 +200,7 @@ class GenericDialectSuite extends munit.FunSuite:
     val Entry   = ConfigDialect.extractor("entry")
     val entry   = ConfigDialect.create("entry", "key" -> "old", "value" -> "v", "type" -> "t")
     val section = ConfigDialect.createContainer("section", Seq("name" -> "s"), "entries" -> Vector(entry))
-    val module  = Module("test", Vector(section))
+    val module  = IrModule("test", Vector(section))
     val transformed = module.transform:
       case Entry(e) => e.withField("key", "new")
     val updated = transformed.topLevel.head.asInstanceOf[GenericOp].children("entries").head.asInstanceOf[GenericOp]
@@ -234,7 +234,7 @@ class GenericDialectSuite extends munit.FunSuite:
       case e if e.is("entry") =>
         e.withField("key", e.stringField("key").getOrElse("").toUpperCase)
     val entry  = ConfigDialect.create("entry", "key" -> "host", "value" -> "v", "type" -> "t")
-    val module = Module("test", Vector(entry))
+    val module = IrModule("test", Vector(entry))
     val result = uppercaseKeys.run(module, PassContext())
     assert(result.isSuccess)
     val updated = result.module.topLevel.head.asInstanceOf[GenericOp]
@@ -246,7 +246,7 @@ class GenericDialectSuite extends munit.FunSuite:
     val pass = ConfigDialect.transformPass("noop"):
       case e if e.is("item") => e.withField("name", "changed")
     val item      = otherDialect.create("item", "name" -> "original")
-    val module    = Module("test", Vector(item))
+    val module    = IrModule("test", Vector(item))
     val result    = pass.run(module, PassContext())
     val unchanged = result.module.topLevel.head.asInstanceOf[GenericOp]
     assertEquals(unchanged.stringField("name"), Some("original"))
@@ -256,7 +256,7 @@ class GenericDialectSuite extends munit.FunSuite:
       case e if e.is("entry") => e.withField("done", true)
     val pipeline = Pipeline("test", pass)
     val entry    = ConfigDialect.create("entry", "key" -> "k", "value" -> "v", "type" -> "t")
-    val result   = pipeline.run(Module("test", Vector(entry)), PassContext())
+    val result   = pipeline.run(IrModule("test", Vector(entry)), PassContext())
     assert(result.isSuccess)
     val updated = result.module.topLevel.head.asInstanceOf[GenericOp]
     assertEquals(updated.boolField("done"), Some(true))

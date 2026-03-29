@@ -181,7 +181,7 @@ class GenericDialect private (
     new Pass:
       val name: String        = passName
       val description: String = desc
-      def run(module: Module, context: PassContext): PassResult =
+      def run(module: IrModule, context: PassContext): PassResult =
         import Traversal.transform
         val transformed = module.transform:
           case g: GenericOp if g.kind.dialect == dialectNs => pf.lift(g).getOrElse(g)

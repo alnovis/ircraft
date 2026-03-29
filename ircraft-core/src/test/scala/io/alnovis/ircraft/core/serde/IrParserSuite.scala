@@ -130,7 +130,7 @@ class IrParserSuite extends munit.FunSuite:
       AttributeMap(Attribute.StringAttr("name", "server")),
       Vector(Region("entries", Vector(leaf1, leaf2)))
     )
-    val module = Module("my-project", Vector(root))
+    val module = IrModule("my-project", Vector(root))
 
     val printed1 = IrPrinter.print(module)
     val parsed   = IrParser.parse(printed1)
@@ -152,7 +152,7 @@ class IrParserSuite extends munit.FunSuite:
         Attribute.AttrMapAttr("m", Map("a" -> Attribute.IntAttr("a", 1)))
       )
     )
-    val module   = Module("test", Vector(op))
+    val module   = IrModule("test", Vector(op))
     val printed1 = IrPrinter.print(module)
     val parsed   = IrParser.parse(printed1)
     assert(parsed.isRight, s"Parse failed: ${parsed.left.getOrElse("")}\n\nInput:\n$printed1")
@@ -163,7 +163,7 @@ class IrParserSuite extends munit.FunSuite:
     val l3       = GenericOp(NodeKind("t", "leaf"), AttributeMap(Attribute.StringAttr("d", "deep")))
     val l2       = GenericOp(NodeKind("t", "mid"), regions = Vector(Region("inner", Vector(l3))))
     val l1       = GenericOp(NodeKind("t", "outer"), regions = Vector(Region("body", Vector(l2))))
-    val module   = Module("deep", Vector(l1))
+    val module   = IrModule("deep", Vector(l1))
     val printed1 = IrPrinter.print(module)
     val parsed   = IrParser.parse(printed1)
     assert(parsed.isRight)

@@ -17,7 +17,7 @@ object HasMethodsPass extends Pass:
   val name: String        = "has-methods"
   val description: String = "Adds has/supports methods for optional and version-specific fields"
 
-  def run(module: Module, context: PassContext): PassResult =
+  def run(module: IrModule, context: PassContext): PassResult =
     val transformed = module.transform:
       case iface: InterfaceOp             => enrichInterface(iface)
       case cls: ClassOp if cls.isAbstract => enrichAbstractClass(cls)

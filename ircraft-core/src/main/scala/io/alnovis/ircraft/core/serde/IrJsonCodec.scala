@@ -4,12 +4,12 @@ import io.alnovis.ircraft.core.*
 
 object IrJsonCodec:
 
-  def toJson(module: Module): String =
+  def toJson(module: IrModule): String =
     val sb = new StringBuilder
     JsonWriter.writeModule(sb, module)
     sb.toString
 
-  def fromJson(json: String): Module =
+  def fromJson(json: String): IrModule =
     JsonReader.parseModule(json)
 
   def opToJson(op: Operation): String =
@@ -21,7 +21,7 @@ object IrJsonCodec:
 
   private[serde] object JsonWriter:
 
-    def writeModule(sb: StringBuilder, module: Module): Unit =
+    def writeModule(sb: StringBuilder, module: IrModule): Unit =
       sb.append("{\n")
       sb.append(s"""  "name": ${str(module.name)},\n""")
       sb.append("""  "attributes": """)
@@ -133,14 +133,14 @@ object IrJsonCodec:
 
   private[serde] object JsonReader:
 
-    def parseModule(json: String): Module =
+    def parseModule(json: String): IrModule =
       val p = new Parser(json)
       p.parseModule()
 
     private class Parser(input: String):
       private var pos: Int = 0
 
-      def parseModule(): Module =
+      def parseModule(): IrModule =
         expectChar('{')
         var name  = ""
         var attrs = AttributeMap.empty
@@ -157,7 +157,7 @@ object IrJsonCodec:
           if peek() == ',' then advance()
 
         expectChar('}')
-        Module(name, ops, attrs)
+        IrModule(name, ops, attrs)
 
       private def readOps(): Vector[Operation] =
         expectChar('[')
