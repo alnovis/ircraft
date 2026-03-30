@@ -281,11 +281,123 @@ flowchart LR
 
 ---
 
+## Dialect Framework (`core.framework`)
+
+Building blocks for creating dialects, extracted from patterns common to Proto, OpenAPI, and GraphQL. Uses Scala 3 `given`/`using` and type classes.
+
+### NameConverter (given/using)
+
+Thread name conversion through lowering via context parameters:
+
+```scala
+import io.alnovis.ircraft.core.framework.*
+
+given NameConverter = NameConverter.snakeCase  // Proto
+// or: given NameConverter = NameConverter.mixed     // OpenAPI (splits on _ and -)
+// or: given NameConverter = NameConverter.identity   // GraphQL (pass-through)
+
+// All downstream code uses the given automatically:
+def lowerField(field: FieldOp)(using nc: NameConverter): MethodOp =
+  MethodOp(nc.getterName(field.name), field.fieldType, ...)
+```
+
+### SemanticBuilders (generic lowering helpers)
+
+Factory methods that use `given NameConverter` and `given EnumValueMapper[V]`:
+
+```scala
+// Type with fields -> InterfaceOp (common pattern across all source dialects)
+val iface = SemanticBuilders.interfaceFrom(
+  "money",  // NameConverter converts to "Money"
+  Vector("amount" -> TypeRef.LONG, "currency" -> TypeRef.STRING)
+)
+// Result: InterfaceOp("Money", methods = [getAmount(): Long, getCurrency(): String])
+
+// Type with fields -> ClassOp (for OpenAPI schemas, GraphQL input types)
+val cls = SemanticBuilders.classFrom(
+  "create_pet_request",
+  Vector(("name", TypeRef.STRING, true), ("status", TypeRef.STRING, false))
+)
+// Result: ClassOp with fields, constructor (required params only), getters
+
+// Enum -> EnumClassOp (generic via type class)
+val protoEnum = SemanticBuilders.enumFrom(
+  "currency",
+  Vector(EnumValueMapper.IntValued("USD", 0), EnumValueMapper.IntValued("EUR", 1))
+)
+// Result: EnumClassOp("Currency", constants=[USD(0), EUR(1)], getValue(): int)
+```
+
+### EnumValueMapper (type class)
+
+```scala
+trait EnumValueMapper[V]:
+  extension (v: V)
+    def constantName: String
+    def constantArguments: List[(String, TypeRef)]
+
+// Built-in:  IntValued (Proto), StringValued (OpenAPI), Simple (GraphQL)
+// Custom:
+given EnumValueMapper[MyEnumValue] with
+  extension (v: MyEnumValue)
+    def constantName = v.label.toUpperCase
+    def constantArguments = List(v.code.toString -> TypeRef.INT)
+```
+
+### VerifierDsl (composable validators)
+
+```scala
+import io.alnovis.ircraft.core.framework.VerifierDsl.*
+
+def verifyMessage(m: MessageOp): List[DiagnosticMessage] =
+  nameNotEmpty(m, m.name) ++
+  noDuplicates(m.fields, _.number, "field number", s"in '${m.name}'", m.span) ++
+  noDuplicates(m.fields, _.name, "field name", s"in '${m.name}'", m.span)
+
+// Or create a full verifier pass in one expression:
+val verifier = verifierPass("my-verifier")(verifyOp)
+```
+
+### SourceDialect / TargetDialect (direction capabilities)
+
+```scala
+// Source dialect: A -> Semantic
+object ProtoDialect extends Dialect with SourceDialect:
+  val loweringPass = ProtoToSemanticLowering
+  val verifierPass = Some(ProtoVerifierPass)
+  // standardPipeline auto-composes: verify -> lower
+
+// Target dialect: Semantic -> B
+object JavaDialect extends Dialect with TargetDialect:
+  val emitter = DirectJavaEmitter()
+
+// Bidirectional: both directions
+object MyDialect extends Dialect with SourceDialect with TargetDialect:
+  val loweringPass = ...
+  val emitter = ...
+```
+
+### LoweringHelper (shared run() skeleton)
+
+```scala
+object MyLowering extends LoweringHelper:
+  val name = "my-lowering"
+  val description = "..."
+  val sourceDialect = MyDialect
+  val targetDialect = SemanticDialect
+
+  protected def lowerTopLevel(op: Operation, ctx: PassContext) = op match
+    case f: MyFileOp => Some(lowerFile(f))
+    case _           => None  // pass through unchanged
+```
+
+---
+
 ## Built-in Dialects
 
-### Semantic Dialect
+### Semantic IR (in core)
 
-Language-agnostic OOP constructs. This is the shared layer — Java, Kotlin, and Scala dialects all lower from here.
+Language-agnostic OOP constructs -- the platform. Lives in `ircraft-core`, not a separate module.
 
 ```mermaid
 flowchart TB
@@ -337,6 +449,35 @@ flowchart LR
 | `ListType(T)` | `List<T>` | — |
 | `MapType(K,V)` | `Map<K,V>` | — |
 
+### Proto Dialect (source)
+
+Simple protobuf schema representation -- single `.proto` file, no versioning.
+
+| Op | Type | Description |
+|---|---|---|
+| `ProtoFileOp` | Container | Top-level: package, syntax (proto2/proto3), options |
+| `MessageOp` | Container | Message with fields, oneofs, nested types |
+| `FieldOp` | Leaf | Field: name, number, TypeRef (encodes repeated/map/optional) |
+| `EnumOp` | Container | Enum with values |
+| `EnumValueOp` | Leaf | Enum value: name, number |
+| `OneofOp` | Container | Oneof group with fields |
+
+Lowering: `MessageOp -> InterfaceOp`, `EnumOp -> EnumClassOp`, `OneofOp -> case EnumClassOp + discriminator`.
+
+### OpenAPI Dialect (source)
+
+Full OpenAPI 3.0 specification -- schemas, paths, operations, security, 21 ops total.
+
+Key lowerings: `SchemaObjectOp -> ClassOp`, `SchemaEnumOp -> EnumClassOp`, `OperationOp -> MethodOp` in API InterfaceOp, `SchemaCompositionOp(oneOf) -> sealed InterfaceOp`.
+
+### GraphQL Dialect (source)
+
+Full GraphQL type system -- object/input/interface/union/enum/scalar types, field arguments, directives, 12 ops total.
+
+Key lowerings: `ObjectTypeOp -> InterfaceOp`, `InputObjectTypeOp -> ClassOp`, `UnionTypeOp -> sealed InterfaceOp`, `EnumTypeOp -> EnumClassOp`. Field arguments become method Parameters.
+
+Note: GraphQL is nullable by default (`String` = nullable, `String!` = non-null), opposite of Proto. TypeRef encoding: `String` -> `OptionalType(STRING)`, `String!` -> `STRING`.
+
 ---
 
 ## End-to-End Pipeline
@@ -360,57 +501,59 @@ flowchart LR
 
 ---
 
-## Extending IRCraft
+## Creating a Dialect
 
-### Custom Dialect
+Three approaches, pick by complexity:
+
+| Approach | Best for | Type safety |
+|----------|----------|-------------|
+| `derives IrcraftSchema` | Scala case classes as source | Compile-time |
+| `GenericDialect` | Prototyping, ~6 lines | Runtime |
+| Typed case classes + Framework | Production dialects | Compile-time |
+
+### Typed Dialect with Framework (production)
 
 ```scala
-object MyDialect extends Dialect:
-  val namespace = "my"
-  val description = "My custom dialect"
-
+// 1. Dialect object -- verify() has a default, no need to override
+object ConfigDialect extends Dialect:
+  val namespace = "config"
+  val description = "Configuration file dialect"
   object Kinds:
-    val Widget = NodeKind(namespace, "widget")
+    val Section = NodeKind(namespace, "section")
+    val Entry   = NodeKind(namespace, "entry")
+  val operationKinds = Set(Kinds.Section, Kinds.Entry)
 
-  val operationKinds = Set(Kinds.Widget)
+// 2. Typed ops
+case class ConfigEntryOp(key: String, value: String, ...) extends Operation
+case class ConfigSectionOp(name: String, regions: Vector[Region], ...) extends Operation
 
-  def verify(op: Operation) =
-    if !owns(op) then List(DiagnosticMessage.error("Not my op"))
-    else Nil
+// 3. Lowering with framework building blocks
+import io.alnovis.ircraft.core.framework.*
 
-case class WidgetOp(
-    name: String,
-    attributes: AttributeMap = AttributeMap.empty,
-    span: Option[Span] = None,
-) extends Operation:
-  val kind = MyDialect.Kinds.Widget
-  val regions = Vector.empty
-  lazy val contentHash = ContentHash.ofString(name)
-  val width = 1
+object ConfigLowering extends LoweringHelper:
+  val name = "config-to-semantic"
+  val description = "Config -> Semantic"
+  val sourceDialect = ConfigDialect
+  val targetDialect = SemanticDialect
+
+  given NameConverter = NameConverter.snakeCase
+
+  protected def lowerTopLevel(op: Operation, ctx: PassContext) = op match
+    case s: ConfigSectionOp =>
+      val cls = SemanticBuilders.classFrom(
+        s.name,
+        s.entries.map(e => (e.key, TypeRef.STRING, true))
+      )
+      Some(Vector(FileOp("com.example.config", Vector(cls))))
+    case _ => None
+
+// 4. Verifier with composable DSL
+import VerifierDsl.*
+val configVerifier = verifierPass("config-verifier"): op =>
+  op match
+    case s: ConfigSectionOp => nameNotEmpty(s, s.name) ++ nonEmpty(s.entries, "entries", s.span)
+    case e: ConfigEntryOp   => fieldNotEmpty(e.key, "entry key", e.span)
+    case _ => Nil
 ```
 
-### Custom Pass
-
-```scala
-object MyTransformPass extends Pass:
-  val name = "my-transform"
-  val description = "Transforms widgets"
-
-  def run(module: Module, context: PassContext) =
-    val transformed = module.topLevel.map:
-      case w: WidgetOp => w.copy(name = w.name.toUpperCase)
-      case other => other
-    PassResult(module.copy(topLevel = transformed))
-```
-
-### Custom Pipeline
-
-```scala
-val pipeline = Pipeline("my-pipeline",
-  MyTransformPass,
-  ConfigToSemanticLowering(),
-)
-val result = pipeline.run(module, PassContext())
-```
-
-For a complete walkthrough, see [Creating a Custom Dialect](CUSTOM_DIALECT.md).
+For a complete walkthrough with all three approaches, see [Creating a Custom Dialect](CUSTOM_DIALECT.md).

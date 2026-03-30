@@ -22,8 +22,13 @@ trait Dialect:
   /** Registered operation kinds in this dialect. */
   def operationKinds: Set[NodeKind]
 
-  /** Validate that an operation is well-formed for this dialect. */
-  def verify(op: Operation): List[DiagnosticMessage]
+  /** Validate that an operation is well-formed for this dialect.
+    * Default: only checks ownership. Override for structural validation.
+    */
+  def verify(op: Operation): List[DiagnosticMessage] =
+    if !owns(op) then
+      List(DiagnosticMessage.error(s"Operation ${op.qualifiedName} does not belong to $namespace dialect"))
+    else Nil
 
   /** Check if this dialect owns the given operation. */
   final def owns(op: Operation): Boolean = op.kind.dialect == namespace

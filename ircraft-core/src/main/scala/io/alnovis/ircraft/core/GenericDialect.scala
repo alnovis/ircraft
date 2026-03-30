@@ -50,7 +50,7 @@ class GenericDialect private (
   val operationKinds: Set[NodeKind] =
     schemas.keys.map(name => NodeKind(namespace, name)).toSet
 
-  def verify(op: Operation): List[DiagnosticMessage] =
+  override def verify(op: Operation): List[DiagnosticMessage] =
     if !owns(op) then
       List(DiagnosticMessage.error(s"Operation ${op.qualifiedName} does not belong to $namespace dialect"))
     else

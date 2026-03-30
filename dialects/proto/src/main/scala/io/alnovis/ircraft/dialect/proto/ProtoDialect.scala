@@ -25,7 +25,7 @@ object ProtoDialect extends Dialect:
     Kinds.Oneof
   )
 
-  def verify(op: Operation): List[DiagnosticMessage] =
+  override def verify(op: Operation): List[DiagnosticMessage] =
     if !owns(op) then
       List(DiagnosticMessage.error(s"Operation ${op.qualifiedName} does not belong to proto dialect"))
     else Nil

@@ -36,7 +36,7 @@ object SemanticDialect extends Dialect:
     Kinds.EnumConstant
   )
 
-  def verify(op: Operation): List[DiagnosticMessage] =
+  override def verify(op: Operation): List[DiagnosticMessage] =
     if !owns(op) then
       List(DiagnosticMessage.error(s"Operation ${op.qualifiedName} does not belong to semantic dialect"))
     else Nil

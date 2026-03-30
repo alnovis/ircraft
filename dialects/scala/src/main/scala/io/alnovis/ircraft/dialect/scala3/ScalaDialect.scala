@@ -27,7 +27,7 @@ object ScalaDialect extends Dialect:
     Kinds.Annotation
   )
 
-  def verify(op: Operation): List[DiagnosticMessage] =
+  override def verify(op: Operation): List[DiagnosticMessage] =
     if !owns(op) then
       List(DiagnosticMessage.error(s"Operation ${op.qualifiedName} does not belong to scala.code dialect"))
     else Nil
