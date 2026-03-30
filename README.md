@@ -30,13 +30,10 @@ Each abstraction level is a Dialect. Lowerings transform between them. Passes tr
 
 ### Built-in Dialects
 
-IRCraft ships with dialects for protobuf-to-code generation, but the framework is generic — build your own.
-
 | Level | Dialect | Operations |
 |-------|---------|------------|
-| **High** | Proto | SchemaOp, MessageOp, FieldOp, EnumOp, OneofOp |
 | **Mid** | Semantic | ClassOp, InterfaceOp, MethodOp, Expression AST |
-| **Low** | Java | DirectJavaEmitter, JavaTypeMapping |
+| **Low** | Java, Kotlin, Scala | Emitters, TypeMapping |
 
 ## Modules
 
@@ -44,9 +41,10 @@ IRCraft ships with dialects for protobuf-to-code generation, but the framework i
 |--------|----------|-------------|
 | `ircraft-core` | `ircraft-core_3` | GreenNode, Operation, Dialect, Pass, Pipeline, TypeRef, EmitterUtils |
 | `ircraft-dialect-semantic` | `ircraft-dialect-semantic_3` | Language-agnostic OOP: ClassOp, InterfaceOp, MethodOp, Expression AST |
-| `ircraft-dialect-proto` | `ircraft-dialect-proto_3` | Proto schema IR, Proto→Semantic lowering |
 | `ircraft-dialect-java` | `ircraft-dialect-java_3` | Java emitter, type mapping |
-| `ircraft-pipeline-proto-to-java` | `ircraft-pipeline-proto-to-java_3` | End-to-end pipeline: Proto → Semantic → Java |
+| `ircraft-dialect-kotlin` | `ircraft-dialect-kotlin_3` | Kotlin emitter, type mapping |
+| `ircraft-dialect-scala` | `ircraft-dialect-scala_3` | Scala 3 emitter, type mapping |
+| `ircraft-java-api` | `ircraft-java-api_3` | Java-friendly facade: Ops, Expr, Types, IR |
 
 ## Quick Start
 
@@ -63,54 +61,44 @@ sbt publishM2      # Maven (~/.m2)
 
 ```scala
 import io.alnovis.ircraft.core.*
-import io.alnovis.ircraft.dialect.proto.dsl.ProtoSchema
-import io.alnovis.ircraft.dialect.java.pipeline.ProtoToJavaPipeline
-import io.alnovis.ircraft.dialect.semantic.lowering.LoweringConfig
+import io.alnovis.ircraft.core.GenericDialect.*
+import io.alnovis.ircraft.core.FieldType.*
+import io.alnovis.ircraft.core.Traversal.*
 
-// 1. Define proto schema via DSL
-val schema = ProtoSchema.build("v1", "v2") { s =>
-  s.message("Money") { m =>
-    m.field("amount", 1, TypeRef.LONG)
-    m.field("currency", 2, TypeRef.STRING)
-  }
-  s.enum_("Currency") { e =>
-    e.value("USD", 0)
-    e.value("EUR", 1)
-  }
-}
+// 1. Define a dialect
+val ApiDialect = GenericDialect("api"):
+  leaf("endpoint", "path" -> StringField, "method" -> StringField)
+  container("service", "name" -> StringField)("endpoints")
 
-// 2. Configure lowering
-val config = LoweringConfig(
-  apiPackage = "com.example.api",
-  implPackagePattern = "com.example.%s",
+// 2. Build IR
+val endpoints = Vector(
+  ApiDialect("endpoint", "path" -> "/users", "method" -> "GET"),
+  ApiDialect("endpoint", "path" -> "/users", "method" -> "POST"),
 )
+val service = ApiDialect("service", "name" -> "UserService", "endpoints" -> endpoints)
+val module = Module("my-api", Vector(service))
 
-// 3. Run pipeline
-val pipeline = ProtoToJavaPipeline(config)
-val module = Module("my-project", Vector(schema))
-val result = pipeline.execute(module)
+// 3. Transform with passes
+val addPrefix = ApiDialect.transformPass("add-prefix"):
+  case e if e.is("endpoint") =>
+    e.withField("path", "/api/v1" + e.stringField("path").getOrElse(""))
 
-// 4. Get generated Java source files
-result match
-  case Right(files) => files.foreach((path, source) => println(s"$path:\n$source"))
-  case Left(errors) => errors.foreach(println)
+// 4. Run pipeline
+val result = Pipeline("api-gen", addPrefix).run(module, PassContext())
 ```
 
 ### Usage from Java
 
 ```java
-// IRCraft JARs work on Java classpath (Scala 3 library required at runtime)
-import io.alnovis.ircraft.core.*;
-import io.alnovis.ircraft.dialect.proto.ops.*;
-import io.alnovis.ircraft.dialect.java.pipeline.ProtoToJavaPipeline;
-import io.alnovis.ircraft.dialect.semantic.lowering.LoweringConfig;
+import io.alnovis.ircraft.java.*;
 
-// Construct SchemaOp directly (no DSL needed)
-SchemaOp schema = new SchemaOp(/* ... */);
+// Build IR via Java facade
+var iface = Ops.iface("UserService")
+    .method(Ops.method("getUser", Types.named("User")).abstractPublic().build())
+    .build();
 
-// Run pipeline
-ProtoToJavaPipeline pipeline = new ProtoToJavaPipeline(loweringConfig);
-// ...
+var file = Ops.file("com.example.api").type(iface).build();
+var module = IR.module("my-api", java.util.List.of(file));
 ```
 
 ## Core Concepts
@@ -124,15 +112,14 @@ All IR nodes are immutable and content-addressable. Two nodes with the same cont
 
 ### Dialect
 
-A Dialect groups related Operations at a specific abstraction level. IRCraft ships three built-in dialects:
+A Dialect groups related Operations at a specific abstraction level:
 
 | Dialect | Level | Operations |
 |---------|-------|------------|
-| **Proto** | High | SchemaOp, MessageOp, FieldOp, EnumOp, OneofOp |
 | **Semantic** | Mid | FileOp, ClassOp, InterfaceOp, MethodOp, EnumClassOp |
-| **Java** | Low | DirectJavaEmitter (source generation) |
+| **Java/Kotlin/Scala** | Low | Emitters (source generation) |
 
-Custom dialects can be created by implementing the `Dialect` trait.
+Custom dialects can be created by implementing the `Dialect` trait, using the `GenericDialect` API, or via `derives IrcraftSchema`.
 
 ### Pass & Pipeline
 
@@ -203,33 +190,25 @@ ircraft/
 │   │       ├── SemanticDialect.scala
 │   │       ├── ops/                       # ClassOp, InterfaceOp, MethodOp, ...
 │   │       ├── expr/                      # Expression, Statement, Block, ExprTraversal
-│   │       └── BodyTraversal.scala        # Module → method body bridge
+│   │       └── BodyTraversal.scala        # Module -> method body bridge
 │   │
-│   ├── proto/                             # Proto Dialect (depends on semantic)
-│   │   └── src/main/scala/.../proto/
-│   │       ├── ProtoDialect.scala
-│   │       ├── ops/                       # SchemaOp, MessageOp, FieldOp, ...
-│   │       ├── types/                     # ConflictType, ProtoSyntax
-│   │       ├── passes/                    # ProtoVerifierPass
-│   │       ├── lowering/                  # ProtoToSemanticLowering, LoweringConfig
-│   │       └── dsl/                       # ProtoSchema builder DSL
-│   │
-│   └── java/                              # Java Code Dialect (depends on semantic)
-│       └── src/main/scala/.../java/
-│           ├── JavaDialect.scala
-│           ├── types/                     # JavaTypeMapping
-│           └── emit/                      # DirectJavaEmitter
+│   ├── java/                              # Java Code Dialect
+│   ├── kotlin/                            # Kotlin Code Dialect
+│   └── scala/                             # Scala Code Dialect
 │
-├── pipelines/
-│   └── proto-to-java/                     # Pipeline: Proto → Semantic → Java
-│       └── src/main/scala/.../pipeline/prototojava/
-│           └── ProtoToJavaPipeline.scala
+├── ircraft-java-api/                      # Java-friendly facade
+│   └── src/main/scala/.../java/
+│       ├── Ops.scala                      # Builders for IR operations
+│       ├── Expr.scala                     # Expression/Statement factory
+│       ├── Types.scala                    # TypeRef constants + factory
+│       └── IR.scala                       # Module, PassResult, collection helpers
+│
+├── examples/                              # Example dialects and pipelines
 │
 ├── docs/
 │   ├── ARCHITECTURE.md                    # Detailed architecture with diagrams
-│   ├── IMPLEMENTATION_PLAN.md             # Full phased roadmap
 │   ├── CUSTOM_DIALECT.md                  # Guide: create your own dialect
-│   └── REVIEW.md                          # Architectural review & fix tracking
+│   └── JAVA_FACADE_API.md                # Java API facade documentation
 │
 ├── build.sbt                              # Scala 3.6.4, sbt 1.10
 ├── .github/workflows/ci.yml              # CI: Java 17/21
@@ -240,16 +219,14 @@ ircraft/
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| 0 | Done | Project scaffold |
 | 1 | Done | ircraft-core (GreenNode, TypeRef, Pass, Pipeline) |
-| 2 | Done | Proto Dialect (SchemaOp, FieldOp, DSL, verifier) |
-| 3 | Done | Semantic Dialect (ClassOp, Expression, Proto→Semantic lowering) |
-| 4 | Done | Java Dialect (DirectJavaEmitter, end-to-end pipeline) |
-| 5 | Done | proto-wrapper-plugin integration (IrcraftBridge, IrcraftGenerator) |
-| 6 | Planned | Kotlin Code Dialect |
-| 7 | Planned | Scala Code Dialect + SBT plugin |
-| 8 | Planned | IR serialization (textual format, JSON) + CLI |
-| 9 | Planned | Red Tree (LSP support, parent references) |
+| 2 | Done | Semantic Dialect (ClassOp, InterfaceOp, Expression AST) |
+| 3 | Done | Java, Kotlin, Scala emitters |
+| 4 | Done | Java facade API (Ops, Expr, Types, IR) |
+| 5 | Done | Generic Dialect API + Derived schemas |
+| 6 | Next | Proto Dialect (redesign -- simple single-schema lowering) |
+| 7 | Planned | IR serialization (textual format, JSON) + CLI |
+| 8 | Planned | Red Tree (LSP support, parent references) |
 
 ## Tech Stack
 

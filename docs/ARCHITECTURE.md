@@ -171,38 +171,34 @@ Each pass is a pure function: `GreenNode(v1) → GreenNode(v2)`. Input is never 
 flowchart TB
     core["ircraft-core"]
     semantic["ircraft-dialect-semantic"]
-    proto["ircraft-dialect-proto"]
     java["ircraft-dialect-java"]
-    kotlin["ircraft-dialect-kotlin (planned)"]
-    scala["ircraft-dialect-scala (planned)"]
-    ptj["ircraft-pipeline-proto-to-java"]
+    kotlin["ircraft-dialect-kotlin"]
+    scala["ircraft-dialect-scala"]
+    javaapi["ircraft-java-api"]
 
     semantic --> core
-    proto --> core
-    proto --> semantic
     java --> core
     java --> semantic
-    kotlin -.-> core
-    kotlin -.-> semantic
-    scala -.-> core
-    scala -.-> semantic
-    ptj --> proto
-    ptj --> java
+    kotlin --> core
+    kotlin --> semantic
+    scala --> core
+    scala --> semantic
+    javaapi --> core
+    javaapi --> semantic
 
     style core fill:#4a9eff,color:#fff
     style semantic fill:#8b5cf6,color:#fff
-    style proto fill:#f59e0b,color:#fff
     style java fill:#10b981,color:#fff
     style kotlin fill:#10b981,color:#fff
     style scala fill:#10b981,color:#fff
-    style ptj fill:#ef4444,color:#fff
+    style javaapi fill:#ef4444,color:#fff
 ```
 
 **Key principles:**
 - **Semantic** is pure — no dependencies on other dialects
-- **Source dialects** (proto) depend on semantic for lowering target types
-- **Code dialects** (java) depend on semantic for emission source types
-- **Pipelines** are separate modules that compose dialects — they depend on all dialects they connect
+- **Source dialects** depend on semantic for lowering target types
+- **Code dialects** (java, kotlin, scala) depend on semantic for emission source types
+- **Java API** provides a JVM-friendly facade over core and semantic
 
 ## Core Framework
 
@@ -291,59 +287,6 @@ flowchart LR
 
 ## Built-in Dialects
 
-### Proto Dialect
-
-High-level protobuf schema representation. Maps directly to proto-wrapper-plugin's `MergedSchema` model.
-
-```mermaid
-flowchart TB
-    S["SchemaOp\nversions · versionSyntax"] --> M["MessageOp\nname · presentInVersions"]
-    S --> E["EnumOp\nname · values"]
-    S --> CE["ConflictEnumOp\nfor INT_ENUM conflicts"]
-    M --> F["FieldOp\nname · number · type · conflictType"]
-    M --> O["OneofOp\nprotoName · caseEnumName"]
-    M --> NM["Nested MessageOp"]
-    M --> NE["Nested EnumOp"]
-    E --> EV["EnumValueOp\nname · number"]
-
-    style S fill:#f59e0b,color:#fff
-    style M fill:#f59e0b,color:#fff
-    style F fill:#fbbf24,color:#000
-    style E fill:#f59e0b,color:#fff
-    style O fill:#fbbf24,color:#000
-```
-
-#### ConflictType
-
-When a field changes type between proto versions, a ConflictType is assigned:
-
-| ConflictType | Example | Resolution |
-|---|---|---|
-| `None` | Same type in all versions | Direct access |
-| `IntEnum` | `int32` ↔ `enum` | Dual getters: int + enum helper |
-| `Widening` | `int32` → `int64` | Wider type (long) |
-| `FloatDouble` | `float` → `double` | Wider type (double) |
-| `StringBytes` | `string` ↔ `bytes` | Manual conversion |
-| `SignedUnsigned` | `int32` ↔ `uint32` | Long for safety |
-| `RepeatedSingle` | singular ↔ repeated | List |
-| `PrimitiveMessage` | `int32` ↔ `Money` | Dual accessors |
-| `Incompatible` | Fundamentally different | Error |
-
-#### Proto DSL
-
-```scala
-val schema = ProtoSchema.build("v1", "v2") { s =>
-  s.message("Money") { m =>
-    m.field("amount", 1, TypeRef.LONG)
-    m.field("currency", 2, TypeRef.STRING)
-  }
-  s.enum_("Currency") { e =>
-    e.value("USD", 0)
-    e.value("EUR", 1)
-  }
-}
-```
-
 ### Semantic Dialect
 
 Language-agnostic OOP constructs. This is the shared layer — Java, Kotlin, and Scala dialects all lower from here.
@@ -368,33 +311,6 @@ flowchart TB
     style MTH fill:#a78bfa,color:#fff
     style MTH2 fill:#a78bfa,color:#fff
 ```
-
-#### Proto → Semantic Lowering
-
-The key transformation — encodes the generation strategy:
-
-```mermaid
-flowchart LR
-    MSG["MessageOp"] --> IF["InterfaceOp\n(getters)"]
-    MSG --> ABS["ClassOp\n(abstract, extract methods)"]
-    MSG --> IMPL["ClassOp\n(per version impl)"]
-    ENUMOP["EnumOp"] --> ENUMCLS["EnumClassOp"]
-    ONEOF["OneofOp"] --> CASE["EnumClassOp\n(case enum)"]
-
-    style MSG fill:#f59e0b,color:#fff
-    style IF fill:#8b5cf6,color:#fff
-    style ABS fill:#8b5cf6,color:#fff
-    style IMPL fill:#8b5cf6,color:#fff
-    style ENUMOP fill:#f59e0b,color:#fff
-    style ENUMCLS fill:#8b5cf6,color:#fff
-```
-
-| Proto | → Semantic |
-|-------|-----------|
-| `MessageOp` | `InterfaceOp` + `ClassOp`(abstract) + `ClassOp`(impl per version) |
-| `FieldOp` | `MethodOp`(getter) + `FieldDeclOp` + `MethodOp`(extract) |
-| `EnumOp` | `EnumClassOp` |
-| `OneofOp` | `EnumClassOp`(case enum) + `MethodOp`(discriminator) |
 
 ### Java Dialect
 
@@ -431,17 +347,15 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    DSL["Proto DSL\nSchemaOp"]
-    VER["ProtoVerifierPass\nvalidation"]
-    LOW["ProtoToSemantic\nLowering"]
+    SRC["Your Dialect\n(custom operations)"]
+    LOW["Lowering\nyour ops → semantic"]
     SEM["Semantic IR\nFileOp · ClassOp · MethodOp"]
     EMIT["DirectJavaEmitter\nstring templates"]
     OUT[".java files"]
 
-    DSL --> VER --> LOW --> SEM --> EMIT --> OUT
+    SRC --> LOW --> SEM --> EMIT --> OUT
 
-    style DSL fill:#f59e0b,color:#fff
-    style VER fill:#f59e0b,color:#fff
+    style SRC fill:#4a9eff,color:#fff
     style LOW fill:#8b5cf6,color:#fff
     style SEM fill:#8b5cf6,color:#fff
     style EMIT fill:#10b981,color:#fff
@@ -498,8 +412,7 @@ object MyTransformPass extends Pass:
 ```scala
 val pipeline = Pipeline("my-pipeline",
   MyTransformPass,
-  ProtoVerifierPass,
-  ProtoToSemanticLowering(config),
+  ConfigToSemanticLowering(),
 )
 val result = pipeline.run(module, PassContext())
 ```

@@ -5,12 +5,9 @@ import scala.annotation.targetName
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.proto.ProtoDialect
 
-/** Protobuf oneof group. Maps to MergedOneof. */
+/** Protobuf oneof group. */
 case class OneofOp(
-  protoName: String,
-  javaName: String,
-  caseEnumName: String,
-  presentInVersions: Set[String],
+  name: String,
   regions: Vector[Region],
   attributes: AttributeMap,
   span: Option[Span]
@@ -25,31 +22,22 @@ case class OneofOp(
 
   lazy val contentHash: Int =
     ContentHash.combine(
-      ContentHash.ofString(protoName),
-      ContentHash.ofString(javaName),
-      ContentHash.ofString(caseEnumName),
-      ContentHash.ofSet(presentInVersions),
+      ContentHash.ofString(name),
       ContentHash.ofList(fields.toList)(using Operation.operationHashable)
     )
 
-  lazy val estimatedSize: Int = 1 + fields.size
+  lazy val estimatedSize: Int = 1 + fields.map(_.estimatedSize).sum
 
 object OneofOp:
 
   @targetName("create")
   def apply(
-    protoName: String,
-    javaName: String,
-    caseEnumName: String,
-    presentInVersions: Set[String],
+    name: String,
     fields: Vector[FieldOp] = Vector.empty,
     attributes: AttributeMap = AttributeMap.empty,
     span: Option[Span] = None
   ): OneofOp = new OneofOp(
-    protoName,
-    javaName,
-    caseEnumName,
-    presentInVersions,
+    name,
     regions = Vector(Region("fields", fields)),
     attributes,
     span

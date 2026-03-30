@@ -1,246 +1,194 @@
 package io.alnovis.ircraft.dialect.proto
 
+import munit.FunSuite
+
 import io.alnovis.ircraft.core.*
-import io.alnovis.ircraft.dialect.proto.dsl.ProtoSchema
 import io.alnovis.ircraft.dialect.proto.ops.*
-import io.alnovis.ircraft.dialect.proto.passes.ProtoVerifierPass
-import io.alnovis.ircraft.dialect.proto.types.*
+import io.alnovis.ircraft.dialect.proto.dsl.ProtoSchema
 
-class ProtoDialectSuite extends munit.FunSuite:
+class ProtoDialectSuite extends FunSuite:
 
-  val ctx: PassContext = PassContext()
-
-  test("DSL builds a valid schema"):
-    val schema = ProtoSchema.build("v1", "v2") { s =>
-      s.message("Money") { m =>
-        m.field("amount", 1, TypeRef.LONG)
-        m.field("currency", 2, TypeRef.STRING)
-      }
-      s.enum_("Currency") { e =>
-        e.value("USD", 0)
-        e.value("EUR", 1)
-      }
-    }
-
-    assertEquals(schema.versions, List("v1", "v2"))
-    assertEquals(schema.messages.size, 1)
-    assertEquals(schema.messages.head.name, "Money")
-    assertEquals(schema.messages.head.fields.size, 2)
-    assertEquals(schema.messages.head.fields(0).javaName, "amount")
-    assertEquals(schema.messages.head.fields(1).javaName, "currency")
-    assertEquals(schema.enums.size, 1)
-    assertEquals(schema.enums.head.values.size, 2)
-
-  test("DSL builds schema with oneof"):
-    val schema = ProtoSchema.build("v1") { s =>
-      s.message("Event") { m =>
-        m.field("id", 1, TypeRef.LONG)
-        m.oneof("payload") { o =>
-          o.field("text", 2, TypeRef.STRING)
-          o.field("number", 3, TypeRef.INT)
-        }
-      }
-    }
-
-    val msg = schema.messages.head
-    assertEquals(msg.oneofs.size, 1)
-    assertEquals(msg.oneofs.head.protoName, "payload")
-    assertEquals(msg.oneofs.head.javaName, "payload")
-    assertEquals(msg.oneofs.head.caseEnumName, "PayloadCase")
-    assertEquals(msg.oneofs.head.fields.size, 2)
-
-  test("DSL builds schema with nested messages"):
-    val schema = ProtoSchema.build("v1") { s =>
-      s.message("Order") { m =>
-        m.field("id", 1, TypeRef.LONG)
-        m.nestedMessage("Item") { n =>
-          n.field("name", 1, TypeRef.STRING)
-          n.field("quantity", 2, TypeRef.INT)
-        }
-      }
-    }
-
-    val order = schema.messages.head
-    assertEquals(order.nestedMessages.size, 1)
-    assertEquals(order.nestedMessages.head.name, "Item")
-    assertEquals(order.nestedMessages.head.fields.size, 2)
-
-  test("DSL builds field with conflict type"):
-    val schema = ProtoSchema.build("v1", "v2") { s =>
-      s.message("Payment") { m =>
-        m.field("type", 1, TypeRef.INT, conflictType = ConflictType.IntEnum)
-      }
-    }
-
-    val field = schema.messages.head.fields.head
-    assert(field.hasConflict)
-    assertEquals(field.conflictType, ConflictType.IntEnum)
-
-  test("verifier passes for valid schema"):
-    val schema = ProtoSchema.build("v1") { s =>
-      s.message("Foo") { m =>
-        m.field("bar", 1, TypeRef.STRING)
-      }
-    }
-
-    val module = IrModule("test", Vector(schema))
-    val result = ProtoVerifierPass.run(module, ctx)
-    assert(result.isSuccess, s"Expected success but got: ${result.diagnostics}")
-
-  test("verifier catches empty versions"):
-    val schema = SchemaOp(
-      versions = Nil,
-      versionSyntax = Map.empty,
-      regions = Vector.empty,
-      attributes = AttributeMap.empty,
-      span = None
-    )
-    val module = IrModule("test", Vector(schema))
-    val result = ProtoVerifierPass.run(module, ctx)
-    assert(result.hasErrors)
-    assert(result.diagnostics.exists(_.message.contains("at least one version")))
-
-  test("verifier catches empty message name"):
-    val schema = SchemaOp(
-      versions = List("v1"),
-      messages = Vector(
-        MessageOp("", Set("v1"), fields = Vector(FieldOp("f", "f", 1, TypeRef.INT, presentInVersions = Set("v1"))))
+  test("build a simple message with fields"):
+    val msg = MessageOp(
+      "Money",
+      fields = Vector(
+        FieldOp("amount", 1, TypeRef.LONG),
+        FieldOp("currency", 2, TypeRef.STRING)
       )
     )
-    val module = IrModule("test", Vector(schema))
-    val result = ProtoVerifierPass.run(module, ctx)
-    assert(result.hasErrors)
-    assert(result.diagnostics.exists(_.message.contains("name must not be empty")))
+    assertEquals(msg.name, "Money")
+    assertEquals(msg.fields.size, 2)
+    assertEquals(msg.fields(0).name, "amount")
+    assertEquals(msg.fields(0).number, 1)
+    assertEquals(msg.fields(1).fieldType, TypeRef.STRING)
 
-  test("verifier catches non-positive field number"):
-    val schema = ProtoSchema.build("v1") { s =>
-      s.message("Foo") { m =>
-        m.field("bar", 0, TypeRef.STRING)
-      }
-    }
-    val module = IrModule("test", Vector(schema))
-    val result = ProtoVerifierPass.run(module, ctx)
-    assert(result.hasErrors)
-    assert(result.diagnostics.exists(_.message.contains("positive number")))
+  test("build enum with values"):
+    val e = EnumOp(
+      "Status",
+      values = Vector(
+        EnumValueOp("UNKNOWN", 0),
+        EnumValueOp("ACTIVE", 1)
+      )
+    )
+    assertEquals(e.name, "Status")
+    assertEquals(e.values.size, 2)
+    assertEquals(e.values(0).number, 0)
 
-  test("verifier catches duplicate field numbers"):
-    val schema = ProtoSchema.build("v1") { s =>
-      s.message("Foo") { m =>
-        m.field("a", 1, TypeRef.STRING)
-        m.field("b", 1, TypeRef.INT)
-      }
-    }
-    val module = IrModule("test", Vector(schema))
-    val result = ProtoVerifierPass.run(module, ctx)
-    assert(result.hasErrors)
-    assert(result.diagnostics.exists(_.message.contains("duplicate field numbers")))
-
-  test("verifier catches empty oneof"):
-    val schema = SchemaOp(
-      versions = List("v1"),
-      messages = Vector(
-        MessageOp(
-          "Foo",
-          Set("v1"),
-          oneofs = Vector(OneofOp("empty_oneof", "emptyOneof", "EmptyOneofCase", Set("v1"), fields = Vector.empty))
+  test("build message with oneof"):
+    val msg = MessageOp(
+      "Payment",
+      oneofs = Vector(
+        OneofOp(
+          "payment_method",
+          fields = Vector(
+            FieldOp("credit_card", 1, TypeRef.NamedType("CreditCard")),
+            FieldOp("bank_account", 2, TypeRef.NamedType("BankAccount"))
+          )
         )
       )
     )
-    val module = IrModule("test", Vector(schema))
-    val result = ProtoVerifierPass.run(module, ctx)
-    assert(result.hasErrors)
-    assert(result.diagnostics.exists(_.message.contains("at least one field")))
+    assertEquals(msg.oneofs.size, 1)
+    assertEquals(msg.oneofs(0).name, "payment_method")
+    assertEquals(msg.oneofs(0).fields.size, 2)
+
+  test("build message with nested types"):
+    val msg = MessageOp(
+      "Outer",
+      fields = Vector(FieldOp("id", 1, TypeRef.INT)),
+      nestedMessages = Vector(
+        MessageOp("Inner", fields = Vector(FieldOp("value", 1, TypeRef.STRING)))
+      ),
+      nestedEnums = Vector(
+        EnumOp("InnerEnum", values = Vector(EnumValueOp("DEFAULT", 0)))
+      )
+    )
+    assertEquals(msg.nestedMessages.size, 1)
+    assertEquals(msg.nestedMessages(0).name, "Inner")
+    assertEquals(msg.nestedEnums.size, 1)
+
+  test("build proto file"):
+    val file = ProtoFileOp(
+      "com.example",
+      ProtoSyntax.Proto3,
+      options = Map("java_package" -> "com.example.proto"),
+      messages = Vector(
+        MessageOp("Money", fields = Vector(FieldOp("amount", 1, TypeRef.LONG)))
+      ),
+      enums = Vector(
+        EnumOp("Currency", values = Vector(EnumValueOp("USD", 0)))
+      )
+    )
+    assertEquals(file.protoPackage, "com.example")
+    assertEquals(file.syntax, ProtoSyntax.Proto3)
+    assertEquals(file.options("java_package"), "com.example.proto")
+    assertEquals(file.messages.size, 1)
+    assertEquals(file.enums.size, 1)
+
+  test("field types: repeated, map, optional"):
+    val msg = MessageOp(
+      "Container",
+      fields = Vector(
+        FieldOp("tags", 1, TypeRef.ListType(TypeRef.STRING)),
+        FieldOp("metadata", 2, TypeRef.MapType(TypeRef.STRING, TypeRef.INT)),
+        FieldOp("nickname", 3, TypeRef.OptionalType(TypeRef.STRING))
+      )
+    )
+    assert(msg.fields(0).fieldType.isInstanceOf[TypeRef.ListType])
+    assert(msg.fields(1).fieldType.isInstanceOf[TypeRef.MapType])
+    assert(msg.fields(2).fieldType.isInstanceOf[TypeRef.OptionalType])
 
   test("content hash is deterministic"):
-    val s1 = ProtoSchema.build("v1") { s =>
-      s.message("Foo")(m => m.field("bar", 1, TypeRef.STRING))
-    }
-    val s2 = ProtoSchema.build("v1") { s =>
-      s.message("Foo")(m => m.field("bar", 1, TypeRef.STRING))
-    }
-    assertEquals(s1.contentHash, s2.contentHash)
+    val f1 = FieldOp("amount", 1, TypeRef.LONG)
+    val f2 = FieldOp("amount", 1, TypeRef.LONG)
+    assertEquals(f1.contentHash, f2.contentHash)
 
-  test("content hash changes when field changes"):
-    val s1 = ProtoSchema.build("v1") { s =>
-      s.message("Foo")(m => m.field("bar", 1, TypeRef.STRING))
-    }
-    val s2 = ProtoSchema.build("v1") { s =>
-      s.message("Foo")(m => m.field("bar", 1, TypeRef.INT))
-    }
-    assertNotEquals(s1.contentHash, s2.contentHash)
+  test("content hash differs for different fields"):
+    val f1 = FieldOp("amount", 1, TypeRef.LONG)
+    val f2 = FieldOp("amount", 2, TypeRef.LONG)
+    assertNotEquals(f1.contentHash, f2.contentHash)
+
+  test("content hash differs for different types"):
+    val f1 = FieldOp("value", 1, TypeRef.INT)
+    val f2 = FieldOp("value", 1, TypeRef.LONG)
+    assertNotEquals(f1.contentHash, f2.contentHash)
 
   test("ProtoDialect owns proto operations"):
-    val schema = ProtoSchema.build("v1") { s =>
-      s.message("Foo")(m => m.field("bar", 1, TypeRef.STRING))
-    }
-    assert(ProtoDialect.owns(schema))
-    assert(ProtoDialect.owns(schema.messages.head))
-    assert(ProtoDialect.owns(schema.messages.head.fields.head))
+    val field = FieldOp("x", 1, TypeRef.INT)
+    assert(ProtoDialect.owns(field))
+    assertEquals(field.dialectName, "proto")
+    assertEquals(field.opName, "field")
 
-  test("snakeToCamel conversion in DSL"):
-    val schema = ProtoSchema.build("v1") { s =>
-      s.message("Foo") { m =>
-        m.field("my_field_name", 1, TypeRef.STRING)
+  test("DSL builds correct IR"):
+    val file = ProtoSchema.file("com.example", ProtoSyntax.Proto3) { f =>
+      f.message("Money") { msg =>
+        msg.field("amount", 1, TypeRef.LONG)
+        msg.field("currency", 2, TypeRef.STRING)
+        msg.repeatedField("tags", 3, TypeRef.STRING)
+        msg.mapField("metadata", 4, TypeRef.STRING, TypeRef.STRING)
       }
-    }
-    assertEquals(schema.messages.head.fields.head.javaName, "myFieldName")
-
-  test("messageHashes returns per-message content hashes"):
-    val schema = ProtoSchema.build("v1") { s =>
-      s.message("Money") { m =>
-        m.field("amount", 1, TypeRef.LONG)
-      }
-      s.message("Order") { m =>
-        m.field("id", 1, TypeRef.LONG)
-      }
-    }
-
-    val hashes = schema.messageHashes
-    assertEquals(hashes.size, 2)
-    assert(hashes.contains("Money"))
-    assert(hashes.contains("Order"))
-    assertNotEquals(hashes("Money"), hashes("Order"))
-
-  test("enumHashes returns per-enum content hashes"):
-    val schema = ProtoSchema.build("v1") { s =>
-      s.enum_("Status") { e =>
+      f.enum_("Status") { e =>
         e.value("UNKNOWN", 0)
         e.value("ACTIVE", 1)
       }
-      s.enum_("Currency") { e =>
-        e.value("USD", 0)
-        e.value("EUR", 1)
+    }
+    assertEquals(file.protoPackage, "com.example")
+    assertEquals(file.messages.size, 1)
+    assertEquals(file.messages(0).fields.size, 4)
+    assertEquals(file.messages(0).fields(2).fieldType, TypeRef.ListType(TypeRef.STRING))
+    assertEquals(file.messages(0).fields(3).fieldType, TypeRef.MapType(TypeRef.STRING, TypeRef.STRING))
+    assertEquals(file.enums.size, 1)
+
+  test("DSL with oneof and nested types"):
+    val file = ProtoSchema.file("com.example") { f =>
+      f.message("Payment") { msg =>
+        msg.field("id", 1, TypeRef.STRING)
+        msg.oneof("method") { o =>
+          o.field("card", 2, TypeRef.NamedType("Card"))
+          o.field("cash", 3, TypeRef.BOOL)
+        }
+        msg.nestedMessage("Card") { nested =>
+          nested.field("number", 1, TypeRef.STRING)
+        }
+        msg.nestedEnum("PaymentType") { e =>
+          e.value("UNKNOWN", 0)
+          e.value("ONLINE", 1)
+        }
       }
     }
+    val payment = file.messages(0)
+    assertEquals(payment.oneofs.size, 1)
+    assertEquals(payment.oneofs(0).fields.size, 2)
+    assertEquals(payment.nestedMessages.size, 1)
+    assertEquals(payment.nestedEnums.size, 1)
 
-    val hashes = schema.enumHashes
-    assertEquals(hashes.size, 2)
-    assert(hashes.contains("Status"))
-    assert(hashes.contains("Currency"))
-
-  test("messageHashes is stable across identical builds"):
-    def buildSchema() = ProtoSchema.build("v1") { s =>
-      s.message("Foo")(m => m.field("bar", 1, TypeRef.STRING))
+  test("DSL file options"):
+    val file = ProtoSchema.file("com.example", ProtoSyntax.Proto2) { f =>
+      f.option("java_package", "com.example.proto")
+      f.option("java_outer_classname", "ExampleProto")
+      f.message("Empty") { _ => }
     }
-    assertEquals(buildSchema().messageHashes, buildSchema().messageHashes)
+    assertEquals(file.syntax, ProtoSyntax.Proto2)
+    assertEquals(file.options.size, 2)
+    assertEquals(file.options("java_package"), "com.example.proto")
 
-  test("messageHashes changes when field type changes"):
-    val s1 = ProtoSchema.build("v1") { s =>
-      s.message("Foo")(m => m.field("bar", 1, TypeRef.STRING))
-    }
-    val s2 = ProtoSchema.build("v1") { s =>
-      s.message("Foo")(m => m.field("bar", 1, TypeRef.INT))
-    }
-    assertNotEquals(s1.messageHashes("Foo"), s2.messageHashes("Foo"))
+  test("estimatedSize counts all descendants"):
+    val msg = MessageOp(
+      "Big",
+      fields = Vector(FieldOp("a", 1, TypeRef.INT), FieldOp("b", 2, TypeRef.INT)),
+      nestedMessages = Vector(
+        MessageOp("Nested", fields = Vector(FieldOp("x", 1, TypeRef.STRING)))
+      )
+    )
+    // msg(1) + fields(2) + nestedMsg(1) + nestedField(1) = 5
+    assertEquals(msg.estimatedSize, 5)
 
-  test("pipeline with verifier pass"):
-    val schema = ProtoSchema.build("v1", "v2") { s =>
-      s.message("Money") { m =>
-        m.field("amount", 1, TypeRef.LONG)
-        m.field("currency", 2, TypeRef.STRING)
-      }
+  test("mapChildren transforms fields"):
+    val msg = MessageOp(
+      "Test",
+      fields = Vector(FieldOp("old", 1, TypeRef.INT))
+    )
+    val transformed = msg.mapChildren {
+      case f: FieldOp => f.copy(name = "new")
+      case other      => other
     }
-
-    val pipeline = Pipeline("proto-validation", ProtoVerifierPass)
-    val result   = pipeline.run(IrModule("test", Vector(schema)), ctx)
-    assert(result.isSuccess)
+    assertEquals(transformed.asInstanceOf[MessageOp].fields(0).name, "new")

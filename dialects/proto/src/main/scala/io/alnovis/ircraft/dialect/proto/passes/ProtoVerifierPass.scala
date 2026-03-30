@@ -3,92 +3,90 @@ package io.alnovis.ircraft.dialect.proto.passes
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.proto.ops.*
 
-/** Validates that a IrModule contains well-formed proto dialect operations. */
+/** Validates proto dialect IR structural correctness. */
 object ProtoVerifierPass extends Pass:
 
   val name: String        = "proto-verifier"
-  val description: String = "Validates proto dialect IR for structural correctness"
+  val description: String = "Validates proto IR structure"
 
   def run(module: IrModule, context: PassContext): PassResult =
     val diagnostics = module.topLevel.flatMap(verifyOp).toList
     PassResult(module, diagnostics)
 
   private def verifyOp(op: Operation): List[DiagnosticMessage] = op match
-    case s: SchemaOp       => verifySchema(s)
-    case m: MessageOp      => verifyMessage(m)
-    case f: FieldOp        => verifyField(f)
-    case e: EnumOp         => verifyEnum(e)
-    case v: EnumValueOp    => verifyEnumValue(v)
-    case o: OneofOp        => verifyOneof(o)
-    case c: ConflictEnumOp => verifyConflictEnum(c)
-    case other => List(DiagnosticMessage.warning(s"Unverified operation type: ${other.qualifiedName}", other.span))
+    case f: ProtoFileOp => verifyFile(f)
+    case m: MessageOp   => verifyMessage(m)
+    case e: EnumOp      => verifyEnum(e)
+    case o: OneofOp     => verifyOneof(o)
+    case _: FieldOp | _: EnumValueOp => Nil
+    case other =>
+      List(DiagnosticMessage.warning(s"Unknown operation type: ${other.qualifiedName}", other.span))
 
-  private def verifySchema(s: SchemaOp): List[DiagnosticMessage] =
-    val diags = List.newBuilder[DiagnosticMessage]
-    if s.versions.isEmpty then diags += DiagnosticMessage.error("Schema must have at least one version", s.span)
-    if s.versions.distinct.size != s.versions.size then
-      diags += DiagnosticMessage.error("Schema versions must be unique", s.span)
-    diags ++= s.messages.flatMap(verifyMessage)
-    diags ++= s.enums.flatMap(verifyEnum)
-    diags.result()
+  private def verifyFile(f: ProtoFileOp): List[DiagnosticMessage] =
+    f.messages.flatMap(verifyMessage).toList ++ f.enums.flatMap(verifyEnum).toList
 
   private def verifyMessage(m: MessageOp): List[DiagnosticMessage] =
     val diags = List.newBuilder[DiagnosticMessage]
-    if m.name.isEmpty then diags += DiagnosticMessage.error("Message name must not be empty", m.span)
-    if m.presentInVersions.isEmpty then
-      diags += DiagnosticMessage.error(s"Message '${m.name}' must be present in at least one version", m.span)
 
-    // Check for duplicate field numbers
-    val numbers = m.fields.map(_.number)
-    if numbers.distinct.size != numbers.size then
-      diags += DiagnosticMessage.error(s"Message '${m.name}' has duplicate field numbers", m.span)
+    if m.name.isEmpty then
+      diags += DiagnosticMessage.error("Message name must not be empty", m.span)
 
-    // Check for duplicate field names
-    val names = m.fields.map(_.name)
-    if names.distinct.size != names.size then
-      diags += DiagnosticMessage.error(s"Message '${m.name}' has duplicate field names", m.span)
+    // Collect all field numbers (including oneof fields)
+    val allFields = m.fields ++ m.oneofs.flatMap(_.fields)
+    val numbers = allFields.map(_.number)
+    val names = allFields.map(_.name)
 
-    diags ++= m.fields.flatMap(verifyField)
-    diags ++= m.oneofs.flatMap(verifyOneof)
+    // Check field numbers
+    allFields.foreach { f =>
+      if f.number <= 0 then
+        diags += DiagnosticMessage.error(s"Field '${f.name}' has invalid number ${f.number} (must be > 0)", f.span)
+      if f.number >= 19000 && f.number <= 19999 then
+        diags += DiagnosticMessage.error(
+          s"Field '${f.name}' uses reserved number ${f.number} (19000-19999)",
+          f.span
+        )
+    }
+
+    // Duplicate field numbers
+    numbers.groupBy(identity).collect { case (n, occurrences) if occurrences.size > 1 => n }.foreach { n =>
+      diags += DiagnosticMessage.error(s"Duplicate field number $n in message '${m.name}'", m.span)
+    }
+
+    // Duplicate field names
+    names.groupBy(identity).collect { case (n, occurrences) if occurrences.size > 1 => n }.foreach { n =>
+      diags += DiagnosticMessage.error(s"Duplicate field name '$n' in message '${m.name}'", m.span)
+    }
+
+    // Recurse into nested types
     diags ++= m.nestedMessages.flatMap(verifyMessage)
     diags ++= m.nestedEnums.flatMap(verifyEnum)
-    diags.result()
+    diags ++= m.oneofs.flatMap(verifyOneof)
 
-  private def verifyField(f: FieldOp): List[DiagnosticMessage] =
-    val diags = List.newBuilder[DiagnosticMessage]
-    if f.name.isEmpty then diags += DiagnosticMessage.error("Field name must not be empty", f.span)
-    if f.number <= 0 then diags += DiagnosticMessage.error(s"Field '${f.name}' must have a positive number", f.span)
-    if f.presentInVersions.isEmpty then
-      diags += DiagnosticMessage.error(s"Field '${f.name}' must be present in at least one version", f.span)
     diags.result()
 
   private def verifyEnum(e: EnumOp): List[DiagnosticMessage] =
     val diags = List.newBuilder[DiagnosticMessage]
-    if e.name.isEmpty then diags += DiagnosticMessage.error("Enum name must not be empty", e.span)
-    if e.presentInVersions.isEmpty then
-      diags += DiagnosticMessage.error(s"Enum '${e.name}' must be present in at least one version", e.span)
 
-    val numbers = e.values.map(_.number)
-    if numbers.distinct.size != numbers.size then
-      diags += DiagnosticMessage.error(s"Enum '${e.name}' has duplicate value numbers", e.span)
+    if e.name.isEmpty then
+      diags += DiagnosticMessage.error("Enum name must not be empty", e.span)
 
-    diags ++= e.values.flatMap(verifyEnumValue)
+    if e.values.isEmpty then
+      diags += DiagnosticMessage.warning(s"Enum '${e.name}' has no values", e.span)
+
+    // Duplicate value numbers
+    e.values.map(_.number).groupBy(identity).collect { case (n, occ) if occ.size > 1 => n }.foreach { n =>
+      diags += DiagnosticMessage.error(s"Duplicate enum value number $n in enum '${e.name}'", e.span)
+    }
+
     diags.result()
-
-  private def verifyEnumValue(v: EnumValueOp): List[DiagnosticMessage] =
-    if v.name.isEmpty then List(DiagnosticMessage.error("Enum value name must not be empty", v.span))
-    else Nil
 
   private def verifyOneof(o: OneofOp): List[DiagnosticMessage] =
     val diags = List.newBuilder[DiagnosticMessage]
-    if o.protoName.isEmpty then diags += DiagnosticMessage.error("Oneof name must not be empty", o.span)
-    if o.fields.isEmpty then
-      diags += DiagnosticMessage.error(s"Oneof '${o.protoName}' must have at least one field", o.span)
-    diags ++= o.fields.flatMap(verifyField)
-    diags.result()
 
-  private def verifyConflictEnum(c: ConflictEnumOp): List[DiagnosticMessage] =
-    val diags = List.newBuilder[DiagnosticMessage]
-    if c.enumName.isEmpty then diags += DiagnosticMessage.error("Conflict enum name must not be empty", c.span)
-    if c.fieldName.isEmpty then diags += DiagnosticMessage.error("Conflict enum field name must not be empty", c.span)
+    if o.name.isEmpty then
+      diags += DiagnosticMessage.error("Oneof name must not be empty", o.span)
+
+    if o.fields.isEmpty then
+      diags += DiagnosticMessage.warning(s"Oneof '${o.name}' has no fields", o.span)
+
     diags.result()

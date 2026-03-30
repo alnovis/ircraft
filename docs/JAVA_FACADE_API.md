@@ -211,8 +211,7 @@ public class ProtoWrapperPassJava implements Pass {
                 var types = new java.util.ArrayList<Operation>();
                 for (var t : IR.types(file)) {
                     if (t instanceof InterfaceOp iface
-                            && !iface.name().equals("ProtoWrapper")
-                            && iface.attributes().contains("proto.presentInVersions")) {
+                            && !iface.name().equals("ProtoWrapper")) {
                         types.add(Ops.rebuildIface(iface).addExtends(Types.named("ProtoWrapper")).build());
                     } else {
                         types.add(t);
@@ -303,7 +302,6 @@ object Expr:
 ```
 ircraft-core/           -- pure Scala: Operation, Module, Pass, Pipeline, TypeRef
 dialects/semantic/      -- pure Scala: InterfaceOp, ClassOp, Expression, Statement
-dialects/proto/         -- pure Scala: SchemaOp, MessageOp, 6 generic passes
 ircraft-java-api/       -- Java facade: Ops, Expr, Types, IR (Scala implementation, Java-facing API)
 ```
 

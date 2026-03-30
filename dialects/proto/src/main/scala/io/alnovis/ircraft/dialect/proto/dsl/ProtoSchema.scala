@@ -2,130 +2,97 @@ package io.alnovis.ircraft.dialect.proto.dsl
 
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.proto.ops.*
-import io.alnovis.ircraft.dialect.proto.types.*
 
-/**
-  * DSL for building Proto Dialect IR.
-  *
-  * Usage:
-  * {{{
-  * val schema = ProtoSchema.build("v1", "v2") { schema =>
-  *   schema.message("Money", "v1", "v2") { msg =>
-  *     msg.field("amount", 1, TypeRef.LONG)
-  *     msg.field("currency", 2, TypeRef.STRING)
-  *   }
-  *   schema.enum_("Status", "v1", "v2") { e =>
-  *     e.value("UNKNOWN", 0)
-  *     e.value("ACTIVE", 1)
-  *   }
-  * }
-  * }}}
-  */
+import scala.collection.mutable
+
+/** Builder DSL for constructing Proto IR. */
 object ProtoSchema:
 
-  def build(versions: String*)(f: SchemaBuilder => Unit): SchemaOp =
-    val builder = SchemaBuilder(versions.toList)
+  def file(protoPackage: String, syntax: ProtoSyntax = ProtoSyntax.Proto3)(
+    f: FileBuilder => Unit
+  ): ProtoFileOp =
+    val builder = FileBuilder(protoPackage, syntax)
     f(builder)
     builder.build()
 
-class SchemaBuilder(versions: List[String]):
-  private var messages      = Vector.empty[MessageOp]
-  private var enums         = Vector.empty[EnumOp]
-  private var conflictEnums = Vector.empty[ConflictEnumOp]
-  private var syntaxMap     = Map.empty[String, ProtoSyntax]
+class FileBuilder(protoPackage: String, syntax: ProtoSyntax):
+  private val messages = mutable.ArrayBuffer[MessageOp]()
+  private val enums = mutable.ArrayBuffer[EnumOp]()
+  private val opts = mutable.LinkedHashMap[String, String]()
 
-  def syntax(version: String, s: ProtoSyntax): Unit =
-    syntaxMap = syntaxMap + (version -> s)
+  def option(key: String, value: String): Unit = opts(key) = value
 
-  def message(name: String, presentIn: String*)(f: MessageBuilder => Unit): Unit =
-    val vers    = if presentIn.isEmpty then versions.toSet else presentIn.toSet
-    val builder = MessageBuilder(name, vers)
+  def message(name: String)(f: MessageBuilder => Unit): Unit =
+    val builder = MessageBuilder(name)
     f(builder)
-    messages = messages :+ builder.build()
+    messages += builder.build()
 
-  def enum_(name: String, presentIn: String*)(f: EnumBuilder => Unit): Unit =
-    val vers    = if presentIn.isEmpty then versions.toSet else presentIn.toSet
-    val builder = EnumBuilder(name, vers)
+  def enum_(name: String)(f: EnumBuilder => Unit): Unit =
+    val builder = EnumBuilder(name)
     f(builder)
-    enums = enums :+ builder.build()
+    enums += builder.build()
 
-  def conflictEnum(fieldName: String, enumName: String, messageName: String)(f: EnumBuilder => Unit): Unit =
-    val builder = EnumBuilder(enumName, Set.empty)
+  def build(): ProtoFileOp = ProtoFileOp(
+    protoPackage,
+    syntax,
+    opts.toMap,
+    messages.toVector,
+    enums.toVector
+  )
+
+class MessageBuilder(name: String):
+  private val fields = mutable.ArrayBuffer[FieldOp]()
+  private val oneofs = mutable.ArrayBuffer[OneofOp]()
+  private val nestedMessages = mutable.ArrayBuffer[MessageOp]()
+  private val nestedEnums = mutable.ArrayBuffer[EnumOp]()
+
+  def field(name: String, number: Int, fieldType: TypeRef): Unit =
+    fields += FieldOp(name, number, fieldType)
+
+  def optionalField(name: String, number: Int, fieldType: TypeRef): Unit =
+    fields += FieldOp(name, number, TypeRef.OptionalType(fieldType))
+
+  def repeatedField(name: String, number: Int, fieldType: TypeRef): Unit =
+    fields += FieldOp(name, number, TypeRef.ListType(fieldType))
+
+  def mapField(name: String, number: Int, keyType: TypeRef, valueType: TypeRef): Unit =
+    fields += FieldOp(name, number, TypeRef.MapType(keyType, valueType))
+
+  def oneof(name: String)(f: OneofBuilder => Unit): Unit =
+    val builder = OneofBuilder(name)
     f(builder)
-    conflictEnums = conflictEnums :+ ConflictEnumOp(fieldName, enumName, messageName, builder.buildValues())
+    oneofs += builder.build()
 
-  def build(): SchemaOp = SchemaOp(versions, syntaxMap, messages, enums, conflictEnums)
-
-class MessageBuilder(name: String, presentInVersions: Set[String]):
-  private var fields         = Vector.empty[FieldOp]
-  private var oneofs         = Vector.empty[OneofOp]
-  private var nestedMessages = Vector.empty[MessageOp]
-  private var nestedEnums    = Vector.empty[EnumOp]
-
-  def field(
-    name: String,
-    number: Int,
-    fieldType: TypeRef,
-    conflictType: ConflictType = ConflictType.None,
-    presentIn: Set[String] = Set.empty,
-    optional: Boolean = false,
-    repeated: Boolean = false,
-    map: Boolean = false
-  ): Unit =
-    val vers     = if presentIn.isEmpty then presentInVersions else presentIn
-    val javaName = snakeToCamel(name)
-    fields = fields :+ FieldOp(name, javaName, number, fieldType, conflictType, vers, optional, repeated, map)
-
-  def oneof(protoName: String, presentIn: String*)(f: OneofBuilder => Unit): Unit =
-    val vers    = if presentIn.isEmpty then presentInVersions else presentIn.toSet
-    val builder = OneofBuilder(protoName, vers)
+  def nestedMessage(name: String)(f: MessageBuilder => Unit): Unit =
+    val builder = MessageBuilder(name)
     f(builder)
-    oneofs = oneofs :+ builder.build()
+    nestedMessages += builder.build()
 
-  def nestedMessage(name: String, presentIn: String*)(f: MessageBuilder => Unit): Unit =
-    val vers    = if presentIn.isEmpty then presentInVersions else presentIn.toSet
-    val builder = MessageBuilder(name, vers)
+  def nestedEnum(name: String)(f: EnumBuilder => Unit): Unit =
+    val builder = EnumBuilder(name)
     f(builder)
-    nestedMessages = nestedMessages :+ builder.build()
+    nestedEnums += builder.build()
 
-  def nestedEnum(name: String, presentIn: String*)(f: EnumBuilder => Unit): Unit =
-    val vers    = if presentIn.isEmpty then presentInVersions else presentIn.toSet
-    val builder = EnumBuilder(name, vers)
-    f(builder)
-    nestedEnums = nestedEnums :+ builder.build()
+  def build(): MessageOp = MessageOp(
+    name,
+    fields.toVector,
+    oneofs.toVector,
+    nestedMessages.toVector,
+    nestedEnums.toVector
+  )
 
-  def build(): MessageOp = MessageOp(name, presentInVersions, fields, oneofs, nestedMessages, nestedEnums)
+class OneofBuilder(name: String):
+  private val fields = mutable.ArrayBuffer[FieldOp]()
 
-  private def snakeToCamel(s: String): String =
-    val parts = s.split("_")
-    if parts.isEmpty then s
-    else parts.head + parts.tail.map(_.capitalize).mkString
+  def field(name: String, number: Int, fieldType: TypeRef): Unit =
+    fields += FieldOp(name, number, fieldType)
 
-class OneofBuilder(protoName: String, presentInVersions: Set[String]):
-  private var fields = Vector.empty[FieldOp]
+  def build(): OneofOp = OneofOp(name, fields.toVector)
 
-  def field(name: String, number: Int, fieldType: TypeRef, presentIn: Set[String] = Set.empty): Unit =
-    val vers     = if presentIn.isEmpty then presentInVersions else presentIn
-    val javaName = snakeToCamel(name)
-    fields = fields :+ FieldOp(name, javaName, number, fieldType, presentInVersions = vers)
+class EnumBuilder(name: String):
+  private val values = mutable.ArrayBuffer[EnumValueOp]()
 
-  def build(): OneofOp =
-    val javaName     = snakeToCamel(protoName)
-    val caseEnumName = protoName.split("_").map(_.capitalize).mkString + "Case"
-    OneofOp(protoName, javaName, caseEnumName, presentInVersions, fields)
+  def value(name: String, number: Int): Unit =
+    values += EnumValueOp(name, number)
 
-  private def snakeToCamel(s: String): String =
-    val parts = s.split("_")
-    if parts.isEmpty then s
-    else parts.head + parts.tail.map(_.capitalize).mkString
-
-class EnumBuilder(name: String, presentInVersions: Set[String]):
-  private var values = Vector.empty[EnumValueOp]
-
-  def value(name: String, number: Int, presentIn: Set[String] = Set.empty): Unit =
-    val vers = if presentIn.isEmpty then presentInVersions else presentIn
-    values = values :+ EnumValueOp(name, number, vers)
-
-  def build(): EnumOp = EnumOp(name, presentInVersions, values)
-
-  def buildValues(): Vector[EnumValueOp] = values
+  def build(): EnumOp = EnumOp(name, values.toVector)
