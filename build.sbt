@@ -33,7 +33,7 @@ val munitVersion = "1.1.0"
 // ─── Modules ─────────────────────────────────────────────────────────────────
 
 lazy val root = (project in file("."))
-  .aggregate(core, dialectProto, dialectJava, dialectKotlin, dialectScala, javaApi, examples)
+  .aggregate(core, dialectProto, dialectOpenapi, dialectGraphql, dialectJava, dialectKotlin, dialectScala, javaApi, examples)
   .settings(
     name := "ircraft",
     publish / skip := true,
@@ -55,6 +55,26 @@ lazy val dialectProto = (project in file("dialects/proto"))
   .settings(commonSettings)
   .settings(
     name := "ircraft-dialect-proto",
+    libraryDependencies ++= Seq(
+      "org.scalameta" %% "munit" % munitVersion % Test,
+    ),
+  )
+
+lazy val dialectOpenapi = (project in file("dialects/openapi"))
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(
+    name := "ircraft-dialect-openapi",
+    libraryDependencies ++= Seq(
+      "org.scalameta" %% "munit" % munitVersion % Test,
+    ),
+  )
+
+lazy val dialectGraphql = (project in file("dialects/graphql"))
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(
+    name := "ircraft-dialect-graphql",
     libraryDependencies ++= Seq(
       "org.scalameta" %% "munit" % munitVersion % Test,
     ),
