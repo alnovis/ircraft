@@ -169,25 +169,21 @@ Each pass is a pure function: `GreenNode(v1) → GreenNode(v2)`. Input is never 
 
 ```mermaid
 flowchart TB
-    core["ircraft-core"]
-    semantic["ircraft-dialect-semantic"]
+    core["ircraft-core\n(includes Semantic IR)"]
+    proto["ircraft-dialect-proto"]
     java["ircraft-dialect-java"]
     kotlin["ircraft-dialect-kotlin"]
     scala["ircraft-dialect-scala"]
     javaapi["ircraft-java-api"]
 
-    semantic --> core
+    proto --> core
     java --> core
-    java --> semantic
     kotlin --> core
-    kotlin --> semantic
     scala --> core
-    scala --> semantic
     javaapi --> core
-    javaapi --> semantic
 
     style core fill:#4a9eff,color:#fff
-    style semantic fill:#8b5cf6,color:#fff
+    style proto fill:#f59e0b,color:#fff
     style java fill:#10b981,color:#fff
     style kotlin fill:#10b981,color:#fff
     style scala fill:#10b981,color:#fff
@@ -195,10 +191,10 @@ flowchart TB
 ```
 
 **Key principles:**
-- **Semantic** is pure — no dependencies on other dialects
-- **Source dialects** depend on semantic for lowering target types
-- **Code dialects** (java, kotlin, scala) depend on semantic for emission source types
-- **Java API** provides a JVM-friendly facade over core and semantic
+- **Core includes Semantic IR** -- Semantic is the platform, not an optional module
+- **All modules depend only on core** -- single dependency, no diamond problems
+- **Dialects contain their own lowering** -- no separate pipeline modules needed
+- **Code dialects** (java, kotlin, scala) emit from Semantic IR to source code
 
 ## Core Framework
 

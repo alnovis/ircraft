@@ -39,8 +39,8 @@ Each abstraction level is a Dialect. Lowerings transform between them. Passes tr
 
 | Module | Artifact | Description |
 |--------|----------|-------------|
-| `ircraft-core` | `ircraft-core_3` | GreenNode, Operation, Dialect, Pass, Pipeline, TypeRef, EmitterUtils |
-| `ircraft-dialect-semantic` | `ircraft-dialect-semantic_3` | Language-agnostic OOP: ClassOp, InterfaceOp, MethodOp, Expression AST |
+| `ircraft-core` | `ircraft-core_3` | IR framework + Semantic IR (Operation, Pass, Pipeline, TypeRef, ClassOp, InterfaceOp, Expression AST) |
+| `ircraft-dialect-proto` | `ircraft-dialect-proto_3` | Proto schema IR + Proto-to-Semantic lowering |
 | `ircraft-dialect-java` | `ircraft-dialect-java_3` | Java emitter, type mapping |
 | `ircraft-dialect-kotlin` | `ircraft-dialect-kotlin_3` | Kotlin emitter, type mapping |
 | `ircraft-dialect-scala` | `ircraft-dialect-scala_3` | Scala 3 emitter, type mapping |

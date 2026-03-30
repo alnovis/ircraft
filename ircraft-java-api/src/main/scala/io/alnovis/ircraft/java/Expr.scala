@@ -3,7 +3,7 @@ package io.alnovis.ircraft.java
 import scala.jdk.CollectionConverters.*
 
 import io.alnovis.ircraft.core.TypeRef
-import io.alnovis.ircraft.dialect.semantic.expr.*
+import io.alnovis.ircraft.core.semantic.expr.*
 
 /** Expression, Statement, and Block factory for Java consumers. */
 object Expr:

@@ -3,8 +3,8 @@ package io.alnovis.ircraft.java
 import scala.jdk.CollectionConverters.*
 
 import io.alnovis.ircraft.core.*
-import io.alnovis.ircraft.dialect.semantic.expr.Block
-import io.alnovis.ircraft.dialect.semantic.ops.*
+import io.alnovis.ircraft.core.semantic.expr.Block
+import io.alnovis.ircraft.core.semantic.ops.*
 
 /** Builders for semantic dialect operations. Java-friendly fluent API. */
 object Ops:
@@ -295,7 +295,7 @@ class EnumClassBuilder private[java] (private val name: String):
   def constant(name: String, value: Int): EnumClassBuilder =
     constantsVec = constantsVec :+ EnumConstantOp(
       name,
-      List(io.alnovis.ircraft.dialect.semantic.expr.Expression.Literal(value.toString, TypeRef.INT))
+      List(io.alnovis.ircraft.core.semantic.expr.Expression.Literal(value.toString, TypeRef.INT))
     )
     this
 

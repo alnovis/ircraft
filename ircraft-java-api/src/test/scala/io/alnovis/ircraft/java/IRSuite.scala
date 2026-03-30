@@ -1,7 +1,7 @@
 package io.alnovis.ircraft.java
 
 import io.alnovis.ircraft.core.*
-import io.alnovis.ircraft.dialect.semantic.ops.*
+import io.alnovis.ircraft.core.semantic.ops.*
 
 class IRSuite extends munit.FunSuite:
 

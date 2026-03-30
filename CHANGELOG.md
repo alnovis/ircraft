@@ -7,11 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Semantic merged into core** -- `ircraft-dialect-semantic` module removed, all Semantic ops now in `ircraft-core` under `io.alnovis.ircraft.core.semantic`. Semantic is the platform, not an optional module.
+- **Proto lowering moved to dialect** -- `pipelines/proto-to-semantic/` eliminated, lowering now lives in `dialects/proto/lowering/`. No separate pipeline modules needed.
+- **Simplified dependencies** -- all dialects and java-api depend only on `core`. No more `dialectSemantic` dependency.
+
+### Added
+- **New Proto Dialect** -- simple single-schema representation (ProtoFileOp, MessageOp, FieldOp, EnumOp, OneofOp). No versioning. TypeRef encodes all type info.
+- **Proto DSL** -- `ProtoSchema.file("pkg", Proto3) { ... }` builder
+- **Proto-to-Semantic lowering** -- MessageOp->InterfaceOp, EnumOp->EnumClassOp, proto syntax-aware has-method generation
+- **ProtoVerifierPass** -- structural validation for proto IR
+
 ### Removed
-- **Proto Dialect** -- deleted entirely (`dialects/proto/`, 20 source + 8 test files). Will be redesigned as simple single-schema-to-IR converter without versioning concepts.
-- **Proto Pipelines** -- deleted `pipelines/proto-to-java/`, `proto-to-kotlin/`, `proto-to-scala/`
-- **SchemaDiffApi** -- removed from `ircraft-java-api` (depended on deleted proto dialect)
-- **Obsolete docs** -- PASS_SEPARATION_PLAN.md, IMPLEMENTATION_PLAN.md, PHASE8_PLAN.md, EMIT_BASED_LOWERING.md
+- **Old Proto Dialect** -- deleted versioned proto dialect (presentInVersions, ConflictType, etc.)
+- **Old Proto Pipelines** -- deleted `pipelines/proto-to-java/`, `proto-to-kotlin/`, `proto-to-scala/`
+- **SchemaDiffApi** -- removed from `ircraft-java-api`
+- **Obsolete docs** -- PASS_SEPARATION_PLAN.md, IMPLEMENTATION_PLAN.md, PHASE8_PLAN.md
 
 ### Added
 - **Scala Code Dialect** — DirectScalaEmitter with Scala 3 syntax (trait, enum, case extends, Option[T], Array[Byte], square bracket generics, companion object, ScalaDoc)

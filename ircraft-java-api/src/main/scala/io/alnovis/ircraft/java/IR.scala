@@ -3,7 +3,7 @@ package io.alnovis.ircraft.java
 import scala.jdk.CollectionConverters.*
 
 import io.alnovis.ircraft.core.*
-import io.alnovis.ircraft.dialect.semantic.ops.*
+import io.alnovis.ircraft.core.semantic.ops.*
 
 /** IrModule, PassResult, collection accessors, and Modifier constants for Java consumers. */
 object IR:

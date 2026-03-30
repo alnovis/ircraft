@@ -1,6 +1,6 @@
 package io.alnovis.ircraft.java
 
-import io.alnovis.ircraft.dialect.semantic.expr.*
+import io.alnovis.ircraft.core.semantic.expr.*
 
 class ExprSuite extends munit.FunSuite:
 

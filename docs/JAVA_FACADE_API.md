@@ -29,7 +29,7 @@ ircraft/
       IR.scala     -- Module, PassResult, collection helpers
 ```
 
-Зависимости: `ircraft-core`, `ircraft-dialect-semantic`
+Зависимости: `ircraft-core` (Semantic ops included in core)
 
 ## API Design
 
@@ -300,12 +300,11 @@ object Expr:
 ### Результат:
 
 ```
-ircraft-core/           -- pure Scala: Operation, Module, Pass, Pipeline, TypeRef
-dialects/semantic/      -- pure Scala: InterfaceOp, ClassOp, Expression, Statement
+ircraft-core/           -- IR framework + Semantic ops (Operation, Module, Pass, Pipeline, TypeRef, ClassOp, InterfaceOp, Expression)
 ircraft-java-api/       -- Java facade: Ops, Expr, Types, IR (Scala implementation, Java-facing API)
 ```
 
-Scala пользователь: `import io.alnovis.ircraft.dialect.semantic.ops.*` -- чистый Scala
+Scala пользователь: `import io.alnovis.ircraft.core.semantic.ops.*` -- чистый Scala
 Java пользователь: `import io.alnovis.ircraft.java.*` -- чистый Java через фасад
 
 ### Переписка passes в plugin:

@@ -33,7 +33,7 @@ val munitVersion = "1.1.0"
 // ─── Modules ─────────────────────────────────────────────────────────────────
 
 lazy val root = (project in file("."))
-  .aggregate(core, dialectSemantic, dialectProto, dialectJava, dialectKotlin, dialectScala, javaApi, pipelineProtoToSemantic, examples)
+  .aggregate(core, dialectProto, dialectJava, dialectKotlin, dialectScala, javaApi, examples)
   .settings(
     name := "ircraft",
     publish / skip := true,
@@ -50,16 +50,6 @@ lazy val core = (project in file("ircraft-core"))
 
 // ─── Dialects ────────────────────────────────────────────────────────────────
 
-lazy val dialectSemantic = (project in file("dialects/semantic"))
-  .dependsOn(core)
-  .settings(commonSettings)
-  .settings(
-    name := "ircraft-dialect-semantic",
-    libraryDependencies ++= Seq(
-      "org.scalameta" %% "munit" % munitVersion % Test,
-    ),
-  )
-
 lazy val dialectProto = (project in file("dialects/proto"))
   .dependsOn(core)
   .settings(commonSettings)
@@ -71,7 +61,7 @@ lazy val dialectProto = (project in file("dialects/proto"))
   )
 
 lazy val dialectJava = (project in file("dialects/java"))
-  .dependsOn(core, dialectSemantic)
+  .dependsOn(core)
   .settings(commonSettings)
   .settings(
     name := "ircraft-dialect-java",
@@ -81,7 +71,7 @@ lazy val dialectJava = (project in file("dialects/java"))
   )
 
 lazy val dialectKotlin = (project in file("dialects/kotlin"))
-  .dependsOn(core, dialectSemantic)
+  .dependsOn(core)
   .settings(commonSettings)
   .settings(
     name := "ircraft-dialect-kotlin",
@@ -91,7 +81,7 @@ lazy val dialectKotlin = (project in file("dialects/kotlin"))
   )
 
 lazy val dialectScala = (project in file("dialects/scala"))
-  .dependsOn(core, dialectSemantic)
+  .dependsOn(core)
   .settings(commonSettings)
   .settings(
     name := "ircraft-dialect-scala",
@@ -100,22 +90,10 @@ lazy val dialectScala = (project in file("dialects/scala"))
     ),
   )
 
-// ─── Pipelines ──────────────────────────────────────────────────────────────
-
-lazy val pipelineProtoToSemantic = (project in file("pipelines/proto-to-semantic"))
-  .dependsOn(core, dialectProto, dialectSemantic)
-  .settings(commonSettings)
-  .settings(
-    name := "ircraft-pipeline-proto-to-semantic",
-    libraryDependencies ++= Seq(
-      "org.scalameta" %% "munit" % munitVersion % Test,
-    ),
-  )
-
 // ─── Java API ───────────────────────────────────────────────────────────────
 
 lazy val javaApi = (project in file("ircraft-java-api"))
-  .dependsOn(core, dialectSemantic)
+  .dependsOn(core)
   .settings(commonSettings)
   .settings(
     name := "ircraft-java-api",
@@ -136,4 +114,3 @@ lazy val examples = (project in file("examples"))
       "org.scalameta" %% "munit" % munitVersion % Test,
     ),
   )
-

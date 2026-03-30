@@ -2,8 +2,8 @@ package io.alnovis.ircraft.dialect.scala3
 
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.scala3.emit.DirectScalaEmitter
-import io.alnovis.ircraft.dialect.semantic.ops.*
-import io.alnovis.ircraft.dialect.semantic.expr.*
+import io.alnovis.ircraft.core.semantic.ops.*
+import io.alnovis.ircraft.core.semantic.expr.*
 
 class ScalaEmitterSuite extends munit.FunSuite:
 

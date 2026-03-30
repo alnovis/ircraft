@@ -2,8 +2,8 @@ package io.alnovis.ircraft.dialect.kotlin
 
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.dialect.kotlin.emit.DirectKotlinEmitter
-import io.alnovis.ircraft.dialect.semantic.ops.*
-import io.alnovis.ircraft.dialect.semantic.expr.*
+import io.alnovis.ircraft.core.semantic.ops.*
+import io.alnovis.ircraft.core.semantic.expr.*
 
 class KotlinEmitterSuite extends munit.FunSuite:
 

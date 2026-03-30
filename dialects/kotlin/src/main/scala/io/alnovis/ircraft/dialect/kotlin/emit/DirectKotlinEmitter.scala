@@ -3,9 +3,9 @@ package io.alnovis.ircraft.dialect.kotlin.emit
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.core.emit.CommentStyle
 import io.alnovis.ircraft.dialect.kotlin.types.KotlinTypeMapping
-import io.alnovis.ircraft.dialect.semantic.emit.BaseEmitter
-import io.alnovis.ircraft.dialect.semantic.ops.*
-import io.alnovis.ircraft.dialect.semantic.expr.*
+import io.alnovis.ircraft.core.semantic.emit.BaseEmitter
+import io.alnovis.ircraft.core.semantic.ops.*
+import io.alnovis.ircraft.core.semantic.expr.*
 
 /** Emits Kotlin source code from Semantic Dialect IR. */
 class DirectKotlinEmitter extends BaseEmitter:
