@@ -1,213 +1,216 @@
 package io.alnovis.ircraft.examples
 
+import cats.*
+import cats.syntax.all.*
 import io.alnovis.ircraft.core.*
-import io.alnovis.ircraft.core.FieldType.*
-import io.alnovis.ircraft.core.GenericDialect.*
-import io.alnovis.ircraft.core.Traversal.*
+import io.alnovis.ircraft.core.ir.*
+import io.alnovis.ircraft.emitters.java.JavaEmitter
 
 /**
-  * End-to-end example: SQL Schema dialect.
-  *
-  * Demonstrates the full Generic Dialect API workflow:
-  *   1. Define dialect (tables, columns, indexes)
-  *   2. Build IR from a schema
-  *   3. Transform with passes (add audit columns, add primary key index)
-  *   4. Emit SQL DDL
-  */
+ * End-to-end example: SQL Schema -> IR -> Pipeline -> Java code.
+ *
+ * Demonstrates the full ircraft v2 workflow:
+ *   1. Define source dialect as ADT (SqlSchema)
+ *   2. Define Lowering (SqlSchema -> Module)
+ *   3. Define custom passes (add audit fields, add @NotNull)
+ *   4. Compose pipeline
+ *   5. Emit Java source
+ */
 class SqlDialectExample extends munit.FunSuite:
 
-  // ── 1. Define the dialect ────────────────────────────────────────────
+  type F[A] = Id[A]
 
-  val Sql = GenericDialect("sql", "SQL schema definition"):
-    leaf("column", "name" -> StringField, "type"    -> StringField, "nullable"   -> BoolField, "default" -> StringField)
-    leaf("index", "name"  -> StringField, "columns" -> StringListField, "unique" -> BoolField)
-    container("table", "name" -> StringField)("columns", "indexes")
+  // -- 1. Source dialect: just an ADT --------------------------------------
 
-  // ── 2. Extractors for pattern matching ───────────────────────────────
+  case class SqlTable(name: String, columns: Vector[SqlColumn])
+  case class SqlColumn(name: String, sqlType: String, nullable: Boolean, default: Option[String] = None)
 
-  val Table  = Sql.extractor("table")
-  val Column = Sql.extractor("column")
-  val Index  = Sql.extractor("index")
+  // -- 2. Lowering: SqlTable -> Module ------------------------------------
 
-  // ── 3. Helpers: build a table ────────────────────────────────────────
-
-  private def column(name: String, tpe: String, nullable: Boolean = false, default: String = ""): GenericOp =
-    Sql("column", "name" -> name, "type" -> tpe, "nullable" -> nullable, "default" -> default)
-
-  private def index(name: String, columns: List[String], unique: Boolean = false): GenericOp =
-    Sql("index", "name" -> name, "columns" -> columns, "unique" -> unique)
-
-  private def table(name: String, cols: Vector[GenericOp], idxs: Vector[GenericOp] = Vector.empty): GenericOp =
-    Sql("table", "name" -> name, "columns" -> cols, "indexes" -> idxs)
-
-  // ── 4. Passes ────────────────────────────────────────────────────────
-
-  /** Adds created_at/updated_at columns to every table. */
-  val addAuditColumns = Sql.transformPass("add-audit-columns"):
-    case t if t.is("table") =>
-      val existing = t.children("columns")
-      val hasCreatedAt = existing.exists:
-        case Column(c) => c.stringField("name").contains("created_at")
-        case _         => false
-      if hasCreatedAt then t
-      else
-        val audit = Vector(
-          column("created_at", "TIMESTAMP", default = "NOW()"),
-          column("updated_at", "TIMESTAMP", default = "NOW()")
+  val sqlLowering: Lowering[F, Vector[SqlTable]] = Lowering.pure { tables =>
+    val units = tables.map { table =>
+      val fields = table.columns.map { col =>
+        Field(
+          name = col.name,
+          fieldType = sqlTypeToIr(col.sqlType),
+          mutability = Mutability.Mutable,
+          defaultValue = col.default.map(d => Expr.Lit(d, TypeExpr.STR)),
+          annotations =
+            if !col.nullable then Vector(Annotation("NotNull"))
+            else Vector.empty,
         )
-        t.withRegion("columns", existing ++ audit)
-
-  /** Adds a primary key index on 'id' column if the table has one. */
-  val addPrimaryKeyIndex = Sql.transformPass("add-pk-index"):
-    case t if t.is("table") =>
-      val hasId = t
-        .children("columns")
-        .exists:
-          case Column(c) => c.stringField("name").contains("id")
-          case _         => false
-      if !hasId then t
-      else
-        val existingIndexes = t.children("indexes")
-        val hasPk = existingIndexes.exists:
-          case Index(i) => i.stringField("name").exists(_.endsWith("_pkey"))
-          case _        => false
-        if hasPk then t
-        else
-          val tableName = t.stringField("name").getOrElse("unknown")
-          val pk        = index(s"${tableName}_pkey", List("id"), unique = true)
-          t.withRegion("indexes", existingIndexes :+ pk)
-
-  // ── 5. Simple DDL emitter ────────────────────────────────────────────
-
-  private def emitDdl(module: IrModule): String =
-    val sb = StringBuilder()
-    module.topLevel.foreach:
-      case Table(t) =>
-        val name = t.stringField("name").getOrElse("unknown")
-        sb.append(s"CREATE TABLE $name (\n")
-        val cols = t
-          .children("columns")
-          .collect:
-            case Column(c) =>
-              val colName  = c.stringField("name").getOrElse("?")
-              val colType  = c.stringField("type").getOrElse("TEXT")
-              val nullable = if c.boolField("nullable").getOrElse(false) then "" else " NOT NULL"
-              val default  = c.stringField("default").filter(_.nonEmpty).map(d => s" DEFAULT $d").getOrElse("")
-              s"  $colName $colType$nullable$default"
-        sb.append(cols.mkString(",\n"))
-        sb.append("\n);\n\n")
-
-        t.children("indexes")
-          .foreach:
-            case Index(i) =>
-              val idxName = i.stringField("name").getOrElse("idx")
-              val unique  = if i.boolField("unique").getOrElse(false) then "UNIQUE " else ""
-              val idxCols = i.stringListField("columns").getOrElse(Nil).mkString(", ")
-              sb.append(s"CREATE ${unique}INDEX $idxName ON $name ($idxCols);\n")
-            case _ => ()
-        sb.append("\n")
-      case _ => ()
-    sb.result().trim
-
-  // ── Tests ────────────────────────────────────────────────────────────
-
-  test("define and emit a simple table"):
-    val users = table(
-      "users",
-      Vector(
-        column("id", "BIGSERIAL"),
-        column("email", "VARCHAR(255)"),
-        column("name", "VARCHAR(100)", nullable = true)
+      }
+      CompilationUnit(
+        namespace = "com.example.model",
+        declarations = Vector(Decl.TypeDecl(
+          name = table.name,
+          kind = TypeKind.Product,
+          fields = fields,
+        ))
       )
-    )
-    val ddl = emitDdl(IrModule("schema", Vector(users)))
+    }
+    Module("sql-schema", units)
+  }
 
-    assert(ddl.contains("CREATE TABLE users"))
-    assert(ddl.contains("id BIGSERIAL NOT NULL"))
-    assert(ddl.contains("email VARCHAR(255) NOT NULL"))
-    assert(ddl.contains("name VARCHAR(100)"))
-    assert(!ddl.contains("name VARCHAR(100) NOT NULL"))
+  private def sqlTypeToIr(sqlType: String): TypeExpr = sqlType.toUpperCase match
+    case "BIGSERIAL" | "BIGINT" | "INT8" => TypeExpr.LONG
+    case "SERIAL" | "INTEGER" | "INT" | "INT4" => TypeExpr.INT
+    case "BOOLEAN" | "BOOL"  => TypeExpr.BOOL
+    case "DOUBLE PRECISION" | "FLOAT8" => TypeExpr.DOUBLE
+    case "REAL" | "FLOAT4"  => TypeExpr.FLOAT
+    case s if s.startsWith("VARCHAR") || s.startsWith("TEXT") || s.startsWith("CHAR") => TypeExpr.STR
+    case s if s.startsWith("DECIMAL") || s.startsWith("NUMERIC") => TypeExpr.DOUBLE
+    case "TIMESTAMP" | "TIMESTAMPTZ" => TypeExpr.Named("java.time.Instant")
+    case _ => TypeExpr.STR
 
-  test("audit pass adds created_at and updated_at"):
-    val users  = table("users", Vector(column("id", "BIGSERIAL")))
-    val result = addAuditColumns.run(IrModule("schema", Vector(users)), PassContext())
-    assert(result.isSuccess)
+  // -- 3. Custom passes ---------------------------------------------------
 
-    val cols = result.module.topLevel.flatMap(_.collectAll:
-      case Column(c) => c.stringField("name").get)
-    assertEquals(cols.toSet, Set("id", "created_at", "updated_at"))
+  val addAuditFields: Pass[F] = Pass.pure[F]("add-audit-fields") { module =>
+    module.copy(units = module.units.map { unit =>
+      unit.copy(declarations = unit.declarations.map {
+        case td: Decl.TypeDecl =>
+          val hasCreatedAt = td.fields.exists(_.name == "created_at")
+          if hasCreatedAt then td
+          else
+            td.copy(fields = td.fields ++ Vector(
+              Field("created_at", TypeExpr.Named("java.time.Instant"), mutability = Mutability.Immutable),
+              Field("updated_at", TypeExpr.Named("java.time.Instant"), mutability = Mutability.Immutable),
+            ))
+        case other => other
+      })
+    })
+  }
 
-  test("audit pass is idempotent"):
-    val users = table(
-      "users",
-      Vector(
-        column("id", "BIGSERIAL"),
-        column("created_at", "TIMESTAMP")
-      )
-    )
-    val result = addAuditColumns.run(IrModule("schema", Vector(users)), PassContext())
-    val cols = result.module.topLevel.flatMap(_.collectAll:
-      case Column(c) => c.stringField("name").get)
-    assertEquals(cols.count(_ == "created_at"), 1)
+  val addGetters: Pass[F] = Pass.pure[F]("add-getters") { module =>
+    module.copy(units = module.units.map { unit =>
+      unit.copy(declarations = unit.declarations.map {
+        case td: Decl.TypeDecl =>
+          val getters = td.fields.map { f =>
+            val getterName = s"get${f.name.split("_").map(s => s.head.toUpper +: s.tail).mkString}"
+            Func(
+              name = getterName,
+              returnType = f.fieldType,
+              body = Some(Body.of(Stmt.Return(Some(Expr.Access(Expr.This, f.name)))))
+            )
+          }
+          td.copy(functions = td.functions ++ getters)
+        case other => other
+      })
+    })
+  }
 
-  test("pk index pass adds primary key"):
-    val users  = table("users", Vector(column("id", "BIGSERIAL"), column("name", "TEXT")))
-    val result = addPrimaryKeyIndex.run(IrModule("schema", Vector(users)), PassContext())
+  // -- 4. Pipeline --------------------------------------------------------
 
-    val indexes = result.module.topLevel.flatMap(_.collectAll:
-      case Index(i) => i.stringField("name").get)
-    assertEquals(indexes, Vector("users_pkey"))
+  val pipeline: Pass[F] = Pipeline.of(addAuditFields, addGetters)
 
-  test("full pipeline: schema -> audit -> pk -> DDL"):
-    val users = table(
-      "users",
-      Vector(
-        column("id", "BIGSERIAL"),
-        column("email", "VARCHAR(255)"),
-        column("name", "VARCHAR(100)", nullable = true)
-      )
-    )
-    val orders = table(
-      "orders",
-      Vector(
-        column("id", "BIGSERIAL"),
-        column("user_id", "BIGINT"),
-        column("total", "DECIMAL(10,2)")
-      )
+  // -- 5. Emit Java -------------------------------------------------------
+
+  val javaEmitter = JavaEmitter[F]
+
+  // -- Tests --------------------------------------------------------------
+
+  test("full pipeline: SQL tables -> Java source"):
+    val tables = Vector(
+      SqlTable("User", Vector(
+        SqlColumn("id", "BIGSERIAL", nullable = false),
+        SqlColumn("name", "VARCHAR(255)", nullable = false),
+        SqlColumn("email", "VARCHAR(255)", nullable = true),
+      )),
+      SqlTable("Order", Vector(
+        SqlColumn("id", "BIGSERIAL", nullable = false),
+        SqlColumn("user_id", "BIGINT", nullable = false),
+        SqlColumn("total", "DECIMAL(10,2)", nullable = false),
+      )),
     )
 
-    val pipeline = Pipeline("sql-schema", addAuditColumns, addPrimaryKeyIndex)
-    val result   = pipeline.run(IrModule("schema", Vector(users, orders)), PassContext())
-    assert(result.isSuccess)
+    // lowering
+    val (_, module) = Pipe.run(sqlLowering(tables))
+    assertEquals(module.units.size, 2)
 
-    val ddl = emitDdl(result.module)
+    // pipeline
+    val (diags, enriched) = Pipeline.run(pipeline, module)
+    assert(diags.isEmpty)
 
-    // Both tables have audit columns
-    assert(ddl.contains("created_at TIMESTAMP NOT NULL DEFAULT NOW()"))
-    assert(ddl.contains("updated_at TIMESTAMP NOT NULL DEFAULT NOW()"))
+    // verify audit fields added
+    val userDecl = enriched.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    assert(userDecl.fields.exists(_.name == "created_at"))
+    assert(userDecl.fields.exists(_.name == "updated_at"))
 
-    // Both tables have PK indexes
-    assert(ddl.contains("CREATE UNIQUE INDEX users_pkey ON users (id)"))
-    assert(ddl.contains("CREATE UNIQUE INDEX orders_pkey ON orders (id)"))
+    // verify getters added
+    val getterNames = userDecl.functions.map(_.name)
+    assert(getterNames.contains("getId"))
+    assert(getterNames.contains("getName"))
+    assert(getterNames.contains("getCreatedAt"))
 
-    // Original columns preserved
-    assert(ddl.contains("email VARCHAR(255) NOT NULL"))
-    assert(ddl.contains("user_id BIGINT NOT NULL"))
+    // emit Java
+    val (emitDiags, files) = Pipe.run(javaEmitter(enriched))
+    assert(emitDiags.isEmpty)
+    assertEquals(files.size, 2)
 
-  test("extractor + withField in transform"):
-    val users = table(
-      "users",
-      Vector(
-        column("id", "BIGSERIAL"),
-        column("email", "TEXT")
-      )
+    val userSource = files.values.find(_.contains("class User")).get
+    assert(userSource.contains("package com.example.model;"))
+    assert(userSource.contains("public class User"))
+    assert(userSource.contains("public long id;"))
+    assert(userSource.contains("@NotNull"))
+    assert(userSource.contains("public long getId()"))
+    assert(userSource.contains("return this.id;"))
+    assert(userSource.contains("Instant created_at;"))
+
+    val orderSource = files.values.find(_.contains("class Order")).get
+    assert(orderSource.contains("public class Order"))
+    assert(orderSource.contains("double total;"))
+
+  test("pipeline is composable -- add extra pass"):
+    val tables = Vector(SqlTable("Item", Vector(
+      SqlColumn("id", "SERIAL", nullable = false),
+      SqlColumn("name", "TEXT", nullable = false),
+    )))
+
+    val addToString: Pass[F] = Pass.pure[F]("add-toString") { module =>
+      module.copy(units = module.units.map { unit =>
+        unit.copy(declarations = unit.declarations.map {
+          case td: Decl.TypeDecl =>
+            val toString = Func(
+              name = "toString",
+              returnType = TypeExpr.STR,
+              modifiers = Set(FuncModifier.Override),
+              body = Some(Body.of(Stmt.Return(Some(
+                Expr.Call(Some(Expr.Access(Expr.This, "name")), "toString")
+              ))))
+            )
+            td.copy(functions = td.functions :+ toString)
+          case other => other
+        })
+      })
+    }
+
+    val fullPipeline = Pipeline.of(pipeline, addToString)
+    val (_, module) = Pipe.run(sqlLowering(tables))
+    val (_, enriched) = Pipeline.run(fullPipeline, module)
+    val (_, files) = Pipe.run(javaEmitter(enriched))
+
+    val source = files.values.head
+    assert(source.contains("getId"))
+    assert(source.contains("getCreatedAt"))
+    assert(source.contains("toString"))
+
+  test("lowering with diagnostics"):
+    val warnLowering: Lowering[F, Vector[SqlTable]] = tables => {
+      import cats.data.WriterT
+      val (_, module) = Pipe.run(sqlLowering(tables))
+      for
+        _ <- tables.traverse_ { t =>
+          if t.columns.exists(_.nullable) then Pipe.warn[F](s"Table ${t.name} has nullable columns")
+          else Pipe.pure[F, Unit](())
+        }
+      yield module
+    }
+
+    val tables = Vector(
+      SqlTable("A", Vector(SqlColumn("x", "INT", nullable = true))),
+      SqlTable("B", Vector(SqlColumn("y", "INT", nullable = false))),
     )
-
-    val fixTypes = Sql.transformPass("fix-text-types"):
-      case c if c.is("column") && c.stringField("type").contains("TEXT") =>
-        c.withField("type", "VARCHAR(255)")
-
-    val result = fixTypes.run(IrModule("schema", Vector(users)), PassContext())
-    val types = result.module.topLevel.flatMap(_.collectAll:
-      case Column(c) => c.stringField("type").get)
-    assertEquals(types, Vector("BIGSERIAL", "VARCHAR(255)"))
+    val (diags, module) = Pipe.run(warnLowering(tables))
+    assertEquals(diags.length, 1L)
+    assert(diags.headOption.exists(_.message.contains("Table A")))
+    assertEquals(module.units.size, 2)

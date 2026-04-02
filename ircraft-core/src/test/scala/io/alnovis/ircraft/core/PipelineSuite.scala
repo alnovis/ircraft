@@ -1,131 +1,132 @@
 package io.alnovis.ircraft.core
 
+import cats.*
+import cats.data.*
+import cats.syntax.all.*
+import io.alnovis.ircraft.core.ir.*
+
 class PipelineSuite extends munit.FunSuite:
 
-  // A simple test Operation
-  case class TestOp(value: String) extends Operation:
-    val kind: NodeKind           = NodeKind("test", "op")
-    val attributes: AttributeMap = AttributeMap(Attribute.StringAttr("value", value))
-    val regions: Vector[Region]  = Vector.empty
-    val span: Option[Span]       = None
-    lazy val contentHash: Int    = ContentHash.ofString(value)
-    val estimatedSize: Int       = value.length
+  // use Id as the simplest monad -- no IO needed for pure tests
+  type F[A] = Id[A]
 
-  val ctx: PassContext = PassContext()
+  private val emptyModule = Module.empty("test")
 
-  test("identity pass returns module unchanged"):
-    val identityPass = new Pass:
-      val name                                                    = "identity"
-      val description                                             = "does nothing"
-      def run(module: IrModule, context: PassContext): PassResult = PassResult(module)
+  private def moduleWith(decls: Decl*): Module =
+    Module("test", Vector(CompilationUnit("com.example", decls.toVector)))
 
-    val module = IrModule("test", Vector(TestOp("hello")))
-    val result = identityPass.run(module, ctx)
-    assertEquals(result.module.name, "test")
-    assert(result.isSuccess)
+  test("Pass.pure transforms module"):
+    val addField = Pass.pure[F]("add-field") { module =>
+      module.copy(units = module.units.map { unit =>
+        unit.copy(declarations = unit.declarations.map {
+          case td: Decl.TypeDecl =>
+            td.copy(fields = td.fields :+ Field("added", TypeExpr.STR))
+          case other => other
+        })
+      })
+    }
 
-  test("pipeline executes passes in order"):
-    var order = Vector.empty[String]
+    val input = moduleWith(Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))))
+    val (diags, result) = Pipeline.run(addField, input)
 
-    def makePass(n: String): Pass = new Pass:
-      val name        = n
-      val description = s"pass $n"
-      def run(module: IrModule, context: PassContext): PassResult =
-        order = order :+ n
-        PassResult(module)
+    assert(diags.isEmpty)
+    val fields = result.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].fields
+    assertEquals(fields.size, 2)
+    assertEquals(fields.last.name, "added")
 
-    val pipeline = Pipeline("test-pipeline", makePass("a"), makePass("b"), makePass("c"))
-    pipeline.run(IrModule.empty("test"), ctx)
+  test("Pipeline.of composes passes left to right"):
+    val pass1 = Pass.pure[F]("p1") { m =>
+      m.copy(name = m.name + "-1")
+    }
+    val pass2 = Pass.pure[F]("p2") { m =>
+      m.copy(name = m.name + "-2")
+    }
+    val pipeline = Pipeline.of(pass1, pass2)
+    val (_, result) = Pipeline.run(pipeline, emptyModule)
+    assertEquals(result.name, "test-1-2")
 
-    assertEquals(order, Vector("a", "b", "c"))
+  test("Pass accumulates diagnostics via WriterT"):
+    val warnPass = Pass[F]("warn") { module =>
+      for
+        _ <- Pipe.warn[F]("something fishy")
+        _ <- Pipe.info[F]("just info")
+      yield module
+    }
 
-  test("pipeline stops on error when failFast"):
-    var executed = Vector.empty[String]
+    val (diags, _) = Pipeline.run(warnPass, emptyModule)
+    assertEquals(diags.length, 2L)
+    assert(diags.exists(_.isWarning))
 
-    val passOk = new Pass:
-      val name        = "ok"
-      val description = "succeeds"
-      def run(module: IrModule, context: PassContext): PassResult =
-        executed = executed :+ name
-        PassResult(module)
+  test("composed passes accumulate diagnostics from all passes"):
+    val p1 = Pass[F]("p1") { m =>
+      Pipe.warn[F]("warn from p1").as(m)
+    }
+    val p2 = Pass[F]("p2") { m =>
+      Pipe.error[F]("error from p2").as(m)
+    }
+    val pipeline = Pipeline.of(p1, p2)
+    val (diags, _) = Pipeline.run(pipeline, emptyModule)
 
-    val passFail = new Pass:
-      val name        = "fail"
-      val description = "fails"
-      def run(module: IrModule, context: PassContext): PassResult =
-        executed = executed :+ name
-        PassResult(module, List(DiagnosticMessage.error("boom")))
+    assertEquals(diags.length, 2L)
+    assert(diags.exists(d => d.isWarning && d.message == "warn from p1"))
+    assert(diags.exists(d => d.isError && d.message == "error from p2"))
 
-    val passAfter = new Pass:
-      val name        = "after"
-      val description = "should not run"
-      def run(module: IrModule, context: PassContext): PassResult =
-        executed = executed :+ name
-        PassResult(module)
+  test("Pass.id returns module unchanged"):
+    val (diags, result) = Pipeline.run(Pass.id[F], emptyModule)
+    assert(diags.isEmpty)
+    assertEquals(result, emptyModule)
 
-    val pipeline = Pipeline("test", Vector(passOk, passFail, passAfter), failFast = true)
-    val result   = pipeline.run(IrModule.empty("test"), ctx)
+  test("Pass.withDiag creates pass with diagnostics tuple"):
+    val pass = Pass.withDiag[F]("check") { module =>
+      val warnings = module.units.flatMap { unit =>
+        unit.declarations.collect {
+          case Decl.TypeDecl(name, _, fields, _, _, _, _, _, _, _) if fields.isEmpty =>
+            Diagnostic(Severity.Warning, s"Type $name has no fields")
+        }
+      }
+      (Chain.fromSeq(warnings), module)
+    }
 
-    assert(result.hasErrors)
-    assertEquals(executed, Vector("ok", "fail"))
+    val input = moduleWith(
+      Decl.TypeDecl("Empty", TypeKind.Product),
+      Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG)))
+    )
+    val (diags, _) = Pipeline.run(pass, input)
+    assertEquals(diags.length, 1L)
+    assert(diags.headOption.getOrElse(fail("empty")).message.contains("Empty"))
 
-  test("pipeline skips disabled passes"):
-    var executed = Vector.empty[String]
+  test("Pipeline.build filters disabled passes"):
+    val p1 = Pass.pure[F]("p1")(m => m.copy(name = m.name + "-1"))
+    val p2 = Pass.pure[F]("p2")(m => m.copy(name = m.name + "-2"))
+    val p3 = Pass.pure[F]("p3")(m => m.copy(name = m.name + "-3"))
 
-    val enabledPass = new Pass:
-      val name        = "enabled"
-      val description = "runs"
-      def run(module: IrModule, context: PassContext): PassResult =
-        executed = executed :+ name
-        PassResult(module)
+    val pipeline = Pipeline.build(Vector(
+      (p1, true),
+      (p2, false),
+      (p3, true),
+    ))
+    val (_, result) = Pipeline.run(pipeline, emptyModule)
+    assertEquals(result.name, "test-1-3")
 
-    val disabledPass = new Pass:
-      val name                                              = "disabled"
-      val description                                       = "skipped"
-      override def isEnabled(context: PassContext): Boolean = false
-      def run(module: IrModule, context: PassContext): PassResult =
-        executed = executed :+ name
-        PassResult(module)
+  test("Lowering.pure creates module from source"):
+    case class SqlTable(name: String, columns: Vector[String])
 
-    val pipeline = Pipeline("test", Vector(enabledPass, disabledPass, enabledPass))
-    pipeline.run(IrModule.empty("test"), ctx)
+    val lowering: Lowering[F, Vector[SqlTable]] = Lowering.pure { tables =>
+      val units = tables.map { t =>
+        CompilationUnit(
+          "com.example.model",
+          Vector(Decl.TypeDecl(
+            name = t.name,
+            kind = TypeKind.Product,
+            fields = t.columns.map(c => Field(c, TypeExpr.STR))
+          ))
+        )
+      }
+      Module("sql", units)
+    }
 
-    assertEquals(executed, Vector("enabled", "enabled"))
-
-  test("pipeline collects diagnostics from all passes"):
-    val pass1 = new Pass:
-      val name        = "p1"
-      val description = "warns"
-      def run(module: IrModule, context: PassContext): PassResult =
-        PassResult(module, List(DiagnosticMessage.warning("w1")))
-
-    val pass2 = new Pass:
-      val name        = "p2"
-      val description = "warns"
-      def run(module: IrModule, context: PassContext): PassResult =
-        PassResult(module, List(DiagnosticMessage.warning("w2")))
-
-    val pipeline = Pipeline("test", Vector(pass1, pass2))
-    val result   = pipeline.run(IrModule.empty("test"), ctx)
-
-    assert(result.isSuccess)
-    assertEquals(result.warnings.size, 2)
-
-  test("IrModule.collect finds operations recursively"):
-    val op1    = TestOp("a")
-    val op2    = TestOp("b")
-    val module = IrModule("test", Vector(op1, op2))
-
-    val found = module.collect { case t: TestOp => t }
-    assertEquals(found.size, 2)
-    assertEquals(found.map(_.value), Vector("a", "b"))
-
-  test("pipeline andThen composes"):
-    val p1 = Pipeline("first", Vector.empty)
-    val pass = new Pass:
-      val name                                                    = "x"
-      val description                                             = "x"
-      def run(module: IrModule, context: PassContext): PassResult = PassResult(module)
-
-    val p2 = p1.andThen(pass)
-    assertEquals(p2.passes.size, 1)
+    val tables = Vector(SqlTable("Users", Vector("id", "name", "email")))
+    val (diags, module) = Pipe.run(lowering(tables))
+    assert(diags.isEmpty)
+    assertEquals(module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].name, "Users")
+    assertEquals(module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].fields.size, 3)

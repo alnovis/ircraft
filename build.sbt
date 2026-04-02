@@ -2,7 +2,7 @@ import sbt.*
 import sbt.Keys.*
 
 ThisBuild / organization := "io.alnovis.ircraft"
-ThisBuild / version      := "0.1.0-SNAPSHOT"
+ThisBuild / version      := "2.0.0-SNAPSHOT"
 ThisBuild / scalaVersion := "3.6.4"
 
 ThisBuild / homepage := Some(url("https://github.com/alnovis/ircraft"))
@@ -14,7 +14,6 @@ ThisBuild / scmInfo := Some(
   ScmInfo(url("https://github.com/alnovis/ircraft"), "scm:git@github.com:alnovis/ircraft.git")
 )
 
-// Common settings
 val commonSettings = Seq(
   javacOptions ++= Seq("-source", "17", "-target", "17"),
   scalacOptions ++= Seq(
@@ -28,12 +27,15 @@ val commonSettings = Seq(
   testFrameworks += new TestFramework("munit.Framework"),
 )
 
-val munitVersion = "1.1.0"
+val catsVersion       = "2.12.0"
+val catsEffectVersion = "3.5.7"
+val munitVersion      = "1.1.0"
+val munitCEVersion    = "2.0.0"
 
-// ─── Modules ─────────────────────────────────────────────────────────────────
+// -- Modules --------------------------------------------------------------
 
 lazy val root = (project in file("."))
-  .aggregate(core, dialectProto, dialectOpenapi, dialectGraphql, dialectJava, dialectKotlin, dialectScala, javaApi, examples)
+  .aggregate(core, emit, io, dialectProto, emitterJava, examples)
   .settings(
     name := "ircraft",
     publish / skip := true,
@@ -44,11 +46,32 @@ lazy val core = (project in file("ircraft-core"))
   .settings(
     name := "ircraft-core",
     libraryDependencies ++= Seq(
+      "org.typelevel" %% "cats-core" % catsVersion,
+      "org.scalameta" %% "munit"     % munitVersion % Test,
+    ),
+  )
+
+lazy val emit = (project in file("ircraft-emit"))
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(
+    name := "ircraft-emit",
+    libraryDependencies ++= Seq(
       "org.scalameta" %% "munit" % munitVersion % Test,
     ),
   )
 
-// ─── Dialects ────────────────────────────────────────────────────────────────
+lazy val io = (project in file("ircraft-io"))
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(
+    name := "ircraft-io",
+    libraryDependencies ++= Seq(
+      "org.typelevel" %% "cats-effect"       % catsEffectVersion,
+      "org.typelevel" %% "munit-cats-effect" % munitCEVersion % Test,
+      "org.scalameta" %% "munit"             % munitVersion   % Test,
+    ),
+  )
 
 lazy val dialectProto = (project in file("dialects/proto"))
   .dependsOn(core)
@@ -60,77 +83,24 @@ lazy val dialectProto = (project in file("dialects/proto"))
     ),
   )
 
-lazy val dialectOpenapi = (project in file("dialects/openapi"))
-  .dependsOn(core)
+lazy val emitterJava = (project in file("emitters/java"))
+  .dependsOn(core, emit)
   .settings(commonSettings)
   .settings(
-    name := "ircraft-dialect-openapi",
+    name := "ircraft-emitter-java",
     libraryDependencies ++= Seq(
       "org.scalameta" %% "munit" % munitVersion % Test,
     ),
   )
-
-lazy val dialectGraphql = (project in file("dialects/graphql"))
-  .dependsOn(core)
-  .settings(commonSettings)
-  .settings(
-    name := "ircraft-dialect-graphql",
-    libraryDependencies ++= Seq(
-      "org.scalameta" %% "munit" % munitVersion % Test,
-    ),
-  )
-
-lazy val dialectJava = (project in file("dialects/java"))
-  .dependsOn(core)
-  .settings(commonSettings)
-  .settings(
-    name := "ircraft-dialect-java",
-    libraryDependencies ++= Seq(
-      "org.scalameta" %% "munit" % munitVersion % Test,
-    ),
-  )
-
-lazy val dialectKotlin = (project in file("dialects/kotlin"))
-  .dependsOn(core)
-  .settings(commonSettings)
-  .settings(
-    name := "ircraft-dialect-kotlin",
-    libraryDependencies ++= Seq(
-      "org.scalameta" %% "munit" % munitVersion % Test,
-    ),
-  )
-
-lazy val dialectScala = (project in file("dialects/scala"))
-  .dependsOn(core)
-  .settings(commonSettings)
-  .settings(
-    name := "ircraft-dialect-scala",
-    libraryDependencies ++= Seq(
-      "org.scalameta" %% "munit" % munitVersion % Test,
-    ),
-  )
-
-// ─── Java API ───────────────────────────────────────────────────────────────
-
-lazy val javaApi = (project in file("ircraft-java-api"))
-  .dependsOn(core)
-  .settings(commonSettings)
-  .settings(
-    name := "ircraft-java-api",
-    libraryDependencies ++= Seq(
-      "org.scalameta" %% "munit" % munitVersion % Test,
-    ),
-  )
-
-// ─── Examples ───────────────────────────────────────────────────────────────
 
 lazy val examples = (project in file("examples"))
-  .dependsOn(core)
+  .dependsOn(core, emit, emitterJava)
   .settings(commonSettings)
   .settings(
     name := "ircraft-examples",
     publish / skip := true,
     libraryDependencies ++= Seq(
-      "org.scalameta" %% "munit" % munitVersion % Test,
+      "org.typelevel" %% "cats-effect" % catsEffectVersion,
+      "org.scalameta" %% "munit"       % munitVersion % Test,
     ),
   )
