@@ -1,7 +1,7 @@
 package io.alnovis.ircraft.core.merge
 
 import cats.*
-import cats.data.{Chain, NonEmptyVector, WriterT}
+import cats.data.NonEmptyVector
 import cats.syntax.all.*
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.core.ir.*
@@ -31,7 +31,7 @@ object Resolution:
 
 /** User-provided strategy for resolving conflicts. */
 trait MergeStrategy[F[_]]:
-  def onConflict(conflict: Conflict): Pipe[F, Resolution]
+  def onConflict(conflict: Conflict): F[Resolution]
 
 object Merge:
 
@@ -42,21 +42,21 @@ object Merge:
     val typePerVersion: Meta.Key[Map[String, TypeExpr]] = Meta.Key("merge.typePerVersion")
     val sources: Meta.Key[Vector[String]]          = Meta.Key("merge.sources")
 
-  /** Merge N versioned modules into one. */
+  /** Merge N versioned modules into one. Returns diagnostics + merged module. */
   def merge[F[_]: Monad](
     versions: NonEmptyVector[(String, Module)],
     strategy: MergeStrategy[F]
-  ): Pipe[F, Module] =
+  ): F[(Vector[Diagnostic], Module)] =
     val versionNames = versions.map(_._1).toVector
     val allUnits = versions.toVector.flatMap { (vn, m) =>
       m.units.map(u => (vn, u))
     }
     val byNamespace = allUnits.groupBy(_._2.namespace)
 
-    byNamespace.toVector.traverse { (ns, vUnits) =>
+    traverseAccum(byNamespace.toVector) { (ns, vUnits) =>
       mergeUnits(ns, vUnits, versionNames, strategy)
-    }.map { units =>
-      Module(versionNames.mkString("+"), units, Meta.empty.set(Keys.sources, versionNames))
+    }.map { (diags, units) =>
+      (diags, Module(versionNames.mkString("+"), units, Meta.empty.set(Keys.sources, versionNames)))
     }
 
   private def mergeUnits[F[_]: Monad](
@@ -64,29 +64,31 @@ object Merge:
     versionedUnits: Vector[(String, CompilationUnit)],
     allVersions: Vector[String],
     strategy: MergeStrategy[F]
-  ): Pipe[F, CompilationUnit] =
+  ): F[(Vector[Diagnostic], CompilationUnit)] =
     val allDecls = versionedUnits.flatMap { (v, u) =>
       u.declarations.map(d => (v, d))
     }
     val byName = allDecls.groupBy((_, d) => d.name)
 
-    byName.toVector.traverse { (name, vDecls) =>
+    traverseAccum(byName.toVector) { (name, vDecls) =>
       mergeDecl(name, vDecls, allVersions, strategy)
-    }.map(decls => CompilationUnit(namespace, decls.flatten))
+    }.map { (diags, decls) =>
+      (diags, CompilationUnit(namespace, decls.flatten))
+    }
 
   private def mergeDecl[F[_]: Monad](
     name: String,
     versionedDecls: Vector[(String, Decl)],
     allVersions: Vector[String],
     strategy: MergeStrategy[F]
-  ): Pipe[F, Option[Decl]] =
+  ): F[(Vector[Diagnostic], Option[Decl])] =
     versionedDecls match
       case Vector((v, single)) =>
         // present in only one version
         val meta = single match
           case td: Decl.TypeDecl => td.meta.set(Keys.presentIn, Vector(v))
           case _                 => Meta.empty.set(Keys.presentIn, Vector(v))
-        Pipe.pure(Some(single.withMeta(meta)))
+        Monad[F].pure((Vector.empty, Some(single.withMeta(meta))))
 
       case multiple =>
         val presentVersions = multiple.map(_._1)
@@ -98,20 +100,21 @@ object Merge:
 
         if allTypeDecls.size == decls.size then
           val typed = multiple.collect { case (v, td: Decl.TypeDecl) => (v, td) }
-          mergeTypeDecls(name, typed, allVersions, strategy).map(Some(_))
+          mergeTypeDecls(name, typed, allVersions, strategy).map((d, r) => (d, Some(r)))
         else if allEnumDecls.size == decls.size then
           val typed = multiple.collect { case (v, ed: Decl.EnumDecl) => (v, ed) }
-          Pipe.pure(Some(mergeEnumDecls(name, typed, presentVersions)))
+          Monad[F].pure((Vector.empty, Some(mergeEnumDecls(name, typed, presentVersions))))
         else
           // mixed kinds -- take first, warn
-          Pipe.warn[F](s"Mixed declaration kinds for '$name', using first").as(Some(decls.head))
+          val diag = Diagnostic(Severity.Warning, s"Mixed declaration kinds for '$name', using first")
+          Monad[F].pure((Vector(diag), Some(decls.head)))
 
   private def mergeTypeDecls[F[_]: Monad](
     name: String,
     versioned: Vector[(String, Decl.TypeDecl)],
     allVersions: Vector[String],
     strategy: MergeStrategy[F]
-  ): Pipe[F, Decl] =
+  ): F[(Vector[Diagnostic], Decl)] =
     val presentVersions = versioned.map(_._1)
     val first = versioned.head._2
 
@@ -125,17 +128,24 @@ object Merge:
     val allFieldEntries = versioned.flatMap { (v, td) => td.fields.map(f => (v, f)) }
     val fieldsByName = allFieldEntries.groupBy(_._2.name)
 
+    // merge nested — recursive, with conflict detection
+    val allNestedEntries = versioned.flatMap { (v, td) => td.nested.map(d => (v, d)) }
+    val nestedByName = allNestedEntries.groupBy((_, d) => d.name)
+
     for
-      mergedFuncs: Vector[Option[Func]] <- funcsByName.toVector.traverse { (fname, vFuncs) =>
+      funcsResult  <- traverseAccum(funcsByName.toVector) { (fname, vFuncs) =>
         mergeFunctions(name, fname, vFuncs, presentVersions, strategy)
       }
-      mergedFields: Vector[Option[Field]] <- fieldsByName.toVector.traverse { (fname, vFields) =>
+      fieldsResult <- traverseAccum(fieldsByName.toVector) { (fname, vFields) =>
         mergeFields(name, fname, vFields, strategy)
       }
+      nestedResult <- traverseAccum(nestedByName.toVector) { (nname, vNested) =>
+        mergeDecl(nname, vNested, allVersions, strategy)
+      }
     yield
-      // merge nested
-      val allNested = versioned.flatMap(_._2.nested)
-      val mergedNested = allNested.distinctBy(_.name)
+      val (funcDiags, mergedFuncs) = funcsResult
+      val (fieldDiags, mergedFields) = fieldsResult
+      val (nestedDiags, mergedNested) = nestedResult
 
       // merge supertypes
       val mergedSupertypes = versioned.flatMap(_._2.supertypes).distinct
@@ -144,29 +154,30 @@ object Merge:
         .set(Keys.presentIn, presentVersions)
         .set(Keys.sources, allVersions)
 
-      Decl.TypeDecl(
+      val decl = Decl.TypeDecl(
         name = name,
         kind = first.kind,
         fields = mergedFields.flatten,
         functions = mergedFuncs.flatten,
-        nested = mergedNested,
+        nested = mergedNested.flatten,
         supertypes = mergedSupertypes,
         typeParams = first.typeParams,
         visibility = first.visibility,
         annotations = first.annotations,
         meta = meta
       )
+      (funcDiags ++ fieldDiags ++ nestedDiags, decl)
 
   private def mergeFields[F[_]: Monad](
     declName: String,
     fieldName: String,
     versioned: Vector[(String, Field)],
     strategy: MergeStrategy[F]
-  ): Pipe[F, Option[Field]] =
+  ): F[(Vector[Diagnostic], Option[Field])] =
     val first = versioned.head._2
     val types = versioned.map((v, f) => (v, f.fieldType)).distinctBy(_._2)
     if types.size <= 1 then
-      Pipe.pure(Some(first))
+      Monad[F].pure((Vector.empty, Some(first)))
     else
       val conflict = Conflict(
         declName = declName,
@@ -176,9 +187,9 @@ object Merge:
         meta = Meta.empty
       )
       strategy.onConflict(conflict).map {
-        case Resolution.UseType(t) => Some(first.copy(fieldType = t))
-        case Resolution.Skip       => None
-        case _                     => Some(first)
+        case Resolution.UseType(t) => (Vector.empty, Some(first.copy(fieldType = t)))
+        case Resolution.Skip       => (Vector.empty, None)
+        case _                     => (Vector.empty, Some(first))
       }
 
   @scala.annotation.nowarn("msg=unused explicit parameter")
@@ -188,7 +199,7 @@ object Merge:
     versioned: Vector[(String, Func)],
     allPresentVersions: Vector[String],
     strategy: MergeStrategy[F]
-  ): Pipe[F, Option[Func]] =
+  ): F[(Vector[Diagnostic], Option[Func])] =
     val presentIn = versioned.map(_._1)
     val first = versioned.head._2
 
@@ -198,7 +209,7 @@ object Merge:
     if returnTypes.size <= 1 then
       // no conflict -- annotate with presentIn
       val meta = first.meta.set(Keys.presentIn, presentIn)
-      Pipe.pure(Some(first.copy(meta = meta)))
+      Monad[F].pure((Vector.empty, Some(first.copy(meta = meta))))
     else
       // conflict detected
       val conflict = Conflict(
@@ -213,19 +224,19 @@ object Merge:
           val meta = first.meta
             .set(Keys.presentIn, presentIn)
             .set(Keys.conflictType, "RESOLVED")
-          Some(first.copy(returnType = t, meta = meta))
+          (Vector.empty, Some(first.copy(returnType = t, meta = meta)))
         case Resolution.DualAccessor(types) =>
           val meta = first.meta
             .set(Keys.presentIn, presentIn)
             .set(Keys.conflictType, "DUAL_ACCESSOR")
             .set(Keys.typePerVersion, types)
-          Some(first.copy(meta = meta))
+          (Vector.empty, Some(first.copy(meta = meta)))
         case Resolution.Custom(_) =>
           // custom decls handled at higher level
           val meta = first.meta.set(Keys.presentIn, presentIn)
-          Some(first.copy(meta = meta))
+          (Vector.empty, Some(first.copy(meta = meta)))
         case Resolution.Skip =>
-          None
+          (Vector.empty, None)
       }
 
   @scala.annotation.nowarn("msg=unused explicit parameter")
@@ -239,3 +250,10 @@ object Merge:
     val meta = first.meta.set(Keys.presentIn, presentVersions)
     first.copy(variants = allVariants, meta = meta)
 
+  /** Traverse a collection, accumulating diagnostics alongside results. */
+  private def traverseAccum[F[_]: Monad, A, B](
+    items: Vector[A]
+  )(f: A => F[(Vector[Diagnostic], B)]): F[(Vector[Diagnostic], Vector[B])] =
+    items.foldLeftM((Vector.empty[Diagnostic], Vector.empty[B])) { case ((accDiags, accResults), item) =>
+      f(item).map { (diags, result) => (accDiags ++ diags, accResults :+ result) }
+    }

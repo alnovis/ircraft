@@ -1,12 +1,13 @@
 package io.alnovis.ircraft.emit
 
 import cats.*
+import cats.syntax.all.*
 import java.nio.file.Path
-import io.alnovis.ircraft.core.*
+import scala.collection.immutable.SortedMap
 import io.alnovis.ircraft.core.ir.*
 
-/** Emitter = Module => Pipe[F, Map[Path, String]] */
-type Emitter[F[_]] = Module => Pipe[F, Map[Path, String]]
+/** Emitter = Module => F[Map[Path, String]] */
+type Emitter[F[_]] = Module => F[Map[Path, String]]
 
 /**
  * Two-phase emitter:
@@ -15,17 +16,17 @@ type Emitter[F[_]] = Module => Pipe[F, Map[Path, String]]
  *
  * Subclasses implement Phase 1 hooks. Phase 2 is automatic.
  */
-abstract class BaseEmitter[F[_]: Monad] extends (Module => Pipe[F, Map[Path, String]]):
+abstract class BaseEmitter[F[_]: Monad] extends (Module => F[Map[Path, String]]):
 
   protected def tm: TypeMapping
   protected def fileExtension: String
   protected def statementTerminator: String
 
   // -- Phase 1: IR -> CodeNode (effectful) --
-  protected def emitDeclTree(decl: Decl): Pipe[F, CodeNode]
+  protected def emitDeclTree(decl: Decl): F[CodeNode]
   protected def emitExprText(expr: Expr): String
 
-  final def apply(module: Module): Pipe[F, Map[Path, String]] =
+  final def apply(module: Module): F[Map[Path, String]] =
     import cats.syntax.all.*
     module.units.flatTraverse { unit =>
       unit.declarations.traverse { decl =>
@@ -36,17 +37,20 @@ abstract class BaseEmitter[F[_]: Monad] extends (Module => Pipe[F, Map[Path, Str
           (path, source)
         }
       }
-    }.map(_.filter((_, source) => source.trim.nonEmpty).toMap)
+    }.map { pairs =>
+      val filtered = pairs.filter((_, source) => source.trim.nonEmpty)
+      SortedMap.from(filtered)(using Ordering.by(_.toString))
+    }
 
   /** Build CodeNode tree for a file (public for testing at tree level). */
-  def toFileTree(namespace: String, decl: Decl): Pipe[F, CodeNode] =
+  def toFileTree(namespace: String, decl: Decl): F[CodeNode] =
     emitFileTree(namespace, decl)
 
   /** Build CodeNode tree for a declaration (public for testing at tree level). */
-  def toDeclTree(decl: Decl): Pipe[F, CodeNode] =
+  def toDeclTree(decl: Decl): F[CodeNode] =
     emitDeclTree(decl)
 
-  protected def emitFileTree(namespace: String, decl: Decl): Pipe[F, CodeNode] =
+  protected def emitFileTree(namespace: String, decl: Decl): F[CodeNode] =
     emitDeclTree(decl).map { declTree =>
       val imports = ImportCollector.collect(decl, tm)
       CodeNode.File(s"package $namespace", imports.toVector, Vector(declTree))

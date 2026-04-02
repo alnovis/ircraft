@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.io
 
 import cats.effect.*
+import cats.syntax.all.*
 import java.nio.file.{Files, Path}
 import java.security.MessageDigest
 
@@ -14,28 +15,23 @@ object IncrementalWriter:
 
   def apply[F[_]: Sync]: IncrementalWriter[F] = new IncrementalWriter[F]:
     def writeChanged(outputDir: Path, files: Map[Path, String], cacheDir: Path): F[WriteResult] =
-      Sync[F].delay {
-        Files.createDirectories(cacheDir)
-        var written = 0
-        var skipped = 0
+      Sync[F].blocking(Files.createDirectories(cacheDir)) *>
+        files.toVector.foldLeftM(WriteResult(0, 0, files.size)) { case (acc, (relativePath, content)) =>
+          Sync[F].blocking {
+            val hash = sha256(content)
+            val hashFile = cacheDir.resolve(sha256(relativePath.toString) + ".sha256")
+            val cached = if Files.exists(hashFile) then Files.readString(hashFile).trim else ""
 
-        files.foreach { (relativePath, content) =>
-          val hash = sha256(content)
-          val hashFile = cacheDir.resolve(sha256(relativePath.toString) + ".sha256")
-          val cached = if Files.exists(hashFile) then Files.readString(hashFile).trim else ""
-
-          if hash != cached then
-            val target = outputDir.resolve(relativePath)
-            Files.createDirectories(target.getParent)
-            Files.writeString(target, content)
-            Files.writeString(hashFile, hash)
-            written += 1
-          else
-            skipped += 1
+            if hash != cached then
+              val target = outputDir.resolve(relativePath)
+              Files.createDirectories(target.getParent)
+              Files.writeString(target, content)
+              Files.writeString(hashFile, hash)
+              acc.copy(written = acc.written + 1)
+            else
+              acc.copy(skipped = acc.skipped + 1)
+          }
         }
-
-        WriteResult(written, skipped, files.size)
-      }
 
   private def sha256(s: String): String =
     val digest = MessageDigest.getInstance("SHA-256")

@@ -2,7 +2,6 @@ package io.alnovis.ircraft.emitters.java
 
 import cats.*
 import cats.syntax.all.*
-import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.core.ir.*
 import io.alnovis.ircraft.emit.{BaseEmitter, CodeNode, TypeMapping}
 
@@ -12,19 +11,18 @@ class JavaEmitter[F[_]: Monad] extends BaseEmitter[F]:
   protected val fileExtension: String = "java"
   protected val statementTerminator: String = ";"
 
-  // -- Phase 1: Decl -> Pipe[F, CodeNode] ---------------------------------
+  // -- Phase 1: Decl -> F[CodeNode] ------------------------------------------
 
-  protected def emitDeclTree(decl: Decl): Pipe[F, CodeNode] = decl match
+  protected def emitDeclTree(decl: Decl): F[CodeNode] = decl match
     case td: Decl.TypeDecl  => emitTypeDecl(td)
     case ed: Decl.EnumDecl  => emitEnumDecl(ed)
     case fd: Decl.FuncDecl  => emitFuncNode(fd.func, TypeKind.Product)
-    case cd: Decl.ConstDecl => Pipe.pure(emitConstDecl(cd))
-    case ad: Decl.AliasDecl =>
-      Pipe.warn[F](s"Type alias '${ad.name}' not supported in Java, skipping").as(CodeNode.Line(""))
+    case cd: Decl.ConstDecl => Monad[F].pure(emitConstDecl(cd))
+    case _: Decl.AliasDecl  => Monad[F].pure(CodeNode.Line(""))
 
-  private def emitTypeDecl(td: Decl.TypeDecl): Pipe[F, CodeNode] =
+  private def emitTypeDecl(td: Decl.TypeDecl): F[CodeNode] =
     for
-      fieldNodes  <- td.fields.traverse(f => Pipe.pure[F, CodeNode](emitField(f)))
+      fieldNodes  <- td.fields.traverse(f => Monad[F].pure(emitField(f)))
       funcNodes   <- td.functions.traverse(f => emitFuncNode(f, td.kind))
       nestedNodes <- td.nested.traverse(emitDeclTree)
     yield
@@ -34,7 +32,7 @@ class JavaEmitter[F[_]: Monad] extends BaseEmitter[F]:
       if annots.isEmpty then CodeNode.TypeBlock(sig, sections)
       else CodeNode.Block(annots :+ CodeNode.TypeBlock(sig, sections))
 
-  private def emitEnumDecl(ed: Decl.EnumDecl): Pipe[F, CodeNode] =
+  private def emitEnumDecl(ed: Decl.EnumDecl): F[CodeNode] =
     for
       funcNodes <- ed.functions.traverse(f => emitFuncNode(f, TypeKind.Product))
     yield
@@ -57,29 +55,29 @@ class JavaEmitter[F[_]: Monad] extends BaseEmitter[F]:
       if annots.isEmpty then CodeNode.TypeBlock(sig, sections)
       else CodeNode.Block(annots :+ CodeNode.TypeBlock(sig, sections))
 
-  private def emitFuncNode(f: Func, parentKind: TypeKind): Pipe[F, CodeNode] =
+  private def emitFuncNode(f: Func, parentKind: TypeKind): F[CodeNode] =
     val sig = funcSignature(f, parentKind)
     f.body match
       case None =>
-        Pipe.pure(CodeNode.Func(sig, None))
+        Monad[F].pure(CodeNode.Func(sig, None))
       case Some(body) =>
         body.stmts.traverse(emitStmtNode).map { stmtNodes =>
           CodeNode.Func(sig, Some(stmtNodes))
         }
 
-  private def emitStmtNode(s: Stmt): Pipe[F, CodeNode] = s match
+  private def emitStmtNode(s: Stmt): F[CodeNode] = s match
     case Stmt.Return(Some(e)) =>
-      Pipe.pure(CodeNode.Line(s"return ${emitExprText(e)};"))
+      Monad[F].pure(CodeNode.Line(s"return ${emitExprText(e)};"))
     case Stmt.Return(None) =>
-      Pipe.pure(CodeNode.Line("return;"))
+      Monad[F].pure(CodeNode.Line("return;"))
     case Stmt.Eval(e) =>
-      Pipe.pure(CodeNode.Line(s"${emitExprText(e)};"))
+      Monad[F].pure(CodeNode.Line(s"${emitExprText(e)};"))
     case Stmt.Let(n, t, init, mut) =>
       val fin = if !mut then "final " else ""
       val initStr = init.map(e => s" = ${emitExprText(e)}").getOrElse("")
-      Pipe.pure(CodeNode.Line(s"$fin${tm.typeName(t)} $n$initStr;"))
+      Monad[F].pure(CodeNode.Line(s"$fin${tm.typeName(t)} $n$initStr;"))
     case Stmt.Assign(target, value) =>
-      Pipe.pure(CodeNode.Line(s"${emitExprText(target)} = ${emitExprText(value)};"))
+      Monad[F].pure(CodeNode.Line(s"${emitExprText(target)} = ${emitExprText(value)};"))
     case Stmt.If(cond, thenBody, elseBody) =>
       for
         thenNodes <- thenBody.stmts.traverse(emitStmtNode)
@@ -101,9 +99,9 @@ class JavaEmitter[F[_]: Monad] extends BaseEmitter[F]:
         defaultNodes <- default.traverse(_.stmts.traverse(emitStmtNode))
       yield CodeNode.SwitchBlock(emitExprText(expr), caseNodes, defaultNodes)
     case Stmt.Throw(e) =>
-      Pipe.pure(CodeNode.Line(s"throw ${emitExprText(e)};"))
+      Monad[F].pure(CodeNode.Line(s"throw ${emitExprText(e)};"))
     case Stmt.Comment(text) =>
-      Pipe.pure(CodeNode.Comment(text))
+      Monad[F].pure(CodeNode.Comment(text))
     case Stmt.TryCatch(tryBody, catches, finallyBody) =>
       for
         tryNodes     <- tryBody.stmts.traverse(emitStmtNode)

@@ -1,7 +1,6 @@
 package io.alnovis.ircraft.dialects.proto
 
 import cats.*
-import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.core.ir.*
 
 class ProtoLoweringSuite extends munit.FunSuite:
@@ -9,9 +8,7 @@ class ProtoLoweringSuite extends munit.FunSuite:
   type F[A] = Id[A]
 
   private def lower(file: ProtoFile): Module =
-    val (diags, module) = Pipe.run(ProtoLowering.lower[F](file))
-    assert(diags.isEmpty, s"unexpected diagnostics: $diags")
-    module
+    ProtoLowering.lower[F](file)
 
   private val simpleProto = ProtoFile(
     name = "user.proto",
@@ -201,5 +198,5 @@ class ProtoLoweringSuite extends munit.FunSuite:
         nestedMessages = Vector.empty, nestedEnums = Vector.empty, oneofs = Vector.empty
       ))
     )
-    val (_, module) = Pipe.run(ProtoLowering.lowerAll[F](Vector(file1, file2)))
+    val module = ProtoLowering.lowerAll[F](Vector(file1, file2))
     assertEquals(module.units.size, 2)

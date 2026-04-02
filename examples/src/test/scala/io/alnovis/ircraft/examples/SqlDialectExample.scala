@@ -124,12 +124,11 @@ class SqlDialectExample extends munit.FunSuite:
     )
 
     // lowering
-    val (_, module) = Pipe.run(sqlLowering(tables))
+    val module = sqlLowering(tables)
     assertEquals(module.units.size, 2)
 
     // pipeline
-    val (diags, enriched) = Pipeline.run(pipeline, module)
-    assert(!diags.exists(_.isError))
+    val enriched = Pipeline.run(pipeline, module)
 
     // verify audit fields added
     val userDecl = enriched.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
@@ -143,8 +142,7 @@ class SqlDialectExample extends munit.FunSuite:
     assert(getterNames.contains("getCreatedAt"))
 
     // emit Java
-    val (emitDiags, files) = Pipe.run(javaEmitter(enriched))
-    assert(emitDiags.isEmpty)
+    val files = javaEmitter(enriched)
     assertEquals(files.size, 2)
 
     val userSource = files.values.find(_.contains("class User")).get
@@ -185,32 +183,11 @@ class SqlDialectExample extends munit.FunSuite:
     }
 
     val fullPipeline = Pipeline.of(pipeline, addToString)
-    val (_, module) = Pipe.run(sqlLowering(tables))
-    val (_, enriched) = Pipeline.run(fullPipeline, module)
-    val (_, files) = Pipe.run(javaEmitter(enriched))
+    val module = sqlLowering(tables)
+    val enriched = Pipeline.run(fullPipeline, module)
+    val files = javaEmitter(enriched)
 
     val source = files.values.head
     assert(source.contains("getId"))
     assert(source.contains("getCreatedAt"))
     assert(source.contains("toString"))
-
-  test("lowering with diagnostics"):
-    val warnLowering: Lowering[F, Vector[SqlTable]] = tables => {
-      import cats.data.WriterT
-      val (_, module) = Pipe.run(sqlLowering(tables))
-      for
-        _ <- tables.traverse_ { t =>
-          if t.columns.exists(_.nullable) then Pipe.warn[F](s"Table ${t.name} has nullable columns")
-          else Pipe.pure[F, Unit](())
-        }
-      yield module
-    }
-
-    val tables = Vector(
-      SqlTable("A", Vector(SqlColumn("x", "INT", nullable = true))),
-      SqlTable("B", Vector(SqlColumn("y", "INT", nullable = false))),
-    )
-    val (diags, module) = Pipe.run(warnLowering(tables))
-    assertEquals(diags.length, 1L)
-    assert(diags.headOption.exists(_.message.contains("Table A")))
-    assertEquals(module.units.size, 2)

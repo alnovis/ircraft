@@ -33,6 +33,9 @@ object JavaTypeMapping extends TypeMapping:
       s"${typeName(base)}<${args.map(boxedName).mkString(", ")}>"
     case Wildcard(None)    => "?"
     case Wildcard(Some(b)) => s"? extends ${typeName(b)}"
+    // Invariant: Unresolved must be resolved before emission (see Passes.validateResolved).
+    // Throws rather than returning a fallback to fail loudly on pipeline misconfiguration.
+    // TODO: consider lifting TypeMapping into F[_] if this becomes a user-facing pain point.
     case Unresolved(fqn)   => throw IllegalStateException(s"Unresolved type reached emitter: $fqn")
     case Local(name)       => name
     case Imported(_, name) => name

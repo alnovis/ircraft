@@ -1,7 +1,6 @@
 package io.alnovis.ircraft.emitters.java
 
 import cats.*
-import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.core.ir.*
 import io.alnovis.ircraft.emit.{CodeNode, Renderer}
 
@@ -12,12 +11,7 @@ class CodeNodeSuite extends munit.FunSuite:
   private val emitter = JavaEmitter[F]
 
   private def toTree(namespace: String, decl: Decl): CodeNode =
-    val module = Module("test", Vector(CompilationUnit(namespace, Vector(decl))))
-    val (_, files) = Pipe.run(emitter(module))
-    // We need the CodeNode, not the rendered string.
-    // Use the emitter's internal method via a helper.
-    val (_, tree) = Pipe.run(emitter.toFileTree(namespace, decl))
-    tree
+    emitter.toFileTree(namespace, decl)
 
   test("TypeDecl produces TypeBlock with correct sections"):
     val tree = toTree("com.example", Decl.TypeDecl(

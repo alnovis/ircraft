@@ -1,7 +1,6 @@
 package io.alnovis.ircraft.emitters.java
 
 import cats.*
-import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.core.ir.*
 
 class JavaEmitterSuite extends munit.FunSuite:
@@ -11,8 +10,7 @@ class JavaEmitterSuite extends munit.FunSuite:
 
   private def emit(namespace: String, decls: Decl*): Map[java.nio.file.Path, String] =
     val module = Module("test", Vector(CompilationUnit(namespace, decls.toVector)))
-    val (_, files) = Pipe.run(emitter(module))
-    files
+    emitter(module)
 
   private def emitOne(namespace: String, decl: Decl): String =
     emit(namespace, decl).values.head

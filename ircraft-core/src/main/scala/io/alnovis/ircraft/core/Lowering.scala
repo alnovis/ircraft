@@ -1,17 +1,16 @@
 package io.alnovis.ircraft.core
 
 import cats.*
-import cats.data.*
 import io.alnovis.ircraft.core.ir.Module
 
-/** Lowering = function from user's source dialect to Module. */
-type Lowering[F[_], Source] = Source => Pipe[F, Module]
+/** Lowering = function from user's source dialect to Module in F. */
+type Lowering[F[_], Source] = Source => F[Module]
 
 object Lowering:
 
-  /** Create a lowering from a pure function (no diagnostics). */
-  def pure[F[_]: Monad, Source](f: Source => Module): Lowering[F, Source] =
-    source => WriterT.value(f(source))
+  /** Create a lowering from a pure function. */
+  def pure[F[_]: Applicative, Source](f: Source => Module): Lowering[F, Source] =
+    source => Applicative[F].pure(f(source))
 
-  /** Create a lowering with diagnostics. */
-  def apply[F[_]: Monad, Source](f: Source => Pipe[F, Module]): Lowering[F, Source] = f
+  /** Create a lowering with effects. */
+  def apply[F[_], Source](f: Source => F[Module]): Lowering[F, Source] = f

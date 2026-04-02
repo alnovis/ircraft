@@ -1,21 +1,25 @@
 package io.alnovis.ircraft.core
 
 import cats.*
-import cats.data.Chain
 import cats.syntax.all.*
 import io.alnovis.ircraft.core.ir.*
 
 /** Built-in validation passes. */
 object Passes:
 
-  /** Checks that no Unresolved types remain in the module. Emits Error diagnostics. */
-  def validateResolved[F[_]: Monad]: Pass[F] = Pass[F]("validate-resolved") { module =>
+  /** Checks that no Unresolved types remain in the module. Raises DiagnosticError on failure. */
+  def validateResolved[F[_]: MonadThrow]: Pass[F] = Pass[F]("validate-resolved") { module =>
     val errors = module.units.flatMap { unit =>
       unit.declarations.flatMap(findUnresolved)
     }
-    errors.traverse_ { (declName, memberName, fqn) =>
-      Pipe.error[F](s"Unresolved type '$fqn' in $declName.$memberName")
-    }.as(module)
+    if errors.nonEmpty then
+      MonadThrow[F].raiseError(DiagnosticError(
+        errors.map { (declName, memberName, fqn) =>
+          Diagnostic(Severity.Error, s"Unresolved type '$fqn' in $declName.$memberName")
+        }
+      ))
+    else
+      module.pure[F]
   }
 
   private def findUnresolved(decl: Decl): Vector[(String, String, String)] =

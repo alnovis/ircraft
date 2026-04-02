@@ -2,7 +2,6 @@ package io.alnovis.ircraft.dialects.proto
 
 import cats.*
 import cats.syntax.all.*
-import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.core.ir.*
 
 /** Well-known Meta keys for proto provenance. */
@@ -16,13 +15,13 @@ object ProtoMeta:
   val fieldKind: Meta.Key[String]     = Meta.Key("proto.fieldKind")
   val originalType: Meta.Key[String]  = Meta.Key("proto.originalType")
 
-/** Lowering: ProtoFile -> Pipe[F, Module]. */
+/** Lowering: ProtoFile -> F[Module]. */
 object ProtoLowering:
 
-  def lower[F[_]: Monad](file: ProtoFile): Pipe[F, Module] =
+  def lower[F[_]: Applicative](file: ProtoFile): F[Module] =
     lowerFile(file)
 
-  def lowerAll[F[_]: Monad](files: Vector[ProtoFile]): Pipe[F, Module] =
+  def lowerAll[F[_]: Monad](files: Vector[ProtoFile]): F[Module] =
     files.traverse(lowerFile[F]).map { modules =>
       Module(
         name = modules.map(_.name).mkString("+"),
@@ -30,7 +29,7 @@ object ProtoLowering:
       )
     }
 
-  private def lowerFile[F[_]: Monad](file: ProtoFile): Pipe[F, Module] =
+  private def lowerFile[F[_]: Applicative](file: ProtoFile): F[Module] =
     val pkg = file.javaPackage.getOrElse(file.packageName)
     val outerClass = file.javaOuterClassname.getOrElse(deriveOuterClass(file.name))
     val syntaxStr = file.syntax match
@@ -48,7 +47,7 @@ object ProtoLowering:
         .set(ProtoMeta.outerClass, outerClass)
         .set(ProtoMeta.syntax, syntaxStr)
     )
-    Pipe.pure(Module(file.name, Vector(unit)))
+    Applicative[F].pure(Module(file.name, Vector(unit)))
 
   private def lowerMessage(
     msg: ProtoMessage,
@@ -159,12 +158,8 @@ object ProtoLowering:
           case _: ProtoType.Enum   => "ENUM"
           case _                    => "SCALAR"
 
-  private def needsHasMethod(f: ProtoField, syntax: ProtoSyntax): Boolean =
-    syntax match
-      case ProtoSyntax.Proto2 =>
-        f.label == ProtoLabel.Optional
-      case ProtoSyntax.Proto3 =>
-        f.label == ProtoLabel.Optional
+  private def needsHasMethod(f: ProtoField, @scala.annotation.unused syntax: ProtoSyntax): Boolean =
+    f.label == ProtoLabel.Optional
 
   private def capitalize(s: String): String =
     if s.isEmpty then s else s.head.toUpper +: s.tail
