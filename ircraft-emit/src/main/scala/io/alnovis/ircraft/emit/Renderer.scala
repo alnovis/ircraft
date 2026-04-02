@@ -64,6 +64,31 @@ object Renderer:
       val bodyStr = body.map(renderAt(_, level + 1, term)).mkString("\n")
       s"${ind(level, header)} {\n$bodyStr\n${ind(level, "}")}"
 
+    case CodeNode.WhileLoop(cond, body) =>
+      val bodyStr = body.map(renderAt(_, level + 1, term)).mkString("\n")
+      s"${ind(level, s"while ($cond)")} {\n$bodyStr\n${ind(level, "}")}"
+
+    case CodeNode.SwitchBlock(expr, cases, default) =>
+      val sb = StringBuilder()
+      sb.append(s"${ind(level, s"switch ($expr)")} {\n")
+      cases.foreach { (pattern, body) =>
+        sb.append(s"${ind(level + 1, s"case $pattern:")}\n")
+        body.foreach(n => sb.append(renderAt(n, level + 2, term) + "\n"))
+      }
+      default.foreach { body =>
+        sb.append(s"${ind(level + 1, "default:")}\n")
+        body.foreach(n => sb.append(renderAt(n, level + 2, term) + "\n"))
+      }
+      sb.append(ind(level, "}"))
+      sb.result()
+
+    case CodeNode.Comment(text) =>
+      if text.contains("\n") then
+        val lines = text.split("\n").toVector
+        (ind(level, "/**") +: lines.map(l => ind(level, s" * $l")) :+ ind(level, " */")).mkString("\n")
+      else
+        ind(level, s"// $text")
+
     case CodeNode.TryCatch(tryBody, catches, finallyBody) =>
       val tryStr = tryBody.map(renderAt(_, level + 1, term)).mkString("\n")
       val sb = StringBuilder()

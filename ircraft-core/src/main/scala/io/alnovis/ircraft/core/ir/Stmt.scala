@@ -8,13 +8,18 @@ object Stmt:
   case class Let(name: String, letType: TypeExpr, init: Option[Expr] = None, mutable: Boolean = false) extends Stmt
   case class Assign(target: Expr, value: Expr) extends Stmt
   case class If(cond: Expr, thenBody: Body, elseBody: Option[Body] = None) extends Stmt
+  case class While(cond: Expr, body: Body) extends Stmt
   case class ForEach(variable: String, varType: TypeExpr, iterable: Expr, body: Body) extends Stmt
+  case class Switch(expr: Expr, cases: Vector[SwitchCase], default: Option[Body] = None) extends Stmt
   case class Throw(expr: Expr) extends Stmt
+  case class Comment(text: String) extends Stmt
   case class TryCatch(
     tryBody: Body,
     catches: Vector[CatchClause],
     finallyBody: Option[Body] = None
   ) extends Stmt
+
+case class SwitchCase(pattern: Expr, body: Body)
 
 case class CatchClause(exType: TypeExpr, name: String, body: Body)
 

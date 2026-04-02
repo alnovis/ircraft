@@ -129,7 +129,7 @@ class SqlDialectExample extends munit.FunSuite:
 
     // pipeline
     val (diags, enriched) = Pipeline.run(pipeline, module)
-    assert(diags.isEmpty)
+    assert(!diags.exists(_.isError))
 
     // verify audit fields added
     val userDecl = enriched.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]

@@ -92,8 +92,8 @@ class ProtoLoweringSuite extends munit.FunSuite:
     val module = lower(proto2)
     val decl = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
     val hasMethods = decl.functions.filter(_.name.startsWith("has")).map(_.name)
-    // required + optional get has, repeated does not
-    assertEquals(hasMethods.toSet, Set("hasX", "hasY"))
+    // proto2: only optional gets has, required does not (always present), repeated does not
+    assertEquals(hasMethods.toSet, Set("hasY"))
 
   test("repeated field becomes ListOf"):
     val proto = simpleProto.copy(messages = Vector(ProtoMessage(

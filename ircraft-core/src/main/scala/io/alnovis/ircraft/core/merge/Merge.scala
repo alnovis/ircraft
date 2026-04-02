@@ -68,7 +68,7 @@ object Merge:
     val allDecls = versionedUnits.flatMap { (v, u) =>
       u.declarations.map(d => (v, d))
     }
-    val byName = allDecls.groupBy((_, d) => declName(d))
+    val byName = allDecls.groupBy((_, d) => d.name)
 
     byName.toVector.traverse { (name, vDecls) =>
       mergeDecl(name, vDecls, allVersions, strategy)
@@ -86,7 +86,7 @@ object Merge:
         val meta = single match
           case td: Decl.TypeDecl => td.meta.set(Keys.presentIn, Vector(v))
           case _                 => Meta.empty.set(Keys.presentIn, Vector(v))
-        Pipe.pure(Some(withMeta(single, meta)))
+        Pipe.pure(Some(single.withMeta(meta)))
 
       case multiple =>
         val presentVersions = multiple.map(_._1)
@@ -97,10 +97,11 @@ object Merge:
         val allEnumDecls = decls.collect { case ed: Decl.EnumDecl => ed }
 
         if allTypeDecls.size == decls.size then
-          mergeTypeDecls(name, multiple.map((v, d) => (v, d.asInstanceOf[Decl.TypeDecl])), allVersions, strategy)
-            .map(Some(_))
+          val typed = multiple.collect { case (v, td: Decl.TypeDecl) => (v, td) }
+          mergeTypeDecls(name, typed, allVersions, strategy).map(Some(_))
         else if allEnumDecls.size == decls.size then
-          Pipe.pure(Some(mergeEnumDecls(name, multiple.map((v, d) => (v, d.asInstanceOf[Decl.EnumDecl])), presentVersions)))
+          val typed = multiple.collect { case (v, ed: Decl.EnumDecl) => (v, ed) }
+          Pipe.pure(Some(mergeEnumDecls(name, typed, presentVersions)))
         else
           // mixed kinds -- take first, warn
           Pipe.warn[F](s"Mixed declaration kinds for '$name', using first").as(Some(decls.head))
@@ -120,16 +121,21 @@ object Merge:
     }
     val funcsByName = allFuncs.groupBy(_._2.name)
 
-    funcsByName.toVector.traverse { (fname, vFuncs) =>
-      mergeFunctions(name, fname, vFuncs, presentVersions, strategy)
-    }.map { mergedFuncs =>
-      // merge fields (union by name, first type wins)
-      val allFields = versioned.flatMap(_._2.fields)
-      val mergedFields = allFields.distinctBy(_.name)
+    // merge fields with conflict detection
+    val allFieldEntries = versioned.flatMap { (v, td) => td.fields.map(f => (v, f)) }
+    val fieldsByName = allFieldEntries.groupBy(_._2.name)
 
+    for
+      mergedFuncs: Vector[Option[Func]] <- funcsByName.toVector.traverse { (fname, vFuncs) =>
+        mergeFunctions(name, fname, vFuncs, presentVersions, strategy)
+      }
+      mergedFields: Vector[Option[Field]] <- fieldsByName.toVector.traverse { (fname, vFields) =>
+        mergeFields(name, fname, vFields, strategy)
+      }
+    yield
       // merge nested
       val allNested = versioned.flatMap(_._2.nested)
-      val mergedNested = allNested.distinctBy(declName)
+      val mergedNested = allNested.distinctBy(_.name)
 
       // merge supertypes
       val mergedSupertypes = versioned.flatMap(_._2.supertypes).distinct
@@ -141,7 +147,7 @@ object Merge:
       Decl.TypeDecl(
         name = name,
         kind = first.kind,
-        fields = mergedFields,
+        fields = mergedFields.flatten,
         functions = mergedFuncs.flatten,
         nested = mergedNested,
         supertypes = mergedSupertypes,
@@ -150,7 +156,30 @@ object Merge:
         annotations = first.annotations,
         meta = meta
       )
-    }
+
+  private def mergeFields[F[_]: Monad](
+    declName: String,
+    fieldName: String,
+    versioned: Vector[(String, Field)],
+    strategy: MergeStrategy[F]
+  ): Pipe[F, Option[Field]] =
+    val first = versioned.head._2
+    val types = versioned.map((v, f) => (v, f.fieldType)).distinctBy(_._2)
+    if types.size <= 1 then
+      Pipe.pure(Some(first))
+    else
+      val conflict = Conflict(
+        declName = declName,
+        memberName = fieldName,
+        kind = ConflictKind.FieldType,
+        versions = NonEmptyVector.fromVectorUnsafe(versioned.map((v, f) => (v, f.fieldType))),
+        meta = Meta.empty
+      )
+      strategy.onConflict(conflict).map {
+        case Resolution.UseType(t) => Some(first.copy(fieldType = t))
+        case Resolution.Skip       => None
+        case _                     => Some(first)
+      }
 
   @scala.annotation.nowarn("msg=unused explicit parameter")
   private def mergeFunctions[F[_]: Monad](
@@ -210,18 +239,3 @@ object Merge:
     val meta = first.meta.set(Keys.presentIn, presentVersions)
     first.copy(variants = allVariants, meta = meta)
 
-  // -- Helpers --
-
-  private def declName(d: Decl): String = d match
-    case Decl.TypeDecl(n, _, _, _, _, _, _, _, _, _) => n
-    case Decl.EnumDecl(n, _, _, _, _, _, _)          => n
-    case Decl.FuncDecl(f, _)                         => f.name
-    case Decl.AliasDecl(n, _, _, _)                  => n
-    case Decl.ConstDecl(n, _, _, _, _)               => n
-
-  private def withMeta(d: Decl, meta: Meta): Decl = d match
-    case td: Decl.TypeDecl  => td.copy(meta = meta)
-    case ed: Decl.EnumDecl  => ed.copy(meta = meta)
-    case fd: Decl.FuncDecl  => fd.copy(meta = meta)
-    case ad: Decl.AliasDecl => ad.copy(meta = meta)
-    case cd: Decl.ConstDecl => cd.copy(meta = meta)

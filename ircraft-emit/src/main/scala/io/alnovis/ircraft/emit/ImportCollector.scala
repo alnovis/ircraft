@@ -46,6 +46,12 @@ object ImportCollector:
     case Stmt.If(c, tb, eb)              => collectExpr(c, tm) ++ collectBody(tb, tm) ++ eb.toSet.flatMap(b => collectBody(b, tm))
     case Stmt.ForEach(_, t, iter, body)  => tm.imports(t) ++ collectExpr(iter, tm) ++ collectBody(body, tm)
     case Stmt.Throw(e)                   => collectExpr(e, tm)
+    case Stmt.While(c, body)        => collectExpr(c, tm) ++ collectBody(body, tm)
+    case Stmt.Switch(e, cases, dflt) =>
+      collectExpr(e, tm) ++
+        cases.flatMap(sc => collectExpr(sc.pattern, tm) ++ collectBody(sc.body, tm)) ++
+        dflt.toSet.flatMap(b => collectBody(b, tm))
+    case Stmt.Comment(_)            => Set.empty
     case Stmt.TryCatch(tb, cs, fb) =>
       collectBody(tb, tm) ++
         cs.flatMap(c => tm.imports(c.exType) ++ collectBody(c.body, tm)) ++

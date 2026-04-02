@@ -8,9 +8,11 @@ object Meta:
   def apply(entries: (Key[?], Any)*): Meta =
     entries.toMap
 
+  /** Typed metadata key. Same name + different type = different key (phantom A in equals). */
   case class Key[A](name: String)
 
   extension (m: Meta)
+    /** Get a value by typed key. Returns None if key absent. Throws ClassCastException on type mismatch. */
     def get[A](key: Key[A]): Option[A] =
       m.get(key).map(_.asInstanceOf[A])
 
@@ -26,3 +28,7 @@ object Meta:
     def isEmpty: Boolean = m.isEmpty
 
     def keys: Set[Key[?]] = m.keySet
+
+    /** Safe get with type check -- returns None on type mismatch instead of throwing. */
+    def getSafe[A](key: Key[A])(using ct: scala.reflect.ClassTag[A]): Option[A] =
+      m.get(key).collect { case v if ct.runtimeClass.isInstance(v) => v.asInstanceOf[A] }

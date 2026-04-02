@@ -1,6 +1,9 @@
 package io.alnovis.ircraft.core.ir
 
-sealed trait Decl
+sealed trait Decl:
+  def name: String
+  def meta: Meta
+  def withMeta(meta: Meta): Decl
 
 object Decl:
   case class TypeDecl(
@@ -14,7 +17,8 @@ object Decl:
     visibility: Visibility = Visibility.Public,
     annotations: Vector[Annotation] = Vector.empty,
     meta: Meta = Meta.empty
-  ) extends Decl
+  ) extends Decl:
+    def withMeta(m: Meta): Decl = copy(meta = m)
 
   case class EnumDecl(
     name: String,
@@ -24,19 +28,23 @@ object Decl:
     visibility: Visibility = Visibility.Public,
     annotations: Vector[Annotation] = Vector.empty,
     meta: Meta = Meta.empty
-  ) extends Decl
+  ) extends Decl:
+    def withMeta(m: Meta): Decl = copy(meta = m)
 
   case class FuncDecl(
     func: Func,
     meta: Meta = Meta.empty
-  ) extends Decl
+  ) extends Decl:
+    def name: String = func.name
+    def withMeta(m: Meta): Decl = copy(meta = m)
 
   case class AliasDecl(
     name: String,
     target: TypeExpr,
     visibility: Visibility = Visibility.Public,
     meta: Meta = Meta.empty
-  ) extends Decl
+  ) extends Decl:
+    def withMeta(m: Meta): Decl = copy(meta = m)
 
   case class ConstDecl(
     name: String,
@@ -44,7 +52,8 @@ object Decl:
     value: Expr,
     visibility: Visibility = Visibility.Public,
     meta: Meta = Meta.empty
-  ) extends Decl
+  ) extends Decl:
+    def withMeta(m: Meta): Decl = copy(meta = m)
 
 enum TypeKind:
   case Product

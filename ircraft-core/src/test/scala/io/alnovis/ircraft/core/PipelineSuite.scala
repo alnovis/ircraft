@@ -7,13 +7,16 @@ import io.alnovis.ircraft.core.ir.*
 
 class PipelineSuite extends munit.FunSuite:
 
-  // use Id as the simplest monad -- no IO needed for pure tests
   type F[A] = Id[A]
 
   private val emptyModule = Module.empty("test")
 
   private def moduleWith(decls: Decl*): Module =
     Module("test", Vector(CompilationUnit("com.example", decls.toVector)))
+
+  /** Filter out Info-level diagnostics (pass tracing) for assertions. */
+  private def issues(diags: Chain[Diagnostic]): Chain[Diagnostic] =
+    diags.filter(d => d.isError || d.isWarning)
 
   test("Pass.pure transforms module"):
     val addField = Pass.pure[F]("add-field") { module =>
@@ -29,18 +32,14 @@ class PipelineSuite extends munit.FunSuite:
     val input = moduleWith(Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))))
     val (diags, result) = Pipeline.run(addField, input)
 
-    assert(diags.isEmpty)
+    assert(issues(diags).isEmpty)
     val fields = result.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].fields
     assertEquals(fields.size, 2)
     assertEquals(fields.last.name, "added")
 
   test("Pipeline.of composes passes left to right"):
-    val pass1 = Pass.pure[F]("p1") { m =>
-      m.copy(name = m.name + "-1")
-    }
-    val pass2 = Pass.pure[F]("p2") { m =>
-      m.copy(name = m.name + "-2")
-    }
+    val pass1 = Pass.pure[F]("p1")(m => m.copy(name = m.name + "-1"))
+    val pass2 = Pass.pure[F]("p2")(m => m.copy(name = m.name + "-2"))
     val pipeline = Pipeline.of(pass1, pass2)
     val (_, result) = Pipeline.run(pipeline, emptyModule)
     assertEquals(result.name, "test-1-2")
@@ -54,8 +53,9 @@ class PipelineSuite extends munit.FunSuite:
     }
 
     val (diags, _) = Pipeline.run(warnPass, emptyModule)
-    assertEquals(diags.length, 2L)
+    // 1 info from pass tracing + 1 warn + 1 info from user = 3 total
     assert(diags.exists(_.isWarning))
+    assertEquals(issues(diags).length, 1L) // only the warning is an "issue"
 
   test("composed passes accumulate diagnostics from all passes"):
     val p1 = Pass[F]("p1") { m =>
@@ -67,21 +67,22 @@ class PipelineSuite extends munit.FunSuite:
     val pipeline = Pipeline.of(p1, p2)
     val (diags, _) = Pipeline.run(pipeline, emptyModule)
 
-    assertEquals(diags.length, 2L)
-    assert(diags.exists(d => d.isWarning && d.message == "warn from p1"))
-    assert(diags.exists(d => d.isError && d.message == "error from p2"))
+    val real = issues(diags)
+    assert(real.exists(d => d.isWarning && d.message == "warn from p1"))
+    // p2 not run because p1 has no errors, but fail-fast doesn't trigger on warnings
+    assert(real.exists(d => d.isError && d.message == "error from p2"))
 
   test("Pass.id returns module unchanged"):
     val (diags, result) = Pipeline.run(Pass.id[F], emptyModule)
-    assert(diags.isEmpty)
+    assert(diags.isEmpty) // id doesn't add tracing
     assertEquals(result, emptyModule)
 
   test("Pass.withDiag creates pass with diagnostics tuple"):
     val pass = Pass.withDiag[F]("check") { module =>
       val warnings = module.units.flatMap { unit =>
         unit.declarations.collect {
-          case Decl.TypeDecl(name, _, fields, _, _, _, _, _, _, _) if fields.isEmpty =>
-            Diagnostic(Severity.Warning, s"Type $name has no fields")
+          case td: Decl.TypeDecl if td.fields.isEmpty =>
+            Diagnostic(Severity.Warning, s"Type ${td.name} has no fields")
         }
       }
       (Chain.fromSeq(warnings), module)
@@ -92,8 +93,9 @@ class PipelineSuite extends munit.FunSuite:
       Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG)))
     )
     val (diags, _) = Pipeline.run(pass, input)
-    assertEquals(diags.length, 1L)
-    assert(diags.headOption.getOrElse(fail("empty")).message.contains("Empty"))
+    val warns = issues(diags)
+    assertEquals(warns.length, 1L)
+    assert(warns.headOption.getOrElse(fail("empty")).message.contains("Empty"))
 
   test("Pipeline.build filters disabled passes"):
     val p1 = Pass.pure[F]("p1")(m => m.copy(name = m.name + "-1"))
@@ -107,6 +109,18 @@ class PipelineSuite extends munit.FunSuite:
     ))
     val (_, result) = Pipeline.run(pipeline, emptyModule)
     assertEquals(result.name, "test-1-3")
+
+  test("error in pass stops pipeline (fail-fast)"):
+    val failPass = Pass[F]("fail") { m =>
+      Pipe.error[F]("fatal").as(m)
+    }
+    val neverRun = Pass.pure[F]("never") { m =>
+      m.copy(name = "should-not-reach")
+    }
+    val pipeline = Pipeline.of(failPass, neverRun)
+    val (diags, result) = Pipeline.run(pipeline, emptyModule)
+    assert(diags.exists(_.isError))
+    assertEquals(result.name, "test") // neverRun was skipped
 
   test("Lowering.pure creates module from source"):
     case class SqlTable(name: String, columns: Vector[String])
@@ -130,3 +144,11 @@ class PipelineSuite extends munit.FunSuite:
     assert(diags.isEmpty)
     assertEquals(module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].name, "Users")
     assertEquals(module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].fields.size, 3)
+
+  test("Passes.validateResolved detects unresolved types"):
+    val module = moduleWith(
+      Decl.TypeDecl("Order", TypeKind.Product,
+        fields = Vector(Field("address", TypeExpr.Unresolved("com.example.Address"))))
+    )
+    val (diags, _) = Pipeline.run(Passes.validateResolved[F], module)
+    assert(issues(diags).exists(d => d.isError && d.message.contains("Unresolved")))

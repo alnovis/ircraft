@@ -19,7 +19,8 @@ class JavaEmitter[F[_]: Monad] extends BaseEmitter[F]:
     case ed: Decl.EnumDecl  => emitEnumDecl(ed)
     case fd: Decl.FuncDecl  => emitFuncNode(fd.func, TypeKind.Product)
     case cd: Decl.ConstDecl => Pipe.pure(emitConstDecl(cd))
-    case _: Decl.AliasDecl  => Pipe.pure(CodeNode.Line(""))
+    case ad: Decl.AliasDecl =>
+      Pipe.warn[F](s"Type alias '${ad.name}' not supported in Java, skipping").as(CodeNode.Line(""))
 
   private def emitTypeDecl(td: Decl.TypeDecl): Pipe[F, CodeNode] =
     for
@@ -41,13 +42,15 @@ class JavaEmitter[F[_]: Monad] extends BaseEmitter[F]:
       val impl = if ed.supertypes.nonEmpty then s" implements ${ed.supertypes.map(tm.typeName).mkString(", ")}" else ""
       val sig = s"${vis}enum ${ed.name}$impl"
 
-      val constantLines = ed.variants.map { v =>
-        val args = if v.args.nonEmpty then s"(${v.args.map(emitExprText).mkString(", ")})" else ""
-        s"${v.name}$args"
-      }
       val constantSection =
-        if constantLines.isEmpty then Vector.empty
-        else Vector(CodeNode.Line(constantLines.mkString(",\n") + ";"))
+        if ed.variants.isEmpty then Vector.empty
+        else
+          val lastIdx = ed.variants.size - 1
+          ed.variants.zipWithIndex.map { (v, idx) =>
+            val args = if v.args.nonEmpty then s"(${v.args.map(emitExprText).mkString(", ")})" else ""
+            val suffix = if idx == lastIdx then ";" else ","
+            CodeNode.Line(s"${v.name}$args$suffix")
+          }
 
       val sections = Vector(constantSection, funcNodes).filter(_.nonEmpty)
       val annots = ed.annotations.map(a => CodeNode.Line(s"@${a.name}"))
@@ -86,8 +89,21 @@ class JavaEmitter[F[_]: Monad] extends BaseEmitter[F]:
       body.stmts.traverse(emitStmtNode).map { bodyNodes =>
         CodeNode.ForLoop(s"for (${tm.typeName(t)} $v : ${emitExprText(iter)})", bodyNodes)
       }
+    case Stmt.While(cond, body) =>
+      body.stmts.traverse(emitStmtNode).map { bodyNodes =>
+        CodeNode.WhileLoop(emitExprText(cond), bodyNodes)
+      }
+    case Stmt.Switch(expr, cases, default) =>
+      for
+        caseNodes <- cases.traverse { sc =>
+          sc.body.stmts.traverse(emitStmtNode).map(ns => (emitExprText(sc.pattern), ns))
+        }
+        defaultNodes <- default.traverse(_.stmts.traverse(emitStmtNode))
+      yield CodeNode.SwitchBlock(emitExprText(expr), caseNodes, defaultNodes)
     case Stmt.Throw(e) =>
       Pipe.pure(CodeNode.Line(s"throw ${emitExprText(e)};"))
+    case Stmt.Comment(text) =>
+      Pipe.pure(CodeNode.Comment(text))
     case Stmt.TryCatch(tryBody, catches, finallyBody) =>
       for
         tryNodes     <- tryBody.stmts.traverse(emitStmtNode)
@@ -133,7 +149,12 @@ class JavaEmitter[F[_]: Monad] extends BaseEmitter[F]:
     case Stmt.Return(Some(e)) => s"return ${emitExprText(e)}"
     case Stmt.Return(None)    => "return"
     case Stmt.Eval(e)         => emitExprText(e)
-    case _                    => "/* unsupported */"
+    case Stmt.Let(n, t, init, _) =>
+      val initStr = init.map(e => s" = ${emitExprText(e)}").getOrElse("")
+      s"${tm.typeName(t)} $n$initStr"
+    case Stmt.Assign(target, value) => s"${emitExprText(target)} = ${emitExprText(value)}"
+    case Stmt.Throw(e)        => s"throw ${emitExprText(e)}"
+    case _                    => s"/* unsupported: ${s.getClass.getSimpleName} */"
 
   // -- Signature builders -------------------------------------------------
 

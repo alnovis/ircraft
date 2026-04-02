@@ -162,7 +162,7 @@ object ProtoLowering:
   private def needsHasMethod(f: ProtoField, syntax: ProtoSyntax): Boolean =
     syntax match
       case ProtoSyntax.Proto2 =>
-        f.label == ProtoLabel.Optional || f.label == ProtoLabel.Required
+        f.label == ProtoLabel.Optional
       case ProtoSyntax.Proto3 =>
         f.label == ProtoLabel.Optional
 

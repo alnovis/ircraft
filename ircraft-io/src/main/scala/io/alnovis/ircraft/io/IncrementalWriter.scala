@@ -21,7 +21,7 @@ object IncrementalWriter:
 
         files.foreach { (relativePath, content) =>
           val hash = sha256(content)
-          val hashFile = cacheDir.resolve(relativePath.toString.replace('/', '_') + ".sha256")
+          val hashFile = cacheDir.resolve(sha256(relativePath.toString) + ".sha256")
           val cached = if Files.exists(hashFile) then Files.readString(hashFile).trim else ""
 
           if hash != cached then

@@ -33,10 +33,10 @@ abstract class BaseEmitter[F[_]: Monad] extends (Module => Pipe[F, Map[Path, Str
           val name = declName(decl)
           val path = Path.of(unit.namespace.replace('.', '/'), s"$name.$fileExtension")
           val source = Renderer.render(tree, statementTerminator)
-          path -> source
+          (path, source)
         }
       }
-    }.map(_.toMap)
+    }.map(_.filter((_, source) => source.trim.nonEmpty).toMap)
 
   /** Build CodeNode tree for a file (public for testing at tree level). */
   def toFileTree(namespace: String, decl: Decl): Pipe[F, CodeNode] =
@@ -52,9 +52,4 @@ abstract class BaseEmitter[F[_]: Monad] extends (Module => Pipe[F, Map[Path, Str
       CodeNode.File(s"package $namespace", imports.toVector, Vector(declTree))
     }
 
-  protected def declName(decl: Decl): String = decl match
-    case Decl.TypeDecl(name, _, _, _, _, _, _, _, _, _) => name
-    case Decl.EnumDecl(name, _, _, _, _, _, _)          => name
-    case Decl.FuncDecl(func, _)                         => func.name
-    case Decl.AliasDecl(name, _, _, _)                  => name
-    case Decl.ConstDecl(name, _, _, _, _)               => name
+  protected def declName(decl: Decl): String = decl.name
