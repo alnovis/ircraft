@@ -1,7 +1,8 @@
 package io.alnovis.ircraft.core
 
 import cats.*
-import cats.data.NonEmptyVector
+import cats.data.{Ior, NonEmptyVector}
+import cats.syntax.all.*
 import io.alnovis.ircraft.core.ir.*
 import io.alnovis.ircraft.core.merge.*
 
@@ -12,28 +13,31 @@ class MergeSuite extends munit.FunSuite:
   private def module(version: String, decls: Decl*): (String, Module) =
     (version, Module(version, Vector(CompilationUnit("com.example", decls.toVector))))
 
-  // strategy that picks first type on conflict
   private val pickFirst: MergeStrategy[F] = new MergeStrategy[F]:
-    def onConflict(conflict: Conflict): Resolution =
-      Resolution.UseType(conflict.versions.head._2)
+    def onConflict(conflict: Conflict): Outcome[F, Resolution] =
+      Outcome.ok(Resolution.UseType(conflict.versions.head._2))
 
-  // strategy that creates dual accessor
   private val dualAccessor: MergeStrategy[F] = new MergeStrategy[F]:
-    def onConflict(conflict: Conflict): Resolution =
+    def onConflict(conflict: Conflict): Outcome[F, Resolution] =
       val types = conflict.versions.toVector.toMap
-      Resolution.DualAccessor(types)
+      Outcome.ok(Resolution.DualAccessor(types))
 
-  // strategy that skips conflicts
   private val skipConflicts: MergeStrategy[F] = new MergeStrategy[F]:
-    def onConflict(conflict: Conflict): Resolution =
-      Resolution.Skip
+    def onConflict(conflict: Conflict): Outcome[F, Resolution] =
+      Outcome.ok(Resolution.Skip)
+
+  /** Extract Right or Both result, fail on Left. */
+  private def unwrap(outcome: Outcome[F, Module]): Module =
+    outcome.value match
+      case Ior.Right(m)    => m
+      case Ior.Both(_, m)  => m
+      case Ior.Left(errs)  => fail(s"unexpected errors: ${errs.map(_.message).toList.mkString(", ")}")
 
   test("merge identical types from 2 versions"):
     val v1 = module("v1", Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))))
     val v2 = module("v2", Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))))
 
-    val (diags, merged) = Merge.merge(NonEmptyVector.of(v1, v2), pickFirst)
-    assert(diags.isEmpty)
+    val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), pickFirst))
     assertEquals(merged.name, "v1+v2")
     assertEquals(merged.units.size, 1)
 
@@ -48,7 +52,7 @@ class MergeSuite extends munit.FunSuite:
     val v2 = module("v2", Decl.TypeDecl("User", TypeKind.Product,
       fields = Vector(Field("id", TypeExpr.LONG), Field("email", TypeExpr.STR))))
 
-    val (_, merged) = Merge.merge(NonEmptyVector.of(v1, v2), pickFirst)
+    val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), pickFirst))
     val td = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
     val fieldNames = td.fields.map(_.name)
     assert(fieldNames.contains("id"))
@@ -61,12 +65,9 @@ class MergeSuite extends munit.FunSuite:
     val v2 = module("v2", Decl.TypeDecl("Api", TypeKind.Protocol,
       functions = Vector(Func("getStatus", returnType = TypeExpr.STR))))
 
-    val (diags, merged) = Merge.merge(NonEmptyVector.of(v1, v2), pickFirst)
-    assert(diags.isEmpty)
-
+    val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), pickFirst))
     val td = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
     val func = td.functions.find(_.name == "getStatus").get
-    // pickFirst strategy chose v1's type (INT)
     assertEquals(func.returnType, TypeExpr.INT)
     assertEquals(func.meta.get(Merge.Keys.conflictType), Some("RESOLVED"))
 
@@ -76,7 +77,7 @@ class MergeSuite extends munit.FunSuite:
     val v2 = module("v2", Decl.TypeDecl("Api", TypeKind.Protocol,
       functions = Vector(Func("getStatus", returnType = TypeExpr.STR))))
 
-    val (_, merged) = Merge.merge(NonEmptyVector.of(v1, v2), dualAccessor)
+    val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), dualAccessor))
     val td = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
     val func = td.functions.find(_.name == "getStatus").get
     assertEquals(func.meta.get(Merge.Keys.conflictType), Some("DUAL_ACCESSOR"))
@@ -94,9 +95,8 @@ class MergeSuite extends munit.FunSuite:
         Func("getName", returnType = TypeExpr.STR),
       )))
 
-    val (_, merged) = Merge.merge(NonEmptyVector.of(v1, v2), skipConflicts)
+    val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), skipConflicts))
     val td = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
-    // getStatus was skipped, getName was kept
     val funcNames = td.functions.map(_.name)
     assert(!funcNames.contains("getStatus"))
     assert(funcNames.contains("getName"))
@@ -110,15 +110,11 @@ class MergeSuite extends munit.FunSuite:
       Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))),
     )
 
-    val (_, merged) = Merge.merge(NonEmptyVector.of(v1, v2), pickFirst)
-    val declNames = merged.units.head.declarations.map {
-      case td: Decl.TypeDecl => td.name
-      case _ => "?"
-    }
+    val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), pickFirst))
+    val declNames = merged.units.head.declarations.map(_.name)
     assert(declNames.contains("User"))
     assert(declNames.contains("Admin"))
 
-    // Admin only in v1
     val admin = merged.units.head.declarations.collect { case td: Decl.TypeDecl if td.name == "Admin" => td }.head
     assertEquals(admin.meta.get(Merge.Keys.presentIn), Some(Vector("v1")))
 
@@ -128,7 +124,7 @@ class MergeSuite extends munit.FunSuite:
     val v2 = module("v2", Decl.EnumDecl("Status",
       variants = Vector(EnumVariant("ACTIVE"), EnumVariant("DELETED"))))
 
-    val (_, merged) = Merge.merge(NonEmptyVector.of(v1, v2), pickFirst)
+    val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), pickFirst))
     val ed = merged.units.head.declarations.head.asInstanceOf[Decl.EnumDecl]
     val variantNames = ed.variants.map(_.name)
     assertEquals(variantNames.toSet, Set("ACTIVE", "INACTIVE", "DELETED"))
@@ -141,7 +137,7 @@ class MergeSuite extends munit.FunSuite:
     val v3 = module("v3", Decl.TypeDecl("Api", TypeKind.Protocol,
       functions = Vector(Func("getA", returnType = TypeExpr.STR), Func("getB", returnType = TypeExpr.INT), Func("getC", returnType = TypeExpr.BOOL))))
 
-    val (_, merged) = Merge.merge(NonEmptyVector.of(v1, v2, v3), pickFirst)
+    val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2, v3), pickFirst))
     val td = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
     val funcNames = td.functions.map(_.name).toSet
     assertEquals(funcNames, Set("getA", "getB", "getC"))
@@ -150,5 +146,14 @@ class MergeSuite extends munit.FunSuite:
     val v1 = module("v1", Decl.TypeDecl("X", TypeKind.Product))
     val v2 = module("v2", Decl.TypeDecl("X", TypeKind.Product))
 
-    val (_, merged) = Merge.merge(NonEmptyVector.of(v1, v2), pickFirst)
+    val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), pickFirst))
     assertEquals(merged.meta.get(Merge.Keys.sources), Some(Vector("v1", "v2")))
+
+  test("merge mixed kinds produces warning via Ior.Both"):
+    val v1 = module("v1", Decl.TypeDecl("X", TypeKind.Product))
+    val v2 = module("v2", Decl.EnumDecl("X", variants = Vector(EnumVariant("A"))))
+
+    Merge.merge(NonEmptyVector.of(v1, v2), pickFirst).value match
+      case Ior.Both(warnings, _) =>
+        assert(warnings.exists(d => d.isWarning && d.message.contains("Mixed")))
+      case other => fail(s"expected Ior.Both with warnings, got $other")

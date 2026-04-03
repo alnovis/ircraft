@@ -10,7 +10,3 @@ case class Diagnostic(
 ):
   def isError: Boolean   = severity == Severity.Error
   def isWarning: Boolean = severity == Severity.Warning
-
-case class DiagnosticError(diagnostics: Vector[Diagnostic])
-  extends RuntimeException:
-  override lazy val getMessage: String = diagnostics.map(_.message).mkString("; ")

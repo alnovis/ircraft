@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.core
 
 import cats.*
+import cats.data.*
 import cats.syntax.all.*
 import io.alnovis.ircraft.core.ir.*
 
@@ -8,8 +9,8 @@ class PipelineSuite extends munit.FunSuite:
 
   type F[A] = Id[A]
 
-  // For tests that need MonadThrow (fail-fast, validation)
-  type EF[A] = Either[Throwable, A]
+  // Outcome over Id for tests with warnings/errors
+  type OF[A] = Outcome[Id, A]
 
   private val emptyModule = Module.empty("test")
 
@@ -58,21 +59,32 @@ class PipelineSuite extends munit.FunSuite:
     val result = Pipeline.run(pipeline, emptyModule)
     assertEquals(result.name, "test-1-3")
 
-  test("error in pass stops pipeline (fail-fast)"):
-    val failPass = Pass[EF]("fail") { m =>
-      MonadThrow[EF].raiseError(DiagnosticError(Vector(
-        Diagnostic(Severity.Error, "fatal")
-      )))
+  test("Outcome.fail stops pipeline (fail-fast via IorT Left)"):
+    val failPass = Pass[OF]("fail") { _ =>
+      Outcome.fail("fatal")
     }
-    val neverRun = Pass.pure[EF]("never") { m =>
+    val neverRun = Pass.pure[OF]("never") { m =>
       m.copy(name = "should-not-reach")
     }
     val pipeline = Pipeline.of(failPass, neverRun)
-    val result = Pipeline.run(pipeline, emptyModule)
-    result match
-      case Left(e: DiagnosticError) =>
-        assert(e.diagnostics.exists(_.message == "fatal"))
-      case other => fail(s"expected Left(DiagnosticError), got $other")
+    Pipeline.run(pipeline, emptyModule).value match
+      case Ior.Left(errors) =>
+        assert(errors.exists(_.message == "fatal"))
+      case other => fail(s"expected Ior.Left, got $other")
+
+  test("Outcome.warn continues pipeline and accumulates"):
+    val warnPass = Pass[OF]("warn") { module =>
+      Outcome.warn("something fishy", module)
+    }
+    val addSuffix = Pass.pure[OF]("suffix") { m =>
+      m.copy(name = m.name + "-done")
+    }
+    val pipeline = Pipeline.of(warnPass, addSuffix)
+    Pipeline.run(pipeline, emptyModule).value match
+      case Ior.Both(warnings, result) =>
+        assert(warnings.exists(_.isWarning))
+        assertEquals(result.name, "test-done")
+      case other => fail(s"expected Ior.Both, got $other")
 
   test("Lowering.pure creates module from source"):
     case class SqlTable(name: String, columns: Vector[String])
@@ -96,13 +108,21 @@ class PipelineSuite extends munit.FunSuite:
     assertEquals(module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].name, "Users")
     assertEquals(module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].fields.size, 3)
 
-  test("Passes.validateResolved detects unresolved types"):
+  test("Passes.validateResolved detects unresolved types via Outcome"):
     val module = moduleWith(
       Decl.TypeDecl("Order", TypeKind.Product,
         fields = Vector(Field("address", TypeExpr.Unresolved("com.example.Address"))))
     )
-    val result = Pipeline.run(Passes.validateResolved[EF], module)
-    result match
-      case Left(e: DiagnosticError) =>
-        assert(e.diagnostics.exists(d => d.isError && d.message.contains("Unresolved")))
-      case other => fail(s"expected Left(DiagnosticError), got $other")
+    Pipeline.run(Passes.validateResolved[Id], module).value match
+      case Ior.Left(errors) =>
+        assert(errors.exists(d => d.isError && d.message.contains("Unresolved")))
+      case other => fail(s"expected Ior.Left, got $other")
+
+  test("Passes.validateResolved passes clean module"):
+    val module = moduleWith(
+      Decl.TypeDecl("User", TypeKind.Product,
+        fields = Vector(Field("name", TypeExpr.STR)))
+    )
+    Pipeline.run(Passes.validateResolved[Id], module).value match
+      case Ior.Right(m) => assertEquals(m.units.size, 1)
+      case other => fail(s"expected Ior.Right, got $other")

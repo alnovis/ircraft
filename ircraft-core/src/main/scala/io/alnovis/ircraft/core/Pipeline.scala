@@ -10,7 +10,7 @@ object Pipeline:
   def of[F[_]: FlatMap](first: Pass[F], rest: Pass[F]*): Pass[F] =
     rest.foldLeft(first)(_ andThen _)
 
-  /** Compose from a vector, skipping disabled passes. */
+  /** Compose of a vector, skipping disabled passes. */
   def build[F[_]: Monad](passes: Vector[(Pass[F], Boolean)]): Pass[F] =
     val enabled = passes.collect { case (p, true) => p }
     if enabled.isEmpty then Pass.id[F]
