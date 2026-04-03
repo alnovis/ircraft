@@ -1,7 +1,7 @@
 package io.alnovis.ircraft.core.merge
 
 import cats.*
-import cats.data.NonEmptyVector
+import cats.data.{Chain, NonEmptyVector}
 import cats.syntax.all.*
 import io.alnovis.ircraft.core.*
 import io.alnovis.ircraft.core.ir.*
@@ -56,7 +56,7 @@ object Merge:
     traverseAccum(byNamespace.toVector) { (ns, vUnits) =>
       mergeUnits(ns, vUnits, versionNames, strategy)
     }.map { (diags, units) =>
-      (diags, Module(versionNames.mkString("+"), units, Meta.empty.set(Keys.sources, versionNames)))
+      (diags.toList.toVector, Module(versionNames.mkString("+"), units, Meta.empty.set(Keys.sources, versionNames)))
     }
 
   private def mergeUnits[F[_]: Monad](
@@ -64,7 +64,7 @@ object Merge:
     versionedUnits: Vector[(String, CompilationUnit)],
     allVersions: Vector[String],
     strategy: MergeStrategy[F]
-  ): F[(Vector[Diagnostic], CompilationUnit)] =
+  ): F[(Chain[Diagnostic], CompilationUnit)] =
     val allDecls = versionedUnits.flatMap { (v, u) =>
       u.declarations.map(d => (v, d))
     }
@@ -81,14 +81,14 @@ object Merge:
     versionedDecls: Vector[(String, Decl)],
     allVersions: Vector[String],
     strategy: MergeStrategy[F]
-  ): F[(Vector[Diagnostic], Option[Decl])] =
+  ): F[(Chain[Diagnostic], Option[Decl])] =
     versionedDecls match
       case Vector((v, single)) =>
         // present in only one version
         val meta = single match
           case td: Decl.TypeDecl => td.meta.set(Keys.presentIn, Vector(v))
           case _                 => Meta.empty.set(Keys.presentIn, Vector(v))
-        Monad[F].pure((Vector.empty, Some(single.withMeta(meta))))
+        Monad[F].pure((Chain.empty, Some(single.withMeta(meta))))
 
       case multiple =>
         val presentVersions = multiple.map(_._1)
@@ -103,18 +103,18 @@ object Merge:
           mergeTypeDecls(name, typed, allVersions, strategy).map((d, r) => (d, Some(r)))
         else if allEnumDecls.size == decls.size then
           val typed = multiple.collect { case (v, ed: Decl.EnumDecl) => (v, ed) }
-          Monad[F].pure((Vector.empty, Some(mergeEnumDecls(name, typed, presentVersions))))
+          Monad[F].pure((Chain.empty, Some(mergeEnumDecls(name, typed, presentVersions))))
         else
           // mixed kinds -- take first, warn
           val diag = Diagnostic(Severity.Warning, s"Mixed declaration kinds for '$name', using first")
-          Monad[F].pure((Vector(diag), Some(decls.head)))
+          Monad[F].pure((Chain.one(diag), Some(decls.head)))
 
   private def mergeTypeDecls[F[_]: Monad](
     name: String,
     versioned: Vector[(String, Decl.TypeDecl)],
     allVersions: Vector[String],
     strategy: MergeStrategy[F]
-  ): F[(Vector[Diagnostic], Decl)] =
+  ): F[(Chain[Diagnostic], Decl)] =
     val presentVersions = versioned.map(_._1)
     val first = versioned.head._2
 
@@ -173,11 +173,11 @@ object Merge:
     fieldName: String,
     versioned: Vector[(String, Field)],
     strategy: MergeStrategy[F]
-  ): F[(Vector[Diagnostic], Option[Field])] =
+  ): F[(Chain[Diagnostic], Option[Field])] =
     val first = versioned.head._2
     val types = versioned.map((v, f) => (v, f.fieldType)).distinctBy(_._2)
     if types.size <= 1 then
-      Monad[F].pure((Vector.empty, Some(first)))
+      Monad[F].pure((Chain.empty, Some(first)))
     else
       val conflict = Conflict(
         declName = declName,
@@ -187,9 +187,9 @@ object Merge:
         meta = Meta.empty
       )
       strategy.onConflict(conflict).map {
-        case Resolution.UseType(t) => (Vector.empty, Some(first.copy(fieldType = t)))
-        case Resolution.Skip       => (Vector.empty, None)
-        case _                     => (Vector.empty, Some(first))
+        case Resolution.UseType(t) => (Chain.empty, Some(first.copy(fieldType = t)))
+        case Resolution.Skip       => (Chain.empty, None)
+        case _                     => (Chain.empty, Some(first))
       }
 
   @scala.annotation.nowarn("msg=unused explicit parameter")
@@ -199,7 +199,7 @@ object Merge:
     versioned: Vector[(String, Func)],
     allPresentVersions: Vector[String],
     strategy: MergeStrategy[F]
-  ): F[(Vector[Diagnostic], Option[Func])] =
+  ): F[(Chain[Diagnostic], Option[Func])] =
     val presentIn = versioned.map(_._1)
     val first = versioned.head._2
 
@@ -209,7 +209,7 @@ object Merge:
     if returnTypes.size <= 1 then
       // no conflict -- annotate with presentIn
       val meta = first.meta.set(Keys.presentIn, presentIn)
-      Monad[F].pure((Vector.empty, Some(first.copy(meta = meta))))
+      Monad[F].pure((Chain.empty, Some(first.copy(meta = meta))))
     else
       // conflict detected
       val conflict = Conflict(
@@ -224,19 +224,19 @@ object Merge:
           val meta = first.meta
             .set(Keys.presentIn, presentIn)
             .set(Keys.conflictType, "RESOLVED")
-          (Vector.empty, Some(first.copy(returnType = t, meta = meta)))
+          (Chain.empty, Some(first.copy(returnType = t, meta = meta)))
         case Resolution.DualAccessor(types) =>
           val meta = first.meta
             .set(Keys.presentIn, presentIn)
             .set(Keys.conflictType, "DUAL_ACCESSOR")
             .set(Keys.typePerVersion, types)
-          (Vector.empty, Some(first.copy(meta = meta)))
+          (Chain.empty, Some(first.copy(meta = meta)))
         case Resolution.Custom(_) =>
           // custom decls handled at higher level
           val meta = first.meta.set(Keys.presentIn, presentIn)
-          (Vector.empty, Some(first.copy(meta = meta)))
+          (Chain.empty, Some(first.copy(meta = meta)))
         case Resolution.Skip =>
-          (Vector.empty, None)
+          (Chain.empty, None)
       }
 
   @scala.annotation.nowarn("msg=unused explicit parameter")
@@ -253,7 +253,7 @@ object Merge:
   /** Traverse a collection, accumulating diagnostics alongside results. */
   private def traverseAccum[F[_]: Monad, A, B](
     items: Vector[A]
-  )(f: A => F[(Vector[Diagnostic], B)]): F[(Vector[Diagnostic], Vector[B])] =
-    items.foldLeftM((Vector.empty[Diagnostic], Vector.empty[B])) { case ((accDiags, accResults), item) =>
+  )(f: A => F[(Chain[Diagnostic], B)]): F[(Chain[Diagnostic], Vector[B])] =
+    items.foldLeftM((Chain.empty[Diagnostic], Vector.empty[B])) { case ((accDiags, accResults), item) =>
       f(item).map { (diags, result) => (accDiags ++ diags, accResults :+ result) }
     }

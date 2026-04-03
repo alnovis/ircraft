@@ -21,8 +21,8 @@ class JavaEmitter[F[_]: Monad] extends BaseEmitter[F]:
     case _: Decl.AliasDecl  => Monad[F].pure(CodeNode.Line(""))
 
   private def emitTypeDecl(td: Decl.TypeDecl): F[CodeNode] =
+    val fieldNodes = td.fields.map(emitField)
     for
-      fieldNodes  <- td.fields.traverse(f => Monad[F].pure(emitField(f)))
       funcNodes   <- td.functions.traverse(f => emitFuncNode(f, td.kind))
       nestedNodes <- td.nested.traverse(emitDeclTree)
     yield

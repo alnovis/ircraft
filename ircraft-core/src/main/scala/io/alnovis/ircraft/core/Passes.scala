@@ -36,15 +36,8 @@ object Passes:
     findInType(f.returnType).map(fqn => (declName, f.name, fqn)) ++
       f.params.flatMap(p => findInType(p.paramType).map(fqn => (declName, s"${f.name}.${p.name}", fqn)))
 
-  private def findInType(t: TypeExpr): Vector[String] = t match
-    case TypeExpr.Unresolved(fqn) => Vector(fqn)
-    case TypeExpr.ListOf(e)       => findInType(e)
-    case TypeExpr.MapOf(k, v)     => findInType(k) ++ findInType(v)
-    case TypeExpr.Optional(i)     => findInType(i)
-    case TypeExpr.SetOf(e)        => findInType(e)
-    case TypeExpr.TupleOf(es)     => es.flatMap(findInType)
-    case TypeExpr.Applied(b, as)  => findInType(b) ++ as.flatMap(findInType)
-    case TypeExpr.FuncType(ps, r) => ps.flatMap(findInType) ++ findInType(r)
-    case TypeExpr.Union(as)       => as.flatMap(findInType)
-    case TypeExpr.Intersection(cs) => cs.flatMap(findInType)
-    case _                        => Vector.empty
+  private def findInType(t: TypeExpr): Vector[String] =
+    t.foldMap {
+      case TypeExpr.Unresolved(fqn) => Vector(fqn)
+      case _                        => Vector.empty
+    }

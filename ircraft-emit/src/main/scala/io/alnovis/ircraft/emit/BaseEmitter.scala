@@ -1,13 +1,14 @@
 package io.alnovis.ircraft.emit
 
 import cats.*
+import cats.data.*
 import cats.syntax.all.*
 import java.nio.file.Path
 import scala.collection.immutable.SortedMap
 import io.alnovis.ircraft.core.ir.*
 
-/** Emitter = Module => F[Map[Path, String]] */
-type Emitter[F[_]] = Module => F[Map[Path, String]]
+/** Emitter = Kleisli[F, Module, Map[Path, String]]. Composable with Pass and Lowering. */
+type Emitter[F[_]] = Kleisli[F, Module, Map[Path, String]]
 
 /**
  * Two-phase emitter:
@@ -16,7 +17,7 @@ type Emitter[F[_]] = Module => F[Map[Path, String]]
  *
  * Subclasses implement Phase 1 hooks. Phase 2 is automatic.
  */
-abstract class BaseEmitter[F[_]: Monad] extends (Module => F[Map[Path, String]]):
+abstract class BaseEmitter[F[_]: Monad]:
 
   protected def tm: TypeMapping
   protected def fileExtension: String
@@ -26,8 +27,10 @@ abstract class BaseEmitter[F[_]: Monad] extends (Module => F[Map[Path, String]])
   protected def emitDeclTree(decl: Decl): F[CodeNode]
   protected def emitExprText(expr: Expr): String
 
+  /** Kleisli emitter for composition with Pass and Lowering. */
+  final val emitter: Emitter[F] = Kleisli(apply)
+
   final def apply(module: Module): F[Map[Path, String]] =
-    import cats.syntax.all.*
     module.units.flatTraverse { unit =>
       unit.declarations.traverse { decl =>
         emitFileTree(unit.namespace, decl).map { tree =>

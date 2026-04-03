@@ -1,11 +1,15 @@
 package io.alnovis.ircraft.core.ir
 
-import scala.reflect.ClassTag
+import cats.Monoid
 
 opaque type Meta = Map[Meta.Key[?], Any]
 
 object Meta:
   val empty: Meta = Map.empty
+
+  given Monoid[Meta] with
+    def empty: Meta = Meta.empty
+    def combine(x: Meta, y: Meta): Meta = x ++ y
 
   /** Type-safe entry for constructing Meta. */
   case class Entry(private val f: Meta => Meta):
@@ -15,16 +19,20 @@ object Meta:
 
   def of(entries: Entry*): Meta = entries.foldLeft(empty)((m, e) => e.applyTo(m))
 
-  /** Typed metadata key. ClassTag ensures Key[Int]("x") != Key[String]("x"). */
-  case class Key[A](name: String)(using val ct: ClassTag[A]):
-    override def equals(that: Any): Boolean = that match
-      case k: Key[?] => name == k.name && ct == k.ct
-      case _         => false
-    override def hashCode: Int = (name, ct).hashCode
+  /** Typed metadata key. Identity-based equality (vault-style).
+    * Each `Key` allocation is unique — two keys with the same name
+    * but created separately are distinct. This prevents type erasure
+    * issues with generic type parameters.
+    */
+  final class Key[A] private[Meta] (val name: String):
+    override def toString: String = s"Meta.Key($name)"
+
+  object Key:
+    def apply[A](name: String): Key[A] = new Key[A](name)
 
   extension (m: Meta)
     def get[A](key: Key[A]): Option[A] =
-      m.get(key).collect { case v if key.ct.runtimeClass.isInstance(v) => v.asInstanceOf[A] }
+      m.get(key).map(_.asInstanceOf[A])
 
     def set[A](key: Key[A], value: A): Meta =
       m.updated(key, value)

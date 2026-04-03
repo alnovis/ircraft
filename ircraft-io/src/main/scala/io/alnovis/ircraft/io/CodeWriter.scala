@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.io
 
 import cats.effect.*
+import cats.effect.implicits.*
 import cats.syntax.all.*
 import java.nio.file.{Files, Path}
 
@@ -10,10 +11,10 @@ trait CodeWriter[F[_]]:
 
 object CodeWriter:
 
-  def apply[F[_]: Sync]: CodeWriter[F] = new CodeWriter[F]:
+  def apply[F[_]: Async]: CodeWriter[F] = new CodeWriter[F]:
     def write(outputDir: Path, files: Map[Path, String]): F[Int] =
-      files.toVector.traverse_ { (relativePath, content) =>
-        Sync[F].blocking {
+      files.toVector.parTraverse_ { (relativePath, content) =>
+        Async[F].interruptible {
           val target = outputDir.resolve(relativePath)
           Files.createDirectories(target.getParent)
           Files.writeString(target, content)

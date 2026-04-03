@@ -1,5 +1,6 @@
 package io.alnovis.ircraft.emitters.java
 
+import cats.kernel.instances.set.*
 import io.alnovis.ircraft.core.ir.TypeExpr
 import io.alnovis.ircraft.core.ir.TypeExpr.*
 import io.alnovis.ircraft.emit.TypeMapping
@@ -33,10 +34,7 @@ object JavaTypeMapping extends TypeMapping:
       s"${typeName(base)}<${args.map(boxedName).mkString(", ")}>"
     case Wildcard(None)    => "?"
     case Wildcard(Some(b)) => s"? extends ${typeName(b)}"
-    // Invariant: Unresolved must be resolved before emission (see Passes.validateResolved).
-    // Throws rather than returning a fallback to fail loudly on pipeline misconfiguration.
-    // TODO: consider lifting TypeMapping into F[_] if this becomes a user-facing pain point.
-    case Unresolved(fqn)   => throw IllegalStateException(s"Unresolved type reached emitter: $fqn")
+    case Unresolved(fqn)   => unreachable(s"Unresolved type reached emitter: $fqn. Run Passes.validateResolved before emission.")
     case Local(name)       => name
     case Imported(_, name) => name
     case FuncType(_, _)    => "Object"
@@ -58,13 +56,12 @@ object JavaTypeMapping extends TypeMapping:
     case Primitive.Char    => "Character"
     case _                 => typeName(t)
 
-  def imports(t: TypeExpr): Set[String] = t match
-    case Named(fqn) if fqn.contains(".") => Set(fqn)
-    case Imported(path, _)               => Set(path)
-    case ListOf(elem)                    => Set("java.util.List") ++ imports(elem)
-    case MapOf(k, v)                     => Set("java.util.Map") ++ imports(k) ++ imports(v)
-    case SetOf(elem)                     => Set("java.util.Set") ++ imports(elem)
-    case Optional(inner)                 => imports(inner)
-    case Applied(base, args)             => imports(base) ++ args.flatMap(imports)
-    case Wildcard(Some(b))               => imports(b)
-    case _                               => Set.empty
+  def imports(t: TypeExpr): Set[String] =
+    t.foldMap {
+      case Named(fqn) if fqn.contains(".") => Set(fqn)
+      case Imported(path, _)               => Set(path)
+      case _: ListOf                       => Set("java.util.List")
+      case _: MapOf                        => Set("java.util.Map")
+      case _: SetOf                        => Set("java.util.Set")
+      case _                               => Set.empty
+    }

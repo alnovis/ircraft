@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.io
 
 import cats.effect.*
+import cats.effect.implicits.*
 import cats.syntax.all.*
 import java.nio.file.{Files, Path}
 import java.security.MessageDigest
@@ -13,12 +14,12 @@ case class WriteResult(written: Int, skipped: Int, total: Int)
 
 object IncrementalWriter:
 
-  def apply[F[_]: Sync]: IncrementalWriter[F] = new IncrementalWriter[F]:
+  def apply[F[_]: Async]: IncrementalWriter[F] = new IncrementalWriter[F]:
     def writeChanged(outputDir: Path, files: Map[Path, String], cacheDir: Path): F[WriteResult] =
-      Sync[F].blocking(Files.createDirectories(cacheDir)) *>
-        files.toVector.foldLeftM(WriteResult(0, 0, files.size)) { case (acc, (relativePath, content)) =>
-          Sync[F].blocking {
-            val hash = sha256(content)
+      Async[F].interruptible(Files.createDirectories(cacheDir)) *>
+        files.toVector.parTraverse { (relativePath, content) =>
+          val hash = sha256(content)
+          Async[F].interruptible {
             val hashFile = cacheDir.resolve(sha256(relativePath.toString) + ".sha256")
             val cached = if Files.exists(hashFile) then Files.readString(hashFile).trim else ""
 
@@ -27,10 +28,13 @@ object IncrementalWriter:
               Files.createDirectories(target.getParent)
               Files.writeString(target, content)
               Files.writeString(hashFile, hash)
-              acc.copy(written = acc.written + 1)
+              true
             else
-              acc.copy(skipped = acc.skipped + 1)
+              false
           }
+        }.map { results =>
+          val written = results.count(identity)
+          WriteResult(written, results.size - written, results.size)
         }
 
   private def sha256(s: String): String =

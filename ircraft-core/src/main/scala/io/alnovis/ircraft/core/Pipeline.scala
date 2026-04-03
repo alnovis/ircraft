@@ -7,7 +7,7 @@ import io.alnovis.ircraft.core.ir.Module
 object Pipeline:
 
   /** Compose passes left to right. Fail-fast is automatic via MonadThrow. */
-  def of[F[_]: Monad](first: Pass[F], rest: Pass[F]*): Pass[F] =
+  def of[F[_]: FlatMap](first: Pass[F], rest: Pass[F]*): Pass[F] =
     rest.foldLeft(first)(_ andThen _)
 
   /** Compose from a vector, skipping disabled passes. */

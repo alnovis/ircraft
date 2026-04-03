@@ -21,13 +21,8 @@ object ProtoLowering:
   def lower[F[_]: Applicative](file: ProtoFile): F[Module] =
     lowerFile(file)
 
-  def lowerAll[F[_]: Monad](files: Vector[ProtoFile]): F[Module] =
-    files.traverse(lowerFile[F]).map { modules =>
-      Module(
-        name = modules.map(_.name).mkString("+"),
-        units = modules.flatMap(_.units)
-      )
-    }
+  def lowerAll[F[_]: Applicative](files: Vector[ProtoFile]): F[Module] =
+    files.traverse(lowerFile[F]).map(_.combineAll)
 
   private def lowerFile[F[_]: Applicative](file: ProtoFile): F[Module] =
     val pkg = file.javaPackage.getOrElse(file.packageName)

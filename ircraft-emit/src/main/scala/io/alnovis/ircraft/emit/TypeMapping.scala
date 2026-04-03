@@ -11,3 +11,7 @@ trait TypeMapping:
   protected def simpleName(fqn: String): String =
     val dot = fqn.lastIndexOf('.')
     if dot >= 0 then fqn.substring(dot + 1) else fqn
+
+  /** Signal a pipeline misconfiguration — should never be reached at emission time. */
+  protected def unreachable(msg: String): Nothing =
+    throw new AssertionError(s"IRCraft pipeline assertion failed: $msg")
