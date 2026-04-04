@@ -1,7 +1,7 @@
 import sbt.*
 import sbt.Keys.*
 
-ThisBuild / organization := "io.alnovis.ircraft"
+ThisBuild / organization := "io.alnovis"
 // version is managed by sbt-dynver from git tags (e.g., v2.0.0-alpha.1 -> 2.0.0-alpha.1)
 ThisBuild / scalaVersion := "3.6.4"
 ThisBuild / versionScheme := Some("early-semver")
