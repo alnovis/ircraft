@@ -9,10 +9,11 @@ A step-by-step guide to building a code generator with ircraft.
 3. [Write a Lowering](#3-write-a-lowering)
 4. [Write Passes](#4-write-passes)
 5. [Compose a Pipeline](#5-compose-a-pipeline)
-6. [Choose an Emitter](#6-choose-an-emitter)
-7. [Handle Results](#7-handle-results)
-8. [Full Example](#8-full-example)
-9. [Next Steps](#9-next-steps)
+6. [Merge Multiple Sources](#6-merge-multiple-sources)
+7. [Choose an Emitter](#7-choose-an-emitter)
+8. [Handle Results](#8-handle-results)
+9. [Full Example](#9-full-example)
+10. [Next Steps](#10-next-steps)
 
 ---
 
@@ -219,7 +220,36 @@ result.value match
 
 ---
 
-## 6. Choose an Emitter
+## 6. Merge Multiple Sources
+
+If you have multiple versions or sources of the same schema, merge them into one Module before the pipeline:
+
+```scala
+import io.alnovis.ircraft.core.merge.*
+
+// Your strategy decides how to resolve conflicts
+val strategy = new MergeStrategy[Id]:
+  def onConflict(conflict: Conflict): Outcome[Id, Resolution] =
+    Outcome.warn(
+      s"Type conflict in ${conflict.declName}.${conflict.memberName}",
+      Resolution.UseType(conflict.versions.head._2)  // pick first
+    )
+
+val merged: Outcome[Id, Module] = Merge.merge(
+  NonEmptyVector.of(("v1", moduleV1), ("v2", moduleV2)),
+  strategy
+)
+```
+
+Merge is not limited to API versioning. It works for any scenario where multiple IR sources must be unified: schema migrations, multi-source aggregation, feature branches, multi-tenant models.
+
+The pluggable strategy pattern extends beyond merge -- any pass can be parameterized by a user-provided strategy for validation, code generation, type resolution, naming, filtering, etc. ircraft handles the traversal; you handle the decisions.
+
+> **Details:** [Merge and Pluggable Strategies](PASSES.md#merge-and-pluggable-strategies) | [Pluggable Strategies: Beyond Merge](PASSES.md#pluggable-strategies-beyond-merge)
+
+---
+
+## 7. Choose an Emitter
 
 An emitter converts IR to source files. ircraft provides Java and Scala emitters.
 
@@ -247,7 +277,7 @@ The same `Module` can be emitted to any language. Passes are language-agnostic -
 
 ---
 
-## 7. Handle Results
+## 8. Handle Results
 
 ### Outcome: three states
 
@@ -287,7 +317,7 @@ If pass 1 warns and pass 2 warns, both warnings are collected in `Ior.Both`. If 
 
 ---
 
-## 8. Full Example
+## 9. Full Example
 
 Complete code generator: SQL schema -> Scala 3 code.
 
@@ -395,7 +425,7 @@ class User {
 
 ---
 
-## 9. Next Steps
+## 10. Next Steps
 
 - [Passes Guide](PASSES.md) -- pass patterns, Outcome, conditional passes, validation
 - [Emitters Guide](EMITTERS.md) -- how emitters work, LanguageSyntax, create your own language
