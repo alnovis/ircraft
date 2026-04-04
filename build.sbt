@@ -35,7 +35,7 @@ val munitCEVersion    = "2.0.0"
 // -- Modules --------------------------------------------------------------
 
 lazy val root = (project in file("."))
-  .aggregate(core, emit, io, dialectProto, emitterJava, examples)
+  .aggregate(core, emit, io, dialectProto, emitterJava, emitterScala, examples)
   .settings(
     name := "ircraft",
     publish / skip := true,
@@ -88,6 +88,16 @@ lazy val emitterJava = (project in file("emitters/java"))
   .settings(commonSettings)
   .settings(
     name := "ircraft-emitter-java",
+    libraryDependencies ++= Seq(
+      "org.scalameta" %% "munit" % munitVersion % Test,
+    ),
+  )
+
+lazy val emitterScala = (project in file("emitters/scala"))
+  .dependsOn(core, emit)
+  .settings(commonSettings)
+  .settings(
+    name := "ircraft-emitter-scala",
     libraryDependencies ++= Seq(
       "org.scalameta" %% "munit" % munitVersion % Test,
     ),

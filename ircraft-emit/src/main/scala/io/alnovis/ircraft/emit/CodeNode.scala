@@ -31,6 +31,7 @@ object CodeNode:
   case class ForLoop(header: String, body: Vector[CodeNode]) extends CodeNode
   case class WhileLoop(cond: String, body: Vector[CodeNode]) extends CodeNode
   case class SwitchBlock(expr: String, cases: Vector[(String, Vector[CodeNode])], default: Option[Vector[CodeNode]]) extends CodeNode
+  case class MatchBlock(expr: String, cases: Vector[(String, Vector[CodeNode])]) extends CodeNode
   case class Comment(text: String) extends CodeNode
 
   case class TryCatch(

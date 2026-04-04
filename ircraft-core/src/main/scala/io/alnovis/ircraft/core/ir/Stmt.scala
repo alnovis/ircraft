@@ -11,6 +11,7 @@ object Stmt:
   case class While(cond: Expr, body: Body) extends Stmt
   case class ForEach(variable: String, varType: TypeExpr, iterable: Expr, body: Body) extends Stmt
   case class Switch(expr: Expr, cases: Vector[SwitchCase], default: Option[Body] = None) extends Stmt
+  case class Match(expr: Expr, cases: Vector[MatchCase]) extends Stmt
   case class Throw(expr: Expr) extends Stmt
   case class Comment(text: String) extends Stmt
   case class TryCatch(
@@ -20,6 +21,16 @@ object Stmt:
   ) extends Stmt
 
 case class SwitchCase(pattern: Expr, body: Body)
+
+case class MatchCase(pattern: Pattern, guard: Option[Expr] = None, body: Body)
+
+sealed trait Pattern
+
+object Pattern:
+  case class TypeTest(name: String, typeExpr: TypeExpr) extends Pattern   // case x: Foo =>
+  case class Literal(value: Expr) extends Pattern                         // case 42 =>
+  case class Binding(name: String) extends Pattern                        // case x =>
+  case object Wildcard extends Pattern                                    // case _ =>
 
 case class CatchClause(exType: TypeExpr, name: String, body: Body)
 

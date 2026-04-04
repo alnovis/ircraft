@@ -89,6 +89,22 @@ object Renderer:
           s"${ind(level, s"while ($cond)")} {\n$bodyStr\n${ind(level, "}")}"
         }
 
+      case CodeNode.MatchBlock(expr, cases) =>
+        cases.traverse { (pattern, body) =>
+          body.traverse(renderAt(_, level + 2, term)).map { renderedBody =>
+            val sb = StringBuilder()
+            sb.append(s"${ind(level + 1, pattern)}\n")
+            renderedBody.foreach(n => sb.append(n + "\n"))
+            sb.result()
+          }
+        }.map { renderedCases =>
+          val sb = StringBuilder()
+          sb.append(s"${ind(level, expr)} {\n")
+          renderedCases.foreach(sb.append)
+          sb.append(ind(level, "}"))
+          sb.result()
+        }
+
       case CodeNode.SwitchBlock(expr, cases, default) =>
         val casesEval = cases.traverse { (pattern, body) =>
           body.traverse(renderAt(_, level + 2, term)).map { renderedBody =>

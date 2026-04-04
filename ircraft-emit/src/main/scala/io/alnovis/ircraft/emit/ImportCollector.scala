@@ -51,11 +51,19 @@ object ImportCollector:
       collectExpr(e, tm) ++
         cases.flatMap(sc => collectExpr(sc.pattern, tm) ++ collectBody(sc.body, tm)) ++
         dflt.toSet.flatMap(b => collectBody(b, tm))
+    case Stmt.Match(e, cases) =>
+      collectExpr(e, tm) ++
+        cases.flatMap(mc => collectPattern(mc.pattern, tm) ++ mc.guard.toSet.flatMap(g => collectExpr(g, tm)) ++ collectBody(mc.body, tm))
     case Stmt.Comment(_)            => Set.empty
     case Stmt.TryCatch(tb, cs, fb) =>
       collectBody(tb, tm) ++
         cs.flatMap(c => tm.imports(c.exType) ++ collectBody(c.body, tm)) ++
         fb.toSet.flatMap(b => collectBody(b, tm))
+
+  private def collectPattern(p: Pattern, tm: TypeMapping): Set[String] = p match
+    case Pattern.TypeTest(_, t) => tm.imports(t)
+    case Pattern.Literal(e)    => collectExpr(e, tm)
+    case _                     => Set.empty
 
   private def collectExpr(e: Expr, tm: TypeMapping): Set[String] = e match
     case Expr.Lit(_, t)             => tm.imports(t)
