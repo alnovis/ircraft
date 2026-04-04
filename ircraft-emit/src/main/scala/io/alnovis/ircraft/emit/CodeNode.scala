@@ -3,7 +3,7 @@ package io.alnovis.ircraft.emit
 /** Structured representation of generated code. Language-agnostic tree. */
 sealed trait CodeNode
 
-object CodeNode:
+object CodeNode {
   // -- Layout --
   case class File(header: String, imports: Vector[String], body: Vector[CodeNode]) extends CodeNode
   case class Block(children: Vector[CodeNode])                                     extends CodeNode
@@ -41,3 +41,4 @@ object CodeNode:
     catches: Vector[(String, Vector[CodeNode])],
     finallyBody: Option[Vector[CodeNode]]
   ) extends CodeNode
+}

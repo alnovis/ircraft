@@ -1,37 +1,36 @@
 package io.alnovis.ircraft.core
 
-import cats.*
-import cats.data.*
+import cats._
+import cats.data._
 
 /**
-  * Unified error/warning channel for ircraft pipelines.
+  * Smart constructors for IorT-based error/warning handling.
   *
-  * Three states:
-  *   - Right(a)        -- clean success
-  *   - Both(diags, a)  -- success with warnings (pipeline continues)
-  *   - Left(diags)     -- error (pipeline stops)
+  * On Scala 3, a type alias `Outcome[F, A]` is available.
+  * On Scala 2, use `IorT[F, NonEmptyChain[Diagnostic], A]` directly.
   */
-type Outcome[F[_], A] = IorT[F, NonEmptyChain[Diagnostic], A]
+object Outcome {
 
-object Outcome:
+  private type Diags = NonEmptyChain[Diagnostic]
 
-  def ok[F[_]: Applicative, A](a: A): Outcome[F, A] =
+  def ok[F[_]: Applicative, A](a: A): IorT[F, Diags, A] =
     IorT.pure(a)
 
-  def warn[F[_]: Applicative, A](msg: String, a: A, location: Option[String] = None): Outcome[F, A] =
+  def warn[F[_]: Applicative, A](msg: String, a: A, location: Option[String] = None): IorT[F, Diags, A] =
     IorT.fromIor(Ior.Both(NonEmptyChain.one(Diagnostic(Severity.Warning, msg, location)), a))
 
-  def fail[F[_]: Applicative, A](msg: String, location: Option[String] = None): Outcome[F, A] =
+  def fail[F[_]: Applicative, A](msg: String, location: Option[String] = None): IorT[F, Diags, A] =
     IorT.fromIor(Ior.Left(NonEmptyChain.one(Diagnostic(Severity.Error, msg, location))))
 
-  def failNec[F[_]: Applicative, A](diags: NonEmptyChain[Diagnostic]): Outcome[F, A] =
+  def failNec[F[_]: Applicative, A](diags: Diags): IorT[F, Diags, A] =
     IorT.fromIor(Ior.Left(diags))
 
-  def warnAll[F[_]: Applicative, A](diags: NonEmptyChain[Diagnostic], a: A): Outcome[F, A] =
+  def warnAll[F[_]: Applicative, A](diags: Diags, a: A): IorT[F, Diags, A] =
     IorT.fromIor(Ior.Both(diags, a))
 
-  def liftF[F[_]: Applicative, A](fa: F[A]): Outcome[F, A] =
+  def liftF[F[_]: Applicative, A](fa: F[A]): IorT[F, Diags, A] =
     IorT.liftF(fa)
 
-  def fromIor[F[_]: Applicative, A](ior: Ior[NonEmptyChain[Diagnostic], A]): Outcome[F, A] =
+  def fromIor[F[_]: Applicative, A](ior: Ior[Diags, A]): IorT[F, Diags, A] =
     IorT.fromIor(ior)
+}

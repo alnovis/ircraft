@@ -1,9 +1,10 @@
-import sbt.*
-import sbt.Keys.*
+import sbt._
+import sbt.Keys._
 
 ThisBuild / organization := "io.alnovis"
 // version is managed by sbt-dynver from git tags (e.g., v2.0.0-alpha.1 -> 2.0.0-alpha.1)
 ThisBuild / scalaVersion := "3.6.4"
+ThisBuild / crossScalaVersions := Seq("2.12.20", "2.13.16", "3.6.4")
 ThisBuild / versionScheme := Some("early-semver")
 
 ThisBuild / homepage := Some(url("https://github.com/alnovis/ircraft"))
@@ -19,16 +20,60 @@ ThisBuild / scmInfo := Some(
 ThisBuild / sonatypeCredentialHost := "central.sonatype.com"
 ThisBuild / sonatypeRepository := "https://central.sonatype.com/api/v1/publisher/"
 
+// -- Cross-compilation settings -------------------------------------------
+
 val commonSettings = Seq(
   javacOptions ++= Seq("-source", "17", "-target", "17"),
-  scalacOptions ++= Seq(
-    "-encoding", "utf-8",
-    "-deprecation",
-    "-feature",
-    "-unchecked",
-    "-Wunused:all",
-    "-Xfatal-warnings",
-  ),
+  scalacOptions ++= {
+    CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((3, _)) => Seq(
+        "-encoding", "utf-8",
+        "-deprecation",
+        "-feature",
+        "-unchecked",
+      )
+      case Some((2, 13)) => Seq(
+        "-encoding", "utf-8",
+        "-deprecation",
+        "-feature",
+        "-unchecked",
+        "-language:higherKinds",
+        "-Xlint:adapted-args",
+        "-Xsource:3",
+      )
+      case _ => Seq(
+        "-encoding", "utf-8",
+        "-deprecation",
+        "-feature",
+        "-unchecked",
+        "-language:higherKinds",
+        "-Xlint:adapted-args",
+        "-Xsource:3",
+      )
+    }
+  },
+  // Version-specific source directories
+  Compile / unmanagedSourceDirectories ++= {
+    val base = (Compile / sourceDirectory).value
+    CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((3, _))  => Seq(base / "scala-3")
+      case Some((2, _))  => Seq(base / "scala-2")
+      case _             => Seq.empty
+    }
+  },
+  Test / unmanagedSourceDirectories ++= {
+    val base = (Test / sourceDirectory).value
+    CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((3, _))  => Seq(base / "scala-3")
+      case Some((2, _))  => Seq(base / "scala-2")
+      case _             => Seq.empty
+    }
+  },
+  // kind-projector for Scala 2 type lambdas
+  libraryDependencies ++= {
+    if (scalaBinaryVersion.value == "3") Nil
+    else Seq(compilerPlugin("org.typelevel" % "kind-projector" % "0.13.3" cross CrossVersion.full))
+  },
   testFrameworks += new TestFramework("munit.Framework"),
 )
 
@@ -44,6 +89,7 @@ lazy val root = (project in file("."))
   .settings(
     name := "ircraft",
     publish / skip := true,
+    crossScalaVersions := Nil, // don't publish root
   )
 
 lazy val core = (project in file("ircraft-core"))
@@ -51,8 +97,9 @@ lazy val core = (project in file("ircraft-core"))
   .settings(
     name := "ircraft-core",
     libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-core" % catsVersion,
-      "org.scalameta" %% "munit"     % munitVersion % Test,
+      "org.typelevel"          %% "cats-core"              % catsVersion,
+      "org.scala-lang.modules" %% "scala-collection-compat" % "2.12.0",
+      "org.scalameta"          %% "munit"                  % munitVersion % Test,
     ),
   )
 

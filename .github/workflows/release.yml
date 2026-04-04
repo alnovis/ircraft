@@ -22,11 +22,11 @@ jobs:
       - name: Set up sbt
         uses: sbt/setup-sbt@v1
 
-      - name: Compile
-        run: sbt compile
+      - name: Compile (all Scala versions)
+        run: sbt +compile
 
-      - name: Run tests
-        run: sbt test
+      - name: Run tests (all Scala versions)
+        run: sbt +test
 
       - name: Check formatting
         run: sbt scalafmtCheckAll

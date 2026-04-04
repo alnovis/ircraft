@@ -1,22 +1,24 @@
 package io.alnovis.ircraft.io
 
-import cats.effect.*
-import cats.effect.implicits.*
-import cats.syntax.all.*
+import cats.effect._
+import cats.effect.implicits._
+import cats.syntax.all._
 import java.nio.file.{ Files, Path, StandardCopyOption }
 
 /** Writes generated files to disk. */
-trait CodeWriter[F[_]]:
+trait CodeWriter[F[_]] {
   def write(outputDir: Path, files: Map[Path, String]): F[Int]
+}
 
-object CodeWriter:
+object CodeWriter {
 
-  def apply[F[_]: Async]: CodeWriter[F] = new CodeWriter[F]:
+  def apply[F[_]: Async]: CodeWriter[F] = new CodeWriter[F] {
     def write(outputDir: Path, files: Map[Path, String]): F[Int] =
-      files.toVector.parTraverse_(atomicWrite(outputDir)).as(files.size)
+      files.toVector.parTraverse_ { case (p, c) => atomicWrite(outputDir)(p, c) }.as(files.size)
+  }
 
   /** Write a single file atomically: temp -> content -> rename. Cleanup on any error via Resource. */
-  private def atomicWrite[F[_]: Async](outputDir: Path)(relativePath: Path, content: String): F[Unit] =
+  private def atomicWrite[F[_]: Async](outputDir: Path)(relativePath: Path, content: String): F[Unit] = {
     val target = outputDir.resolve(relativePath)
     val acquire = Async[F].interruptible {
       Files.createDirectories(target.getParent)
@@ -30,3 +32,5 @@ object CodeWriter:
           .interruptible(Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE))
           .void
     }
+  }
+}

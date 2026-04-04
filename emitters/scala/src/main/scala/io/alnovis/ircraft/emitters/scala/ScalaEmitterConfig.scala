@@ -6,10 +6,16 @@ case class ScalaEmitterConfig(
   useNewKeyword: Boolean = false
 )
 
-enum ScalaTarget:
-  case Scala2
-  case Scala3
+sealed abstract class ScalaTarget
 
-enum EnumStyle:
-  case Scala3Enum
-  case SealedTrait
+object ScalaTarget {
+  case object Scala2 extends ScalaTarget
+  case object Scala3 extends ScalaTarget
+}
+
+sealed abstract class EnumStyle
+
+object EnumStyle {
+  case object Scala3Enum  extends EnumStyle
+  case object SealedTrait extends EnumStyle
+}

@@ -1,9 +1,9 @@
 package io.alnovis.ircraft.emitters.scala
 
-import cats.*
-import io.alnovis.ircraft.core.ir.*
+import cats._
+import io.alnovis.ircraft.core.ir._
 
-class ScalaEmitterSuite extends munit.FunSuite:
+class ScalaEmitterSuite extends munit.FunSuite {
 
   type F[A] = Id[A]
   private val scala3Emitter = ScalaEmitter.scala3[F]
@@ -23,7 +23,7 @@ class ScalaEmitterSuite extends munit.FunSuite:
 
   // -- Scala 3 tests -------------------------------------------------------
 
-  test("Scala 3: Product -> class with val fields (camelCase)"):
+  test("Scala 3: Product -> class with val fields (camelCase)") {
     val source = emitOne3(
       "com.example",
       Decl.TypeDecl(
@@ -41,8 +41,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     assert(source.contains("val userName: String")) // snake_case -> camelCase
     assert(!source.contains("public"))
     assert(!source.contains(";"))
+  }
 
-  test("Scala 3: Protocol -> trait with def (no fields, no get prefix)"):
+  test("Scala 3: Protocol -> trait with def (no fields, no get prefix)") {
     val source = emitOne3(
       "com.example",
       Decl.TypeDecl(
@@ -61,8 +62,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     assert(source.contains("def id: Long")) // getId -> id (stripped "get")
     assert(source.contains("def findById(id: Long): Option[User]"))
     assert(source.contains("def save(user: User): Unit"))
+  }
 
-  test("Scala 3: Abstract class with equals-style body"):
+  test("Scala 3: Abstract class with equals-style body") {
     val source = emitOne3(
       "com.example",
       Decl.TypeDecl(
@@ -81,8 +83,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     assert(source.contains("abstract class AbstractEntity"))
     assert(source.contains("def id: Long = this.id")) // equals style, "get" stripped
     assert(source.contains("def validate: Unit"))     // abstract, no body
+  }
 
-  test("Scala 3: Enum with Scala3Enum style (no values)"):
+  test("Scala 3: Enum with Scala3Enum style (no values)") {
     val source = emitOne3(
       "com.example",
       Decl.EnumDecl(
@@ -100,8 +103,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     assert(source.contains("case Blue"))
     assert(!source.contains(";"))
     assert(!source.contains("(val value")) // no constructor param for valueless enum
+  }
 
-  test("Scala 3: Enum with values and prefix stripping"):
+  test("Scala 3: Enum with values and prefix stripping") {
     val source = emitOne3(
       "com.example",
       Decl.EnumDecl(
@@ -118,8 +122,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     assert(source.contains("case ValueOne extends TestEnum(1)"))
     assert(source.contains("case ValueTwo extends TestEnum(2)"))
     assert(!source.contains("TEST_ENUM")) // prefix stripped
+  }
 
-  test("Scala 3: extends with"):
+  test("Scala 3: extends with") {
     val source = emitOne3(
       "com.example",
       Decl.TypeDecl(
@@ -130,8 +135,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     )
     assert(source.contains("class Admin extends User with Serializable"))
     assert(!source.contains("implements"))
+  }
 
-  test("Scala 3: type params with upper bound"):
+  test("Scala 3: type params with upper bound") {
     val source = emitOne3(
       "com.example",
       Decl.TypeDecl(
@@ -146,8 +152,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     assert(source.contains("trait Repository[T, ID <: Serializable]"))
     assert(!source.contains("<T"))                   // no Java-style angle brackets
     assert(!source.contains("extends Serializable")) // uses <: not extends
+  }
 
-  test("Scala 3: new without keyword (case class apply)"):
+  test("Scala 3: new without keyword (case class apply)") {
     val source = emitOne3(
       "com.example",
       Decl.TypeDecl(
@@ -172,8 +179,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     )
     assert(source.contains("User(42)"))
     assert(!source.contains("new User"))
+  }
 
-  test("Scala 3: cast uses asInstanceOf"):
+  test("Scala 3: cast uses asInstanceOf") {
     val source = emitOne3(
       "com.example",
       Decl.TypeDecl(
@@ -199,8 +207,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     )
     assert(source.contains("obj.asInstanceOf[String]"))
     assert(!source.contains("(("))
+  }
 
-  test("Scala 3: ternary uses if-then-else"):
+  test("Scala 3: ternary uses if-then-else") {
     val source = emitOne3(
       "com.example",
       Decl.TypeDecl(
@@ -231,8 +240,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     assert(source.contains("if (x > 0) then"))
     assert(source.contains("else"))
     assert(!source.contains("?"))
+  }
 
-  test("Scala 3: lambda uses =>"):
+  test("Scala 3: lambda uses =>") {
     val source = emitOne3(
       "com.example",
       Decl.TypeDecl(
@@ -268,8 +278,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     )
     assert(source.contains("=>"))
     assert(!source.contains("->"))
+  }
 
-  test("Scala 3: Optional becomes Option[T]"):
+  test("Scala 3: Optional becomes Option[T]") {
     val source = emitOne3(
       "com.example",
       Decl.TypeDecl(
@@ -283,8 +294,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     )
     assert(source.contains("Option[String]"))
     assert(source.contains("List[Int]"))
+  }
 
-  test("Scala 3: no imports for stdlib collections"):
+  test("Scala 3: no imports for stdlib collections") {
     val source = emitOne3(
       "com.example",
       Decl.TypeDecl(
@@ -297,15 +309,17 @@ class ScalaEmitterSuite extends munit.FunSuite:
       )
     )
     assert(!source.contains("import"))
+  }
 
-  test("Scala 3: file extension is .scala"):
+  test("Scala 3: file extension is .scala") {
     val files = emit3("com.example", Decl.TypeDecl("User", TypeKind.Product))
     val paths = files.keys.map(_.toString).toSet
     assert(paths.exists(_.endsWith(".scala")))
+  }
 
   // -- Scala 2 tests -------------------------------------------------------
 
-  test("Scala 2: simple enum as sealed trait"):
+  test("Scala 2: simple enum as sealed trait") {
     val source = emitOne2(
       "com.example",
       Decl.EnumDecl(
@@ -320,8 +334,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     assert(source.contains("case object Red extends Color"))
     assert(source.contains("case object Green extends Color"))
     assert(!source.contains("enum "))
+  }
 
-  test("Scala 2: valued enum as sealed abstract class"):
+  test("Scala 2: valued enum as sealed abstract class") {
     val source = emitOne2(
       "com.example",
       Decl.EnumDecl(
@@ -335,8 +350,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     assert(source.contains("sealed abstract class Status(val value: Int)"))
     assert(source.contains("case object Unknown extends Status(0)"))
     assert(source.contains("case object Active extends Status(1)"))
+  }
 
-  test("Scala 2: new keyword used"):
+  test("Scala 2: new keyword used") {
     val source = emitOne2(
       "com.example",
       Decl.TypeDecl(
@@ -360,8 +376,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
       )
     )
     assert(source.contains("new User(42)"))
+  }
 
-  test("Scala 2: ternary uses if (cond) syntax"):
+  test("Scala 2: ternary uses if (cond) syntax") {
     val source = emitOne2(
       "com.example",
       Decl.TypeDecl(
@@ -391,10 +408,11 @@ class ScalaEmitterSuite extends munit.FunSuite:
     )
     assert(source.contains("if ((x > 0))"))
     assert(!source.contains("then"))
+  }
 
   // -- Doc tests -----------------------------------------------------------
 
-  test("Scala 3: Doc rendered as Scaladoc on type"):
+  test("Scala 3: Doc rendered as Scaladoc on type") {
     val docMeta = Meta.empty.set(
       Doc.key,
       Doc(
@@ -415,8 +433,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     assert(source.contains("Represents a user in the system."))
     assert(source.contains("@param id unique identifier"))
     assert(source.contains("*/"))
+  }
 
-  test("Scala 3: Doc on function"):
+  test("Scala 3: Doc on function") {
     val funcDoc = Meta.empty.set(
       Doc.key,
       Doc(
@@ -441,8 +460,9 @@ class ScalaEmitterSuite extends munit.FunSuite:
     )
     assert(source.contains("Find user by ID."))
     assert(source.contains("@return the user if found"))
+  }
 
-  test("Scala 3: single-line doc"):
+  test("Scala 3: single-line doc") {
     val docMeta = Meta.empty.set(Doc.key, Doc(summary = "Simple enum."))
     val source = emitOne3(
       "com.example",
@@ -453,3 +473,5 @@ class ScalaEmitterSuite extends munit.FunSuite:
       )
     )
     assert(source.contains("/** Simple enum. */"))
+  }
+}

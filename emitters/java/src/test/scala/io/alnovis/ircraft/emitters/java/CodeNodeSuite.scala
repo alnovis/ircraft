@@ -1,11 +1,11 @@
 package io.alnovis.ircraft.emitters.java
 
-import cats.*
-import io.alnovis.ircraft.core.ir.*
+import cats._
+import io.alnovis.ircraft.core.ir._
 import io.alnovis.ircraft.emit.{ CodeNode, Renderer }
 
 /** Tests at the CodeNode (tree) level -- structural, not string-based. */
-class CodeNodeSuite extends munit.FunSuite:
+class CodeNodeSuite extends munit.FunSuite {
 
   type F[A] = Id[A]
   private val emitter = JavaEmitter[F]
@@ -13,7 +13,7 @@ class CodeNodeSuite extends munit.FunSuite:
   private def toTree(namespace: String, decl: Decl): CodeNode =
     emitter.toFileTree(namespace, decl)
 
-  test("TypeDecl produces TypeBlock with correct sections"):
+  test("TypeDecl produces TypeBlock with correct sections") {
     val tree = toTree(
       "com.example",
       Decl.TypeDecl(
@@ -33,7 +33,7 @@ class CodeNodeSuite extends munit.FunSuite:
       )
     )
 
-    tree match
+    tree match {
       case CodeNode.File(header, _, Vector(CodeNode.TypeBlock(sig, sections))) =>
         assertEquals(header, "package com.example")
         assert(sig.contains("public class User"))
@@ -42,14 +42,17 @@ class CodeNodeSuite extends munit.FunSuite:
         assertEquals(sections(0).size, 2) // id, name
         // methods section
         assertEquals(sections(1).size, 1) // getId
-        sections(1).head match
+        sections(1).head match {
           case CodeNode.Func(funcSig, Some(body)) =>
             assert(funcSig.contains("getId"))
             assertEquals(body.size, 1) // return statement
           case other => fail(s"expected Func, got $other")
+        }
       case other => fail(s"unexpected tree structure: $other")
+    }
+  }
 
-  test("Protocol produces TypeBlock with abstract Func"):
+  test("Protocol produces TypeBlock with abstract Func") {
     val tree = toTree(
       "com.example",
       Decl.TypeDecl(
@@ -61,17 +64,20 @@ class CodeNodeSuite extends munit.FunSuite:
       )
     )
 
-    tree match
+    tree match {
       case CodeNode.File(_, _, Vector(CodeNode.TypeBlock(sig, sections))) =>
         assert(sig.contains("interface Service"))
         val funcs = sections.flatten
         assertEquals(funcs.size, 1)
-        funcs.head match
+        funcs.head match {
           case CodeNode.Func(_, None) => () // abstract -- no body
           case other                  => fail(s"expected abstract Func (None body), got $other")
+        }
       case other => fail(s"unexpected: $other")
+    }
+  }
 
-  test("IfElse produces correct tree structure"):
+  test("IfElse produces correct tree structure") {
     val tree = toTree(
       "com.example",
       Decl.TypeDecl(
@@ -96,19 +102,22 @@ class CodeNodeSuite extends munit.FunSuite:
       )
     )
 
-    tree match
+    tree match {
       case CodeNode.File(_, _, Vector(CodeNode.TypeBlock(_, sections))) =>
         val func = sections.flatten.head
-        func match
+        func match {
           case CodeNode.Func(_, Some(Vector(ifElse: CodeNode.IfElse))) =>
             assert(ifElse.cond.contains("x") && ifElse.cond.contains(">") && ifElse.cond.contains("0"))
             assertEquals(ifElse.thenBody.size, 1)
             assert(ifElse.elseBody.isDefined)
             assertEquals(ifElse.elseBody.get.size, 1)
           case other => fail(s"expected Func with IfElse body, got $other")
+        }
       case other => fail(s"unexpected: $other")
+    }
+  }
 
-  test("nested TypeBlock inside TypeBlock"):
+  test("nested TypeBlock inside TypeBlock") {
     val tree = toTree(
       "com.example",
       Decl.TypeDecl(
@@ -121,19 +130,22 @@ class CodeNodeSuite extends munit.FunSuite:
       )
     )
 
-    tree match
+    tree match {
       case CodeNode.File(_, _, Vector(CodeNode.TypeBlock(sig, sections))) =>
         assert(sig.contains("Outer"))
         // should have fields + nested sections
         val nestedSection = sections.last
-        nestedSection.head match
+        nestedSection.head match {
           case CodeNode.TypeBlock(innerSig, innerSections) =>
             assert(innerSig.contains("Inner"))
             assert(innerSections.nonEmpty) // fields
           case other => fail(s"expected nested TypeBlock, got $other")
+        }
       case other => fail(s"unexpected: $other")
+    }
+  }
 
-  test("render produces valid Java from CodeNode"):
+  test("render produces valid Java from CodeNode") {
     val tree = CodeNode.File(
       "package com.example",
       Vector("java.util.List"),
@@ -160,8 +172,9 @@ class CodeNodeSuite extends munit.FunSuite:
     assert(source.contains("    private final int count;"))
     assert(source.contains("    public int getCount() {"))
     assert(source.contains("        return this.count;"))
+  }
 
-  test("Renderer IfElse formats else on same line as closing brace"):
+  test("Renderer IfElse formats else on same line as closing brace") {
     val tree = CodeNode.IfElse(
       "x > 0",
       Vector(CodeNode.Line("return true;")),
@@ -170,3 +183,5 @@ class CodeNodeSuite extends munit.FunSuite:
     val rendered = Renderer.render(tree)
     assert(rendered.contains("} else {"))
     assert(!rendered.contains("}\n") || rendered.contains("} else {"))
+  }
+}

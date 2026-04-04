@@ -1,9 +1,9 @@
 package io.alnovis.ircraft.examples
 
-import cats.*
-import cats.syntax.all.*
-import io.alnovis.ircraft.core.*
-import io.alnovis.ircraft.core.ir.*
+import cats._
+import cats.syntax.all._
+import io.alnovis.ircraft.core._
+import io.alnovis.ircraft.core.ir._
 import io.alnovis.ircraft.emitters.java.JavaEmitter
 
 /**
@@ -16,7 +16,7 @@ import io.alnovis.ircraft.emitters.java.JavaEmitter
   *   4. Compose pipeline
   *   5. Emit Java source
   */
-class SqlDialectExample extends munit.FunSuite:
+class SqlDialectExample extends munit.FunSuite {
 
   type F[A] = Id[A]
 
@@ -36,7 +36,7 @@ class SqlDialectExample extends munit.FunSuite:
           mutability = Mutability.Mutable,
           defaultValue = col.default.map(d => Expr.Lit(d, TypeExpr.STR)),
           annotations =
-            if !col.nullable then Vector(Annotation("NotNull"))
+            if (!col.nullable) Vector(Annotation("NotNull"))
             else Vector.empty
         )
       }
@@ -54,7 +54,7 @@ class SqlDialectExample extends munit.FunSuite:
     Module("sql-schema", units)
   }
 
-  private def sqlTypeToIr(sqlType: String): TypeExpr = sqlType.toUpperCase match
+  private def sqlTypeToIr(sqlType: String): TypeExpr = sqlType.toUpperCase match {
     case "BIGSERIAL" | "BIGINT" | "INT8"                                              => TypeExpr.LONG
     case "SERIAL" | "INTEGER" | "INT" | "INT4"                                        => TypeExpr.INT
     case "BOOLEAN" | "BOOL"                                                           => TypeExpr.BOOL
@@ -64,6 +64,7 @@ class SqlDialectExample extends munit.FunSuite:
     case s if s.startsWith("DECIMAL") || s.startsWith("NUMERIC")                      => TypeExpr.DOUBLE
     case "TIMESTAMP" | "TIMESTAMPTZ" => TypeExpr.Named("java.time.Instant")
     case _                           => TypeExpr.STR
+  }
 
   // -- 3. Custom passes ---------------------------------------------------
 
@@ -72,7 +73,7 @@ class SqlDialectExample extends munit.FunSuite:
       unit.copy(declarations = unit.declarations.map {
         case td: Decl.TypeDecl =>
           val hasCreatedAt = td.fields.exists(_.name == "created_at")
-          if hasCreatedAt then td
+          if (hasCreatedAt) td
           else
             td.copy(fields =
               td.fields ++ Vector(
@@ -113,7 +114,7 @@ class SqlDialectExample extends munit.FunSuite:
 
   // -- Tests --------------------------------------------------------------
 
-  test("full pipeline: SQL tables -> Java source"):
+  test("full pipeline: SQL tables -> Java source") {
     val tables = Vector(
       SqlTable(
         "User",
@@ -167,8 +168,9 @@ class SqlDialectExample extends munit.FunSuite:
     val orderSource = files.values.find(_.contains("class Order")).get
     assert(orderSource.contains("public class Order"))
     assert(orderSource.contains("double total;"))
+  }
 
-  test("pipeline is composable -- add extra pass"):
+  test("pipeline is composable -- add extra pass") {
     val tables = Vector(
       SqlTable(
         "Item",
@@ -212,3 +214,5 @@ class SqlDialectExample extends munit.FunSuite:
     assert(source.contains("getId"))
     assert(source.contains("getCreatedAt"))
     assert(source.contains("toString"))
+  }
+}

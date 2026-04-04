@@ -1,21 +1,22 @@
 package io.alnovis.ircraft.emitters.java
 
-import cats.*
-import io.alnovis.ircraft.core.ir.*
+import cats._
+import io.alnovis.ircraft.core.ir._
 
-class JavaEmitterSuite extends munit.FunSuite:
+class JavaEmitterSuite extends munit.FunSuite {
 
   type F[A] = Id[A]
   private val emitter = JavaEmitter[F]
 
-  private def emit(namespace: String, decls: Decl*): Map[java.nio.file.Path, String] =
+  private def emit(namespace: String, decls: Decl*): Map[java.nio.file.Path, String] = {
     val module = Module("test", Vector(CompilationUnit(namespace, decls.toVector)))
     emitter(module)
+  }
 
   private def emitOne(namespace: String, decl: Decl): String =
     emit(namespace, decl).values.head
 
-  test("emit simple Product (class) with fields"):
+  test("emit simple Product (class) with fields") {
     val source = emitOne(
       "com.example",
       Decl.TypeDecl(
@@ -31,8 +32,9 @@ class JavaEmitterSuite extends munit.FunSuite:
     assert(source.contains("public class User"))
     assert(source.contains("public final long id;"))
     assert(source.contains("public final String name;"))
+  }
 
-  test("emit Protocol (interface) with methods"):
+  test("emit Protocol (interface) with methods") {
     val source = emitOne(
       "com.example.api",
       Decl.TypeDecl(
@@ -47,8 +49,9 @@ class JavaEmitterSuite extends munit.FunSuite:
     assert(source.contains("public interface UserService"))
     assert(source.contains("User findById(long id);"))
     assert(source.contains("void save(User user);"))
+  }
 
-  test("emit Abstract class"):
+  test("emit Abstract class") {
     val source = emitOne(
       "com.example",
       Decl.TypeDecl(
@@ -69,8 +72,9 @@ class JavaEmitterSuite extends munit.FunSuite:
     assert(source.contains("public long getId()"))
     assert(source.contains("return this.id;"))
     assert(source.contains("abstract void validate();"))
+  }
 
-  test("emit EnumDecl"):
+  test("emit EnumDecl") {
     val source = emitOne(
       "com.example",
       Decl.EnumDecl(
@@ -86,8 +90,9 @@ class JavaEmitterSuite extends munit.FunSuite:
     assert(source.contains("RED,"))
     assert(source.contains("GREEN,"))
     assert(source.contains("BLUE;"))
+  }
 
-  test("emit valued enum with constructor"):
+  test("emit valued enum with constructor") {
     val source = emitOne(
       "com.example",
       Decl.EnumDecl(
@@ -108,8 +113,9 @@ class JavaEmitterSuite extends munit.FunSuite:
     assert(source.contains("OK(200),"))
     assert(source.contains("NOT_FOUND(404);"))
     assert(source.contains("public int getCode()"))
+  }
 
-  test("emit interface with default method"):
+  test("emit interface with default method") {
     val source = emitOne(
       "com.example",
       Decl.TypeDecl(
@@ -133,8 +139,9 @@ class JavaEmitterSuite extends munit.FunSuite:
     )
     assert(source.contains("void print();"))
     assert(source.contains("default void printLn()"))
+  }
 
-  test("emit class extending superclass and implementing interface"):
+  test("emit class extending superclass and implementing interface") {
     val source = emitOne(
       "com.example",
       Decl.TypeDecl(
@@ -145,8 +152,9 @@ class JavaEmitterSuite extends munit.FunSuite:
       )
     )
     assert(source.contains("public class Admin extends User implements Serializable"))
+  }
 
-  test("emit interface extending interfaces"):
+  test("emit interface extending interfaces") {
     val source = emitOne(
       "com.example",
       Decl.TypeDecl(
@@ -156,8 +164,9 @@ class JavaEmitterSuite extends munit.FunSuite:
       )
     )
     assert(source.contains("public interface ReadWriteStore extends ReadStore, WriteStore"))
+  }
 
-  test("emit class with generic type params"):
+  test("emit class with generic type params") {
     val source = emitOne(
       "com.example",
       Decl.TypeDecl(
@@ -170,8 +179,9 @@ class JavaEmitterSuite extends munit.FunSuite:
       )
     )
     assert(source.contains("public interface Repository<T, ID extends Serializable>"))
+  }
 
-  test("imports are collected for List/Map types"):
+  test("imports are collected for List/Map types") {
     val source = emitOne(
       "com.example",
       Decl.TypeDecl(
@@ -187,8 +197,9 @@ class JavaEmitterSuite extends munit.FunSuite:
     assert(source.contains("import java.util.Map;"))
     assert(source.contains("List<String> items"))
     assert(source.contains("Map<String, Integer> mapping"))
+  }
 
-  test("emit method with body: if/return"):
+  test("emit method with body: if/return") {
     val source = emitOne(
       "com.example",
       Decl.TypeDecl(
@@ -216,8 +227,9 @@ class JavaEmitterSuite extends munit.FunSuite:
     assert(source.contains("return true;"))
     assert(source.contains("else {"))
     assert(source.contains("return false;"))
+  }
 
-  test("emit multiple files from one module"):
+  test("emit multiple files from one module") {
     val files = emit(
       "com.example",
       Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))),
@@ -227,8 +239,9 @@ class JavaEmitterSuite extends munit.FunSuite:
     val paths = files.keys.map(_.toString).toSet
     assert(paths.contains("com/example/User.java"))
     assert(paths.contains("com/example/Role.java"))
+  }
 
-  test("emit nested types"):
+  test("emit nested types") {
     val inner = Decl.TypeDecl("Address", TypeKind.Product, fields = Vector(Field("city", TypeExpr.STR)))
     val outer = Decl.TypeDecl(
       name = "User",
@@ -240,8 +253,9 @@ class JavaEmitterSuite extends munit.FunSuite:
     assert(source.contains("public class User"))
     assert(source.contains("public class Address"))
     assert(source.contains("public final String city;"))
+  }
 
-  test("emit annotations"):
+  test("emit annotations") {
     val source = emitOne(
       "com.example",
       Decl.TypeDecl(
@@ -258,3 +272,5 @@ class JavaEmitterSuite extends munit.FunSuite:
     assert(source.contains("@Id"))
     assert(source.contains("@GeneratedValue"))
     assert(source.contains("@NotNull"))
+  }
+}

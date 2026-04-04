@@ -1,11 +1,12 @@
 package io.alnovis.ircraft.core.ir
 
-sealed trait Decl:
+sealed trait Decl {
   def name: String
   def meta: Meta
   def withMeta(meta: Meta): Decl
+}
 
-object Decl:
+object Decl {
 
   case class TypeDecl(
     name: String,
@@ -18,8 +19,9 @@ object Decl:
     visibility: Visibility = Visibility.Public,
     annotations: Vector[Annotation] = Vector.empty,
     meta: Meta = Meta.empty
-  ) extends Decl:
+  ) extends Decl {
     def withMeta(m: Meta): Decl = copy(meta = m)
+  }
 
   case class EnumDecl(
     name: String,
@@ -29,23 +31,26 @@ object Decl:
     visibility: Visibility = Visibility.Public,
     annotations: Vector[Annotation] = Vector.empty,
     meta: Meta = Meta.empty
-  ) extends Decl:
+  ) extends Decl {
     def withMeta(m: Meta): Decl = copy(meta = m)
+  }
 
   case class FuncDecl(
     func: Func,
     meta: Meta = Meta.empty
-  ) extends Decl:
+  ) extends Decl {
     def name: String            = func.name
     def withMeta(m: Meta): Decl = copy(meta = m)
+  }
 
   case class AliasDecl(
     name: String,
     target: TypeExpr,
     visibility: Visibility = Visibility.Public,
     meta: Meta = Meta.empty
-  ) extends Decl:
+  ) extends Decl {
     def withMeta(m: Meta): Decl = copy(meta = m)
+  }
 
   case class ConstDecl(
     name: String,
@@ -53,15 +58,20 @@ object Decl:
     value: Expr,
     visibility: Visibility = Visibility.Public,
     meta: Meta = Meta.empty
-  ) extends Decl:
+  ) extends Decl {
     def withMeta(m: Meta): Decl = copy(meta = m)
+  }
+}
 
-enum TypeKind:
-  case Product
-  case Sum
-  case Protocol
-  case Abstract
-  case Singleton
+sealed abstract class TypeKind
+
+object TypeKind {
+  case object Product   extends TypeKind
+  case object Sum       extends TypeKind
+  case object Protocol  extends TypeKind
+  case object Abstract  extends TypeKind
+  case object Singleton extends TypeKind
+}
 
 case class Field(
   name: String,
@@ -73,8 +83,12 @@ case class Field(
   meta: Meta = Meta.empty
 )
 
-enum Mutability:
-  case Immutable, Mutable
+sealed abstract class Mutability
+
+object Mutability {
+  case object Immutable extends Mutability
+  case object Mutable   extends Mutability
+}
 
 case class Func(
   name: String,
@@ -90,8 +104,15 @@ case class Func(
 
 case class Param(name: String, paramType: TypeExpr, defaultValue: Option[Expr] = None)
 
-enum FuncModifier:
-  case Override, Static, Default, Suspend, Inline
+sealed abstract class FuncModifier
+
+object FuncModifier {
+  case object Override extends FuncModifier
+  case object Static   extends FuncModifier
+  case object Default  extends FuncModifier
+  case object Suspend  extends FuncModifier
+  case object Inline   extends FuncModifier
+}
 
 case class TypeParam(name: String, upperBounds: Vector[TypeExpr] = Vector.empty)
 
@@ -102,7 +123,14 @@ case class EnumVariant(
   meta: Meta = Meta.empty
 )
 
-enum Visibility:
-  case Public, Private, Protected, Internal, PackagePrivate
+sealed abstract class Visibility
+
+object Visibility {
+  case object Public         extends Visibility
+  case object Private        extends Visibility
+  case object Protected      extends Visibility
+  case object Internal       extends Visibility
+  case object PackagePrivate extends Visibility
+}
 
 case class Annotation(name: String, args: Map[String, Expr] = Map.empty)

@@ -20,7 +20,7 @@ Users inject **passes** at stage X that transform the IR: add methods, generate 
 
 ## Pure Functional Design
 
-Everything is a function. Scala 3 + Cats. No mutation, no OOP inheritance.
+Everything is a function. Scala 2.12/2.13/3.x + Cats. No mutation, no OOP inheritance. Cross-compiled.
 
 | Concept | Type | Description |
 |---------|------|-------------|
@@ -31,6 +31,14 @@ Everything is a function. Scala 3 + Cats. No mutation, no OOP inheritance.
 | Outcome | `IorT[F, NonEmptyChain[Diagnostic], A]` | Right/Both/Left for success/warnings/errors |
 
 `F[_]` is tagless final -- users choose their effect: `Id` for tests, `IO` for production.
+
+### Cross-Compilation
+
+All modules cross-compile to Scala 2.12, 2.13, and 3.x. Version-specific code is isolated in `scala-2/` and `scala-3/` source directories:
+
+- **Scala 3**: `Outcome` type alias, `enum`, `opaque type`, `extension methods`, `given`
+- **Scala 2**: `IorT` used directly, `sealed abstract class`, wrapper class for Meta, `implicit class/val`
+- **Shared**: all business logic, brace syntax compatible with both versions
 
 ## Error Handling: Outcome
 

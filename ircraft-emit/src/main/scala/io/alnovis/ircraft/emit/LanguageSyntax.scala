@@ -1,9 +1,9 @@
 package io.alnovis.ircraft.emit
 
-import io.alnovis.ircraft.core.ir.*
+import io.alnovis.ircraft.core.ir._
 
 /** Language-specific syntax decisions. Parameterizes BaseEmitter for any target language. */
-trait LanguageSyntax:
+trait LanguageSyntax {
 
   // -- File structure --
   def fileExtension: String
@@ -57,29 +57,32 @@ trait LanguageSyntax:
 
   // -- Documentation --
   /** Render structured Doc to language-specific comment format. Default: Javadoc/Scaladoc style. */
-  def renderDoc(doc: Doc): String =
+  def renderDoc(doc: Doc): String = {
     val lines = Vector.newBuilder[String]
     lines += doc.summary
     doc.description.foreach { d =>
       lines += ""
       lines += d
     }
-    if doc.params.nonEmpty then
+    if (doc.params.nonEmpty) {
       lines += ""
-      doc.params.foreach((name, desc) => lines += s"@param $name $desc")
+      doc.params.foreach { case (name, desc) => lines += s"@param $name $desc" }
+    }
     doc.returns.foreach(r => lines += s"@return $r")
-    doc.throws.foreach((ex, desc) => lines += s"@throws $ex $desc")
-    doc.tags.foreach((tag, value) => lines += s"@$tag $value")
-    if doc.examples.nonEmpty then
+    doc.throws.foreach { case (ex, desc) => lines += s"@throws $ex $desc" }
+    doc.tags.foreach { case (tag, value) => lines += s"@$tag $value" }
+    if (doc.examples.nonEmpty) {
       lines += ""
       doc.examples.foreach { ex =>
-        lines += "{{{" // Scaladoc example block
+        lines += "{{{"
         lines += ex
         lines += "}}}"
       }
+    }
     val content = lines.result()
-    if content.size == 1 then s"/** ${content.head} */"
+    if (content.size == 1) s"/** ${content.head} */"
     else ("/**" +: content.map(l => s" * $l") :+ " */").mkString("\n")
+  }
 
   // -- Naming conventions --
   def transformMethodName(name: String): String = name // override for Scala: strip "get", camelCase
@@ -100,3 +103,4 @@ trait LanguageSyntax:
   // -- Operators --
   def binOp(op: BinaryOp): String
   def unaryOp(op: UnaryOp): String
+}

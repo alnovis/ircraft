@@ -1,11 +1,11 @@
 package io.alnovis.ircraft.dialects.proto
 
-import cats.*
-import cats.syntax.all.*
-import io.alnovis.ircraft.core.ir.*
+import cats._
+import cats.syntax.all._
+import io.alnovis.ircraft.core.ir._
 
 /** Well-known Meta keys for proto provenance. */
-object ProtoMeta:
+object ProtoMeta {
   val sourceKind: Meta.Key[String]   = Meta.Key("proto.sourceKind")
   val fieldNumber: Meta.Key[Int]     = Meta.Key("proto.fieldNumber")
   val protoFqn: Meta.Key[String]     = Meta.Key("proto.fqn")
@@ -14,22 +14,24 @@ object ProtoMeta:
   val syntax: Meta.Key[String]       = Meta.Key("proto.syntax")
   val fieldKind: Meta.Key[String]    = Meta.Key("proto.fieldKind")
   val originalType: Meta.Key[String] = Meta.Key("proto.originalType")
+}
 
 /** Lowering: ProtoFile -> F[Module]. */
-object ProtoLowering:
+object ProtoLowering {
 
   def lower[F[_]: Applicative](file: ProtoFile): F[Module] =
     lowerFile(file)
 
   def lowerAll[F[_]: Applicative](files: Vector[ProtoFile]): F[Module] =
-    files.traverse(lowerFile[F]).map(_.combineAll)
+    files.toList.traverse(lowerFile[F](_)).map(_.toVector.combineAll)
 
-  private def lowerFile[F[_]: Applicative](file: ProtoFile): F[Module] =
+  private def lowerFile[F[_]: Applicative](file: ProtoFile): F[Module] = {
     val pkg        = file.javaPackage.getOrElse(file.packageName)
     val outerClass = file.javaOuterClassname.getOrElse(deriveOuterClass(file.name))
-    val syntaxStr = file.syntax match
+    val syntaxStr = file.syntax match {
       case ProtoSyntax.Proto2 => "proto2"
       case ProtoSyntax.Proto3 => "proto3"
+    }
 
     val messageDecls = file.messages.map(m => lowerMessage(m, pkg, outerClass, file.syntax))
     val enumDecls    = file.enums.map(lowerEnum)
@@ -43,13 +45,14 @@ object ProtoLowering:
         .set(ProtoMeta.syntax, syntaxStr)
     )
     Applicative[F].pure(Module(file.name, Vector(unit)))
+  }
 
   private def lowerMessage(
     msg: ProtoMessage,
     pkg: String,
     outerClass: String,
     syntax: ProtoSyntax
-  ): Decl =
+  ): Decl = {
     val protoFqn = s"$pkg.$outerClass.${msg.name}"
 
     val fields = msg.fields.map(f => lowerField(f, syntax))
@@ -91,8 +94,9 @@ object ProtoLowering:
         .set(ProtoMeta.sourceKind, "message")
         .set(ProtoMeta.protoFqn, protoFqn)
     )
+  }
 
-  private def lowerField(f: ProtoField, @scala.annotation.unused syntax: ProtoSyntax): Field =
+  private def lowerField(f: ProtoField, @scala.annotation.unused syntax: ProtoSyntax): Field = {
     val fieldType  = lowerType(f.fieldType, f.label)
     val mutability = Mutability.Immutable
     Field(
@@ -101,6 +105,7 @@ object ProtoLowering:
       mutability = mutability,
       meta = Meta.empty.set(ProtoMeta.fieldNumber, f.number)
     )
+  }
 
   private def lowerEnum(e: ProtoEnum): Decl =
     Decl.EnumDecl(
@@ -109,17 +114,20 @@ object ProtoLowering:
       meta = Meta.empty.set(ProtoMeta.sourceKind, "enum")
     )
 
-  private def lowerType(pt: ProtoType, label: ProtoLabel): TypeExpr =
+  private def lowerType(pt: ProtoType, label: ProtoLabel): TypeExpr = {
     val base = scalarType(pt)
-    label match
+    label match {
       case ProtoLabel.Repeated =>
-        pt match
+        pt match {
           case ProtoType.Map(k, v) => TypeExpr.MapOf(scalarType(k), scalarType(v))
           case _                   => TypeExpr.ListOf(base)
+        }
       case ProtoLabel.Optional => TypeExpr.Optional(base)
       case ProtoLabel.Required => base
+    }
+  }
 
-  private def scalarType(pt: ProtoType): TypeExpr = pt match
+  private def scalarType(pt: ProtoType): TypeExpr = pt match {
     case ProtoType.Double       => TypeExpr.DOUBLE
     case ProtoType.Float        => TypeExpr.FLOAT
     case ProtoType.Int32        => TypeExpr.INT
@@ -138,27 +146,33 @@ object ProtoLowering:
     case ProtoType.Message(fqn) => TypeExpr.Unresolved(fqn)
     case ProtoType.Enum(fqn)    => TypeExpr.Unresolved(fqn)
     case ProtoType.Map(k, v)    => TypeExpr.MapOf(scalarType(k), scalarType(v))
+  }
 
   private def classifyFieldKind(f: ProtoField): String =
-    f.label match
+    f.label match {
       case ProtoLabel.Repeated =>
-        f.fieldType match
+        f.fieldType match {
           case ProtoType.Map(_, _)  => "MAP"
           case _: ProtoType.Message => "REPEATED_MESSAGE"
           case _: ProtoType.Enum    => "REPEATED_ENUM"
           case _                    => "REPEATED_SCALAR"
+        }
       case _ =>
-        f.fieldType match
+        f.fieldType match {
           case _: ProtoType.Message => "MESSAGE"
           case _: ProtoType.Enum    => "ENUM"
           case _                    => "SCALAR"
+        }
+    }
 
   private def needsHasMethod(f: ProtoField, @scala.annotation.unused syntax: ProtoSyntax): Boolean =
     f.label == ProtoLabel.Optional
 
   private def capitalize(s: String): String =
-    if s.isEmpty then s else s.head.toUpper +: s.tail
+    if (s.isEmpty) s else s.head.toUpper +: s.tail
 
-  private def deriveOuterClass(fileName: String): String =
+  private def deriveOuterClass(fileName: String): String = {
     val base = fileName.stripSuffix(".proto")
     base.split("[_\\-]").map(capitalize).mkString
+  }
+}

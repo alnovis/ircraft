@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Cross-compilation: Scala 2.12.20, 2.13.16, 3.6.4
+- `scala-collection-compat` for 2.12 compatibility
+- `kind-projector` compiler plugin for 2.12/2.13
+- `Outcome` type alias on Scala 3 (OutcomeAlias.scala)
+- Version-specific source dirs: `scala-2/` and `scala-3/`
+
+### Changed
+- All enums replaced with sealed abstract class + case objects (cross-compatible)
+- Shared code uses `IorT` directly instead of `Outcome` type alias
+- `MergeStrategy.onConflict` returns `IorT[F, NonEmptyChain[Diagnostic], Resolution]`
+- `traverseIor` helper in Merge replaces `.traverse` (2.12 type inference)
+- Package object for type aliases (`Pass`, `Lowering`)
+- All shared files use brace syntax (2.12 compatible)
+- CI/Release workflows: `sbt +compile`, `sbt +test` (cross-build)
+
 ## [2.0.0-alpha.1] - 2026-04-04
 
 Complete rewrite from OOP/MLIR-style to pure functional architecture.

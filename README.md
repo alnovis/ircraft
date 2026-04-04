@@ -68,7 +68,7 @@ val files = ScalaEmitter.scala3[Id].apply(enriched)
 | **Pass** | `Kleisli[F, Module, Module]` | Composable transformation. `Pipeline.of(a, b, c)` |
 | **Lowering** | `Kleisli[F, Source, Module]` | Your source -> IR conversion |
 | **Emitter** | `Kleisli[F, Module, Map[Path, String]]` | IR -> source files |
-| **Outcome** | `IorT[F, NonEmptyChain[Diagnostic], A]` | Success / Warnings+Success / Error |
+| **Outcome** | `IorT[F, NonEmptyChain[Diagnostic], A]` | Success / Warnings+Success / Error (Scala 3 alias; Scala 2 uses IorT directly) |
 | **LanguageSyntax** | `trait` | Parameterizes emitter for any target language |
 
 `F[_]` is tagless final: `Id` for tests, `IO` for production.
@@ -106,15 +106,17 @@ Adding a new language = implement `LanguageSyntax` + `TypeMapping`. All traversa
 
 See [Emitters Guide](docs/EMITTERS.md) for details.
 
-## Error Handling: Outcome
+## Error Handling
 
-Unified via `IorT` (cats):
+Unified via `IorT` (cats). Smart constructors work on all Scala versions:
 
 ```scala
 Outcome.ok(module)              // Ior.Right -- clean success
 Outcome.warn("deprecated", m)   // Ior.Both  -- success with warning
 Outcome.fail("unresolved type") // Ior.Left  -- error, pipeline stops
 ```
+
+On Scala 3, a convenience type alias `Outcome[F, A]` is available. On Scala 2, use `IorT[F, NonEmptyChain[Diagnostic], A]` directly.
 
 ## Modules
 
@@ -135,9 +137,21 @@ Outcome.fail("unresolved type") // Ior.Left  -- error, pipeline stops
 - [Emitters Guide](docs/EMITTERS.md) -- how emitters work, LanguageSyntax, create your own
 - [Architecture](docs/ARCHITECTURE.md) -- internal architecture and design decisions
 
+## Cross-Compilation
+
+ircraft is cross-compiled for **Scala 2.12**, **2.13**, and **3.x**:
+
+```scala
+// build.sbt
+libraryDependencies += "io.alnovis" %% "ircraft-core" % "2.0.0-alpha.1"
+// works with Scala 2.12.20, 2.13.16, 3.6.4
+```
+
+sbt plugins (Scala 2.12) can depend on ircraft directly.
+
 ## Tech Stack
 
-- **Scala 3.6.4**
+- **Scala 2.12 / 2.13 / 3.6.4** (cross-compiled)
 - **Cats 2.12.0** (cats-core in core, cats-effect 3.5.7 in io)
 - **MUnit 1.1.0**
 - **sbt 1.10.11**

@@ -1,19 +1,20 @@
 package io.alnovis.ircraft.io
 
-import cats.effect.*
+import cats.effect._
 import java.nio.file.{ Files, Path }
 import munit.CatsEffectSuite
 
-class CodeWriterSuite extends CatsEffectSuite:
+class CodeWriterSuite extends CatsEffectSuite {
 
   private val tmpDir = FunFixture[Path](
     setup = _ => Files.createTempDirectory("ircraft-test-"),
     teardown = dir => deleteRecursive(dir)
   )
 
-  private def deleteRecursive(path: Path): Unit =
-    if Files.isDirectory(path) then Files.list(path).forEach(deleteRecursive)
+  private def deleteRecursive(path: Path): Unit = {
+    if (Files.isDirectory(path)) Files.list(path).forEach(p => deleteRecursive(p))
     Files.deleteIfExists(path)
+  }
 
   tmpDir.test("CodeWriter writes files to disk") { dir =>
     val writer = CodeWriter[IO]
@@ -21,14 +22,14 @@ class CodeWriterSuite extends CatsEffectSuite:
       Path.of("com/example/User.java")  -> "package com.example;\npublic class User {}\n",
       Path.of("com/example/Order.java") -> "package com.example;\npublic class Order {}\n"
     )
-    for
+    for {
       count <- writer.write(dir, files)
       _ = assertEquals(count, 2)
       user <- IO.delay(Files.readString(dir.resolve("com/example/User.java")))
       _ = assert(user.contains("public class User"))
       order <- IO.delay(Files.readString(dir.resolve("com/example/Order.java")))
       _ = assert(order.contains("public class Order"))
-    yield ()
+    } yield ()
   }
 
   tmpDir.test("IncrementalWriter skips unchanged files") { dir =>
@@ -39,7 +40,7 @@ class CodeWriterSuite extends CatsEffectSuite:
       Path.of("B.java") -> "class B {}"
     )
 
-    for
+    for {
       r1 <- writer.writeChanged(dir, files, cacheDir)
       _ = assertEquals(r1.written, 2)
       _ = assertEquals(r1.skipped, 0)
@@ -54,5 +55,6 @@ class CodeWriterSuite extends CatsEffectSuite:
       r3 <- writer.writeChanged(dir, changed, cacheDir)
       _ = assertEquals(r3.written, 1)
       _ = assertEquals(r3.skipped, 1)
-    yield ()
+    } yield ()
   }
+}

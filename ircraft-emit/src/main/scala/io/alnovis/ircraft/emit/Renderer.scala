@@ -1,24 +1,24 @@
 package io.alnovis.ircraft.emit
 
 import cats.Eval
-import cats.syntax.all.*
+import cats.syntax.all._
 
-/** Pure function: CodeNode tree -> String. Cannot fail. Stack-safe via Eval. */
-object Renderer:
+object Renderer {
 
   def render(node: CodeNode, terminator: String = ";"): String =
     renderAt(node, 0, terminator).value
 
   private def renderAt(node: CodeNode, level: Int, term: String): Eval[String] = Eval.defer {
-    node match
+    node match {
 
       case CodeNode.File(header, imports, body) =>
-        body.traverse(n => renderAt(n, 0, term)).map { renderedBody =>
-          val sb = StringBuilder()
+        body.toList.traverse(n => renderAt(n, 0, term)).map { renderedBody =>
+          val sb = new StringBuilder()
           sb.append(s"$header$term\n")
-          if imports.nonEmpty then
+          if (imports.nonEmpty) {
             sb.append("\n")
             imports.sorted.foreach(i => sb.append(s"import $i$term\n"))
+          }
           renderedBody.foreach { n =>
             sb.append("\n")
             sb.append(n)
@@ -34,12 +34,12 @@ object Renderer:
         Eval.now("")
 
       case CodeNode.Block(children) =>
-        children.traverse(renderAt(_, level, term)).map(_.mkString("\n"))
+        children.toList.traverse(renderAt(_, level, term)).map(_.mkString("\n"))
 
       case CodeNode.Braced(header, body) =>
-        body.traverse(renderAt(_, level + 1, term)).map { renderedBody =>
+        body.toList.traverse(renderAt(_, level + 1, term)).map { renderedBody =>
           val bodyStr = renderedBody.mkString("\n")
-          if bodyStr.isEmpty then s"${ind(level, header)} {\n${ind(level, "}")}"
+          if (bodyStr.isEmpty) s"${ind(level, header)} {\n${ind(level, "}")}"
           else s"${ind(level, header)} {\n$bodyStr\n${ind(level, "}")}"
         }
 
@@ -47,62 +47,63 @@ object Renderer:
         Eval.now(ind(level, s"$signature$term"))
 
       case CodeNode.Func(signature, Some(body)) =>
-        body.traverse(renderAt(_, level + 1, term)).map { renderedBody =>
+        body.toList.traverse(renderAt(_, level + 1, term)).map { renderedBody =>
           val bodyStr = renderedBody.mkString("\n")
-          if bodyStr.isEmpty then s"${ind(level, signature)} {\n${ind(level, "}")}"
+          if (bodyStr.isEmpty) s"${ind(level, signature)} {\n${ind(level, "}")}"
           else s"${ind(level, signature)} {\n$bodyStr\n${ind(level, "}")}"
         }
 
       case CodeNode.TypeBlock(signature, sections) =>
         val nonEmpty = sections.filter(_.nonEmpty)
-        nonEmpty
+        nonEmpty.toList
           .traverse { section =>
-            section.traverse(renderAt(_, level + 1, term)).map(_.mkString("\n"))
+            section.toList.traverse(renderAt(_, level + 1, term)).map(_.mkString("\n"))
           }
           .map { renderedSections =>
             val bodyStr = renderedSections.mkString("\n\n")
-            if bodyStr.isEmpty then s"${ind(level, signature)} {\n${ind(level, "}")}"
+            if (bodyStr.isEmpty) s"${ind(level, signature)} {\n${ind(level, "}")}"
             else s"${ind(level, signature)} {\n$bodyStr\n${ind(level, "}")}"
           }
 
       case CodeNode.IfElse(cond, thenBody, None) =>
-        thenBody.traverse(renderAt(_, level + 1, term)).map { renderedThen =>
+        thenBody.toList.traverse(renderAt(_, level + 1, term)).map { renderedThen =>
           val thenStr = renderedThen.mkString("\n")
           s"${ind(level, s"if ($cond)")} {\n$thenStr\n${ind(level, "}")}"
         }
 
       case CodeNode.IfElse(cond, thenBody, Some(elseBody)) =>
-        (thenBody.traverse(renderAt(_, level + 1, term)), elseBody.traverse(renderAt(_, level + 1, term))).mapN {
-          (renderedThen, renderedElse) =>
+        (thenBody.toList.traverse(renderAt(_, level + 1, term)), elseBody.toList.traverse(renderAt(_, level + 1, term)))
+          .mapN { (renderedThen, renderedElse) =>
             val thenStr = renderedThen.mkString("\n")
             val elseStr = renderedElse.mkString("\n")
             s"${ind(level, s"if ($cond)")} {\n$thenStr\n${ind(level, "}")} else {\n$elseStr\n${ind(level, "}")}"
-        }
+          }
 
       case CodeNode.ForLoop(header, body) =>
-        body.traverse(renderAt(_, level + 1, term)).map { renderedBody =>
+        body.toList.traverse(renderAt(_, level + 1, term)).map { renderedBody =>
           val bodyStr = renderedBody.mkString("\n")
           s"${ind(level, header)} {\n$bodyStr\n${ind(level, "}")}"
         }
 
       case CodeNode.WhileLoop(cond, body) =>
-        body.traverse(renderAt(_, level + 1, term)).map { renderedBody =>
+        body.toList.traverse(renderAt(_, level + 1, term)).map { renderedBody =>
           val bodyStr = renderedBody.mkString("\n")
           s"${ind(level, s"while ($cond)")} {\n$bodyStr\n${ind(level, "}")}"
         }
 
       case CodeNode.MatchBlock(expr, cases) =>
-        cases
-          .traverse { (pattern, body) =>
-            body.traverse(renderAt(_, level + 2, term)).map { renderedBody =>
-              val sb = StringBuilder()
-              sb.append(s"${ind(level + 1, pattern)}\n")
-              renderedBody.foreach(n => sb.append(n + "\n"))
-              sb.result()
-            }
+        cases.toList
+          .traverse {
+            case (pattern, body) =>
+              body.toList.traverse(renderAt(_, level + 2, term)).map { renderedBody =>
+                val sb = new StringBuilder()
+                sb.append(s"${ind(level + 1, pattern)}\n")
+                renderedBody.foreach(n => sb.append(n + "\n"))
+                sb.result()
+              }
           }
           .map { renderedCases =>
-            val sb = StringBuilder()
+            val sb = new StringBuilder()
             sb.append(s"${ind(level, expr)} {\n")
             renderedCases.foreach(sb.append)
             sb.append(ind(level, "}"))
@@ -110,24 +111,25 @@ object Renderer:
           }
 
       case CodeNode.SwitchBlock(expr, cases, default) =>
-        val casesEval = cases.traverse { (pattern, body) =>
-          body.traverse(renderAt(_, level + 2, term)).map { renderedBody =>
-            val sb = StringBuilder()
-            sb.append(s"${ind(level + 1, s"case $pattern:")}\n")
-            renderedBody.foreach(n => sb.append(n + "\n"))
-            sb.result()
-          }
+        val casesEval = cases.toList.traverse {
+          case (pattern, body) =>
+            body.toList.traverse(renderAt(_, level + 2, term)).map { renderedBody =>
+              val sb = new StringBuilder()
+              sb.append(s"${ind(level + 1, s"case $pattern:")}\n")
+              renderedBody.foreach(n => sb.append(n + "\n"))
+              sb.result()
+            }
         }
-        val defaultEval = default.traverse { body =>
+        val defaultEval = default.map(_.toList).traverse { body =>
           body.traverse(renderAt(_, level + 2, term)).map { renderedBody =>
-            val sb = StringBuilder()
+            val sb = new StringBuilder()
             sb.append(s"${ind(level + 1, "default:")}\n")
             renderedBody.foreach(n => sb.append(n + "\n"))
             sb.result()
           }
         }
         (casesEval, defaultEval).mapN { (renderedCases, renderedDefault) =>
-          val sb = StringBuilder()
+          val sb = new StringBuilder()
           sb.append(s"${ind(level, s"switch ($expr)")} {\n")
           renderedCases.foreach(sb.append)
           renderedDefault.foreach(sb.append)
@@ -137,26 +139,30 @@ object Renderer:
 
       case CodeNode.Comment(text) =>
         Eval.now {
-          if text.contains("\n") then
+          if (text.contains("\n")) {
             val lines = text.split("\n").toVector
             (ind(level, "/**") +: lines.map(l => ind(level, s" * $l")) :+ ind(level, " */")).mkString("\n")
-          else ind(level, s"// $text")
+          } else {
+            ind(level, s"// $text")
+          }
         }
 
       case CodeNode.TryCatch(tryBody, catches, finallyBody) =>
-        val tryEval = tryBody.traverse(renderAt(_, level + 1, term))
-        val catchesEval = catches.traverse { (catchHeader, catchBody) =>
-          catchBody
-            .traverse(renderAt(_, level + 1, term))
-            .map(renderedBody => (catchHeader, renderedBody.mkString("\n")))
+        val tryEval = tryBody.toList.traverse(renderAt(_, level + 1, term))
+        val catchesEval = catches.toList.traverse {
+          case (catchHeader, catchBody) =>
+            catchBody.toList
+              .traverse(renderAt(_, level + 1, term))
+              .map(renderedBody => (catchHeader, renderedBody.mkString("\n")))
         }
-        val finallyEval = finallyBody.traverse(_.traverse(renderAt(_, level + 1, term)))
+        val finallyEval = finallyBody.map(_.toList).traverse(_.traverse(renderAt(_, level + 1, term)))
         (tryEval, catchesEval, finallyEval).mapN { (renderedTry, renderedCatches, renderedFinally) =>
           val tryStr = renderedTry.mkString("\n")
-          val sb     = StringBuilder()
+          val sb     = new StringBuilder()
           sb.append(s"${ind(level, "try")} {\n$tryStr\n${ind(level, "}")}")
-          renderedCatches.foreach { (catchHeader, cStr) =>
-            sb.append(s" catch ($catchHeader) {\n$cStr\n${ind(level, "}")}")
+          renderedCatches.foreach {
+            case (catchHeader, cStr) =>
+              sb.append(s" catch ($catchHeader) {\n$cStr\n${ind(level, "}")}")
           }
           renderedFinally.foreach { fb =>
             val fStr = fb.mkString("\n")
@@ -164,7 +170,9 @@ object Renderer:
           }
           sb.result()
         }
+    }
   }
 
   private def ind(level: Int, s: String): String =
     "    " * level + s
+}

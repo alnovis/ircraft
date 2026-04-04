@@ -1,10 +1,10 @@
 package io.alnovis.ircraft.core
 
-import io.alnovis.ircraft.core.ir.*
+import io.alnovis.ircraft.core.ir._
 
-class IrSuite extends munit.FunSuite:
+class IrSuite extends munit.FunSuite {
 
-  test("construct a simple TypeDecl with fields"):
+  test("construct a simple TypeDecl with fields") {
     val decl = Decl.TypeDecl(
       name = "User",
       kind = TypeKind.Product,
@@ -20,8 +20,9 @@ class IrSuite extends munit.FunSuite:
     assertEquals(decl.fields.size, 4)
     assertEquals(decl.fields.head.name, "id")
     assertEquals(decl.fields.head.fieldType, TypeExpr.LONG)
+  }
 
-  test("construct a Protocol with functions"):
+  test("construct a Protocol with functions") {
     val decl = Decl.TypeDecl(
       name = "Repository",
       kind = TypeKind.Protocol,
@@ -32,8 +33,9 @@ class IrSuite extends munit.FunSuite:
     )
     assertEquals(decl.functions.size, 2)
     assertEquals(decl.functions.head.name, "findById")
+  }
 
-  test("construct EnumDecl with variants"):
+  test("construct EnumDecl with variants") {
     val decl = Decl.EnumDecl(
       name = "Color",
       variants = Vector(
@@ -43,8 +45,9 @@ class IrSuite extends munit.FunSuite:
       )
     )
     assertEquals(decl.variants.size, 3)
+  }
 
-  test("construct valued EnumDecl"):
+  test("construct valued EnumDecl") {
     val decl = Decl.EnumDecl(
       name = "HttpStatus",
       variants = Vector(
@@ -56,8 +59,9 @@ class IrSuite extends munit.FunSuite:
       )
     )
     assertEquals(decl.variants.head.args.size, 1)
+  }
 
-  test("construct Module with CompilationUnits"):
+  test("construct Module with CompilationUnits") {
     val unit = CompilationUnit(
       namespace = "com.example.model",
       declarations = Vector(
@@ -68,8 +72,9 @@ class IrSuite extends munit.FunSuite:
     val module = Module("test", Vector(unit))
     assertEquals(module.units.size, 1)
     assertEquals(module.units.head.declarations.size, 2)
+  }
 
-  test("nested TypeDecl"):
+  test("nested TypeDecl") {
     val inner = Decl.TypeDecl("Address", TypeKind.Product, fields = Vector(Field("street", TypeExpr.STR)))
     val outer = Decl.TypeDecl(
       name = "User",
@@ -78,8 +83,9 @@ class IrSuite extends munit.FunSuite:
       nested = Vector(inner)
     )
     assertEquals(outer.nested.size, 1)
+  }
 
-  test("function with body"):
+  test("function with body") {
     val getter = Func(
       name = "getName",
       returnType = TypeExpr.STR,
@@ -91,8 +97,9 @@ class IrSuite extends munit.FunSuite:
     )
     assert(getter.body.isDefined)
     assertEquals(getter.body.get.stmts.size, 1)
+  }
 
-  test("Meta typed keys"):
+  test("Meta typed keys") {
     val presentIn    = Meta.Key[Vector[String]]("merge.presentIn")
     val conflictType = Meta.Key[String]("merge.conflictType")
 
@@ -103,23 +110,30 @@ class IrSuite extends munit.FunSuite:
     assertEquals(meta.get(presentIn), Some(Vector("v1", "v2")))
     assertEquals(meta.get(conflictType), Some("INT_ENUM"))
     assert(meta.contains(presentIn))
+  }
 
-  test("TypeExpr composite types"):
+  test("TypeExpr composite types") {
     val listOfUsers   = TypeExpr.ListOf(TypeExpr.Named("User"))
     val mapOfIds      = TypeExpr.MapOf(TypeExpr.STR, TypeExpr.LONG)
     val optionalEmail = TypeExpr.Optional(TypeExpr.STR)
     assert(optionalEmail.isInstanceOf[TypeExpr.Optional])
 
-    listOfUsers match
+    listOfUsers match {
       case TypeExpr.ListOf(TypeExpr.Named(fqn)) => assertEquals(fqn, "User")
       case _                                    => fail("pattern match failed")
+    }
 
-    mapOfIds match
+    mapOfIds match {
       case TypeExpr.MapOf(TypeExpr.Primitive.Str, TypeExpr.Primitive.Int64) => ()
       case _                                                                => fail("pattern match failed")
+    }
+  }
 
-  test("TypeExpr function type"):
+  test("TypeExpr function type") {
     val mapper = TypeExpr.FuncType(Vector(TypeExpr.STR), TypeExpr.INT)
-    mapper match
+    mapper match {
       case TypeExpr.FuncType(Vector(TypeExpr.Primitive.Str), TypeExpr.Primitive.Int32) => ()
       case _                                                                           => fail("pattern match failed")
+    }
+  }
+}

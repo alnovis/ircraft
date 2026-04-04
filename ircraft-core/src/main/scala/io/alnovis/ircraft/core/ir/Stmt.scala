@@ -2,7 +2,7 @@ package io.alnovis.ircraft.core.ir
 
 sealed trait Stmt
 
-object Stmt:
+object Stmt {
   case class Eval(expr: Expr)                                                                          extends Stmt
   case class Return(value: Option[Expr] = None)                                                        extends Stmt
   case class Let(name: String, letType: TypeExpr, init: Option[Expr] = None, mutable: Boolean = false) extends Stmt
@@ -20,23 +20,25 @@ object Stmt:
     catches: Vector[CatchClause],
     finallyBody: Option[Body] = None
   ) extends Stmt
+}
 
 case class SwitchCase(pattern: Expr, body: Body)
-
 case class MatchCase(pattern: Pattern, guard: Option[Expr] = None, body: Body)
 
 sealed trait Pattern
 
-object Pattern:
-  case class TypeTest(name: String, typeExpr: TypeExpr) extends Pattern // case x: Foo =>
-  case class Literal(value: Expr)                       extends Pattern // case 42 =>
-  case class Binding(name: String)                      extends Pattern // case x =>
-  case object Wildcard                                  extends Pattern // case _ =>
+object Pattern {
+  case class TypeTest(name: String, typeExpr: TypeExpr) extends Pattern
+  case class Literal(value: Expr)                       extends Pattern
+  case class Binding(name: String)                      extends Pattern
+  case object Wildcard                                  extends Pattern
+}
 
 case class CatchClause(exType: TypeExpr, name: String, body: Body)
 
 case class Body(stmts: Vector[Stmt])
 
-object Body:
+object Body {
   val empty: Body            = Body(Vector.empty)
   def of(stmts: Stmt*): Body = Body(stmts.toVector)
+}

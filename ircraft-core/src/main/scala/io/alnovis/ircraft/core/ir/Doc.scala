@@ -11,5 +11,6 @@ case class Doc(
   examples: Vector[String] = Vector.empty
 )
 
-object Doc:
+object Doc {
   val key: Meta.Key[Doc] = Meta.Key("doc")
+}

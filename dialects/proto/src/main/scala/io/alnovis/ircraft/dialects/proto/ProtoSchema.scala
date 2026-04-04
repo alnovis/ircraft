@@ -1,7 +1,5 @@
 package io.alnovis.ircraft.dialects.proto
 
-/** Proto source dialect -- pure ADT, no ircraft dependencies in the model. */
-
 case class ProtoFile(
   name: String,
   syntax: ProtoSyntax,
@@ -13,8 +11,12 @@ case class ProtoFile(
   enums: Vector[ProtoEnum]
 )
 
-enum ProtoSyntax:
-  case Proto2, Proto3
+sealed abstract class ProtoSyntax
+
+object ProtoSyntax {
+  case object Proto2 extends ProtoSyntax
+  case object Proto3 extends ProtoSyntax
+}
 
 case class ProtoMessage(
   name: String,
@@ -29,16 +31,20 @@ case class ProtoField(
   number: Int,
   fieldType: ProtoType,
   label: ProtoLabel,
-  typeName: Option[String] // FQN for message/enum references
+  typeName: Option[String]
 )
 
-enum ProtoLabel:
-  case Required, Optional, Repeated
+sealed abstract class ProtoLabel
+
+object ProtoLabel {
+  case object Required extends ProtoLabel
+  case object Optional extends ProtoLabel
+  case object Repeated extends ProtoLabel
+}
 
 sealed trait ProtoType
 
-object ProtoType:
-  // scalars
+object ProtoType {
   case object Double   extends ProtoType
   case object Float    extends ProtoType
   case object Int32    extends ProtoType
@@ -55,22 +61,11 @@ object ProtoType:
   case object String   extends ProtoType
   case object Bytes    extends ProtoType
 
-  // composite
   case class Message(fqn: scala.Predef.String)     extends ProtoType
   case class Enum(fqn: scala.Predef.String)        extends ProtoType
   case class Map(key: ProtoType, value: ProtoType) extends ProtoType
+}
 
-case class ProtoEnum(
-  name: String,
-  values: Vector[ProtoEnumValue]
-)
-
-case class ProtoEnumValue(
-  name: String,
-  number: Int
-)
-
-case class ProtoOneof(
-  name: String,
-  fields: Vector[ProtoField]
-)
+case class ProtoEnum(name: String, values: Vector[ProtoEnumValue])
+case class ProtoEnumValue(name: String, number: Int)
+case class ProtoOneof(name: String, fields: Vector[ProtoField])

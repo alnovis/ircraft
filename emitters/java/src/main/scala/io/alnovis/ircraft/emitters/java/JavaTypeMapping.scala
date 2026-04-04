@@ -1,13 +1,13 @@
 package io.alnovis.ircraft.emitters.java
 
-import cats.kernel.instances.set.*
+import cats.kernel.instances.set._
 import io.alnovis.ircraft.core.ir.TypeExpr
-import io.alnovis.ircraft.core.ir.TypeExpr.*
+import io.alnovis.ircraft.core.ir.TypeExpr._
 import io.alnovis.ircraft.emit.TypeMapping
 
-object JavaTypeMapping extends TypeMapping:
+object JavaTypeMapping extends TypeMapping {
 
-  def typeName(t: TypeExpr): String = t match
+  def typeName(t: TypeExpr): String = t match {
     case Primitive.Bool    => "boolean"
     case Primitive.Int8    => "byte"
     case Primitive.Int16   => "short"
@@ -41,8 +41,9 @@ object JavaTypeMapping extends TypeMapping:
     case FuncType(_, _)    => "Object"
     case Union(_)          => "Object"
     case Intersection(_)   => "Object"
+  }
 
-  override def boxedName(t: TypeExpr): String = t match
+  override def boxedName(t: TypeExpr): String = t match {
     case Primitive.Bool    => "Boolean"
     case Primitive.Int8    => "Byte"
     case Primitive.Int16   => "Short"
@@ -56,6 +57,7 @@ object JavaTypeMapping extends TypeMapping:
     case Primitive.Float64 => "Double"
     case Primitive.Char    => "Character"
     case _                 => typeName(t)
+  }
 
   def imports(t: TypeExpr): Set[String] =
     t.foldMap {
@@ -66,3 +68,4 @@ object JavaTypeMapping extends TypeMapping:
       case _: SetOf                        => Set("java.util.Set")
       case _                               => Set.empty
     }
+}

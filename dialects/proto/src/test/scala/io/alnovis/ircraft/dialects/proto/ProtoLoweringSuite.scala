@@ -1,9 +1,9 @@
 package io.alnovis.ircraft.dialects.proto
 
-import cats.*
-import io.alnovis.ircraft.core.ir.*
+import cats._
+import io.alnovis.ircraft.core.ir._
 
-class ProtoLoweringSuite extends munit.FunSuite:
+class ProtoLoweringSuite extends munit.FunSuite {
 
   type F[A] = Id[A]
 
@@ -34,7 +34,7 @@ class ProtoLoweringSuite extends munit.FunSuite:
     enums = Vector.empty
   )
 
-  test("lower simple proto3 message to Protocol TypeDecl"):
+  test("lower simple proto3 message to Protocol TypeDecl") {
     val module = lower(simpleProto)
     assertEquals(module.units.size, 1)
     val unit = module.units.head
@@ -43,8 +43,9 @@ class ProtoLoweringSuite extends munit.FunSuite:
     val decl = unit.declarations.head.asInstanceOf[Decl.TypeDecl]
     assertEquals(decl.name, "User")
     assertEquals(decl.kind, TypeKind.Protocol)
+  }
 
-  test("fields are lowered with correct types"):
+  test("fields are lowered with correct types") {
     val module = lower(simpleProto)
     val decl   = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
 
@@ -58,8 +59,9 @@ class ProtoLoweringSuite extends munit.FunSuite:
         "active" -> TypeExpr.BOOL
       )
     )
+  }
 
-  test("getter functions are generated"):
+  test("getter functions are generated") {
     val module    = lower(simpleProto)
     val decl      = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
     val funcNames = decl.functions.map(_.name)
@@ -67,16 +69,18 @@ class ProtoLoweringSuite extends munit.FunSuite:
     assert(funcNames.contains("getName"))
     assert(funcNames.contains("getEmail"))
     assert(funcNames.contains("getActive"))
+  }
 
-  test("has-methods for proto3 optional fields"):
+  test("has-methods for proto3 optional fields") {
     val module     = lower(simpleProto)
     val decl       = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
     val hasMethods = decl.functions.filter(_.name.startsWith("has"))
     // proto3: only optional fields get has-method
     assertEquals(hasMethods.size, 1)
     assertEquals(hasMethods.head.name, "hasEmail")
+  }
 
-  test("proto2 has-methods for all non-repeated"):
+  test("proto2 has-methods for all non-repeated") {
     val proto2 = simpleProto.copy(
       syntax = ProtoSyntax.Proto2,
       messages = Vector(
@@ -98,8 +102,9 @@ class ProtoLoweringSuite extends munit.FunSuite:
     val hasMethods = decl.functions.filter(_.name.startsWith("has")).map(_.name)
     // proto2: only optional gets has, required does not (always present), repeated does not
     assertEquals(hasMethods.toSet, Set("hasY"))
+  }
 
-  test("repeated field becomes ListOf"):
+  test("repeated field becomes ListOf") {
     val proto = simpleProto.copy(messages =
       Vector(
         ProtoMessage(
@@ -116,8 +121,9 @@ class ProtoLoweringSuite extends munit.FunSuite:
     val module = lower(proto)
     val decl   = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
     assertEquals(decl.fields.head.fieldType, TypeExpr.ListOf(TypeExpr.STR))
+  }
 
-  test("map field becomes MapOf"):
+  test("map field becomes MapOf") {
     val proto = simpleProto.copy(messages =
       Vector(
         ProtoMessage(
@@ -134,8 +140,9 @@ class ProtoLoweringSuite extends munit.FunSuite:
     val module = lower(proto)
     val decl   = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
     assertEquals(decl.fields.head.fieldType, TypeExpr.MapOf(TypeExpr.STR, TypeExpr.INT))
+  }
 
-  test("message reference becomes Unresolved"):
+  test("message reference becomes Unresolved") {
     val proto = simpleProto.copy(messages =
       Vector(
         ProtoMessage(
@@ -158,8 +165,9 @@ class ProtoLoweringSuite extends munit.FunSuite:
     val module = lower(proto)
     val decl   = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
     assertEquals(decl.fields.head.fieldType, TypeExpr.Unresolved("com.example.Address"))
+  }
 
-  test("enum is lowered to EnumDecl"):
+  test("enum is lowered to EnumDecl") {
     val proto = simpleProto.copy(
       messages = Vector.empty,
       enums = Vector(
@@ -178,8 +186,9 @@ class ProtoLoweringSuite extends munit.FunSuite:
     assertEquals(decl.name, "Status")
     assertEquals(decl.variants.size, 3)
     assertEquals(decl.variants.head.name, "UNKNOWN")
+  }
 
-  test("nested message becomes nested Decl"):
+  test("nested message becomes nested Decl") {
     val proto = simpleProto.copy(messages =
       Vector(
         ProtoMessage(
@@ -204,14 +213,16 @@ class ProtoLoweringSuite extends munit.FunSuite:
     assertEquals(user.nested.size, 1)
     val address = user.nested.head.asInstanceOf[Decl.TypeDecl]
     assertEquals(address.name, "Address")
+  }
 
-  test("meta preserves proto provenance"):
+  test("meta preserves proto provenance") {
     val module = lower(simpleProto)
     val decl   = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
     assertEquals(decl.meta.get(ProtoMeta.sourceKind), Some("message"))
     assert(decl.meta.get(ProtoMeta.protoFqn).isDefined)
+  }
 
-  test("fieldKind meta on getter functions"):
+  test("fieldKind meta on getter functions") {
     val proto = simpleProto.copy(messages =
       Vector(
         ProtoMessage(
@@ -238,8 +249,9 @@ class ProtoLoweringSuite extends munit.FunSuite:
         "getItems"   -> Some("REPEATED_SCALAR")
       )
     )
+  }
 
-  test("lowerAll merges multiple files"):
+  test("lowerAll merges multiple files") {
     val file1 = simpleProto
     val file2 = simpleProto.copy(
       name = "order.proto",
@@ -255,3 +267,5 @@ class ProtoLoweringSuite extends munit.FunSuite:
     )
     val module = ProtoLowering.lowerAll[F](Vector(file1, file2))
     assertEquals(module.units.size, 2)
+  }
+}

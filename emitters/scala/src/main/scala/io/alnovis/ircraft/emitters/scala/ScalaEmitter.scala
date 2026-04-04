@@ -1,13 +1,14 @@
 package io.alnovis.ircraft.emitters.scala
 
-import cats.*
+import cats._
 import io.alnovis.ircraft.emit.{ BaseEmitter, LanguageSyntax, TypeMapping }
 
-class ScalaEmitter[F[_]: Monad](config: ScalaEmitterConfig = ScalaEmitterConfig()) extends BaseEmitter[F]:
-  protected val syntax: LanguageSyntax = ScalaSyntax(config)
+class ScalaEmitter[F[_]: Monad](config: ScalaEmitterConfig = ScalaEmitterConfig()) extends BaseEmitter[F] {
+  protected val syntax: LanguageSyntax = new ScalaSyntax(config)
   protected val tm: TypeMapping        = ScalaTypeMapping
+}
 
-object ScalaEmitter:
+object ScalaEmitter {
 
   def apply[F[_]: Monad](config: ScalaEmitterConfig = ScalaEmitterConfig()): ScalaEmitter[F] =
     new ScalaEmitter[F](config)
@@ -17,3 +18,4 @@ object ScalaEmitter:
 
   def scala2[F[_]: Monad]: ScalaEmitter[F] =
     new ScalaEmitter[F](ScalaEmitterConfig(ScalaTarget.Scala2, EnumStyle.SealedTrait, useNewKeyword = true))
+}

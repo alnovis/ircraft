@@ -1,23 +1,23 @@
 package io.alnovis.ircraft.core
 
-import cats.*
-import cats.data.*
-import cats.syntax.all.*
-import io.alnovis.ircraft.core.ir.*
+import cats._
+import cats.data._
+import cats.syntax.all._
+import io.alnovis.ircraft.core.ir._
 
-class PipelineSuite extends munit.FunSuite:
+class PipelineSuite extends munit.FunSuite {
 
   type F[A] = Id[A]
 
   // Outcome over Id for tests with warnings/errors
-  type OF[A] = Outcome[Id, A]
+  type OF[A] = IorT[Id, NonEmptyChain[Diagnostic], A]
 
   private val emptyModule = Module.empty("test")
 
   private def moduleWith(decls: Decl*): Module =
     Module("test", Vector(CompilationUnit("com.example", decls.toVector)))
 
-  test("Pass.pure transforms module"):
+  test("Pass.pure transforms module") {
     val addField = Pass.pure[F]("add-field") { module =>
       module.copy(units = module.units.map { unit =>
         unit.copy(declarations = unit.declarations.map {
@@ -34,19 +34,22 @@ class PipelineSuite extends munit.FunSuite:
     val fields = result.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].fields
     assertEquals(fields.size, 2)
     assertEquals(fields.last.name, "added")
+  }
 
-  test("Pipeline.of composes passes left to right"):
+  test("Pipeline.of composes passes left to right") {
     val pass1    = Pass.pure[F]("p1")(m => m.copy(name = m.name + "-1"))
     val pass2    = Pass.pure[F]("p2")(m => m.copy(name = m.name + "-2"))
     val pipeline = Pipeline.of(pass1, pass2)
     val result   = Pipeline.run(pipeline, emptyModule)
     assertEquals(result.name, "test-1-2")
+  }
 
-  test("Pass.id returns module unchanged"):
+  test("Pass.id returns module unchanged") {
     val result = Pipeline.run(Pass.id[F], emptyModule)
     assertEquals(result, emptyModule)
+  }
 
-  test("Pipeline.build filters disabled passes"):
+  test("Pipeline.build filters disabled passes") {
     val p1 = Pass.pure[F]("p1")(m => m.copy(name = m.name + "-1"))
     val p2 = Pass.pure[F]("p2")(m => m.copy(name = m.name + "-2"))
     val p3 = Pass.pure[F]("p3")(m => m.copy(name = m.name + "-3"))
@@ -60,8 +63,9 @@ class PipelineSuite extends munit.FunSuite:
     )
     val result = Pipeline.run(pipeline, emptyModule)
     assertEquals(result.name, "test-1-3")
+  }
 
-  test("Outcome.fail stops pipeline (fail-fast via IorT Left)"):
+  test("Outcome.fail stops pipeline (fail-fast via IorT Left)") {
     val failPass = Pass[OF]("fail") { _ =>
       Outcome.fail("fatal")
     }
@@ -69,12 +73,14 @@ class PipelineSuite extends munit.FunSuite:
       m.copy(name = "should-not-reach")
     }
     val pipeline = Pipeline.of(failPass, neverRun)
-    Pipeline.run(pipeline, emptyModule).value match
+    Pipeline.run(pipeline, emptyModule).value match {
       case Ior.Left(errors) =>
         assert(errors.exists(_.message == "fatal"))
       case other => fail(s"expected Ior.Left, got $other")
+    }
+  }
 
-  test("Outcome.warn continues pipeline and accumulates"):
+  test("Outcome.warn continues pipeline and accumulates") {
     val warnPass = Pass[OF]("warn") { module =>
       Outcome.warn("something fishy", module)
     }
@@ -82,13 +88,15 @@ class PipelineSuite extends munit.FunSuite:
       m.copy(name = m.name + "-done")
     }
     val pipeline = Pipeline.of(warnPass, addSuffix)
-    Pipeline.run(pipeline, emptyModule).value match
+    Pipeline.run(pipeline, emptyModule).value match {
       case Ior.Both(warnings, result) =>
         assert(warnings.exists(_.isWarning))
         assertEquals(result.name, "test-done")
       case other => fail(s"expected Ior.Both, got $other")
+    }
+  }
 
-  test("Lowering.pure creates module from source"):
+  test("Lowering.pure creates module from source") {
     case class SqlTable(name: String, columns: Vector[String])
 
     val lowering: Lowering[F, Vector[SqlTable]] = Lowering.pure { tables =>
@@ -111,8 +119,9 @@ class PipelineSuite extends munit.FunSuite:
     val module = lowering(tables)
     assertEquals(module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].name, "Users")
     assertEquals(module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].fields.size, 3)
+  }
 
-  test("Passes.validateResolved detects unresolved types via Outcome"):
+  test("Passes.validateResolved detects unresolved types via Outcome") {
     val module = moduleWith(
       Decl.TypeDecl(
         "Order",
@@ -120,15 +129,20 @@ class PipelineSuite extends munit.FunSuite:
         fields = Vector(Field("address", TypeExpr.Unresolved("com.example.Address")))
       )
     )
-    Pipeline.run(Passes.validateResolved[Id], module).value match
+    Pipeline.run(Passes.validateResolved[Id], module).value match {
       case Ior.Left(errors) =>
         assert(errors.exists(d => d.isError && d.message.contains("Unresolved")))
       case other => fail(s"expected Ior.Left, got $other")
+    }
+  }
 
-  test("Passes.validateResolved passes clean module"):
+  test("Passes.validateResolved passes clean module") {
     val module = moduleWith(
       Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("name", TypeExpr.STR)))
     )
-    Pipeline.run(Passes.validateResolved[Id], module).value match
+    Pipeline.run(Passes.validateResolved[Id], module).value match {
       case Ior.Right(m) => assertEquals(m.units.size, 1)
       case other        => fail(s"expected Ior.Right, got $other")
+    }
+  }
+}

@@ -1,39 +1,44 @@
 package io.alnovis.ircraft.core
 
-import cats.*
-import cats.data.{ Ior, NonEmptyVector }
-import cats.syntax.all.*
-import io.alnovis.ircraft.core.ir.*
-import io.alnovis.ircraft.core.merge.*
+import cats._
+import cats.data.{ Ior, IorT, NonEmptyChain, NonEmptyVector }
+import cats.syntax.all._
+import io.alnovis.ircraft.core.ir._
+import io.alnovis.ircraft.core.merge._
 
-class MergeSuite extends munit.FunSuite:
+class MergeSuite extends munit.FunSuite {
 
   type F[A] = Id[A]
 
   private def module(version: String, decls: Decl*): (String, Module) =
     (version, Module(version, Vector(CompilationUnit("com.example", decls.toVector))))
 
-  private val pickFirst: MergeStrategy[F] = new MergeStrategy[F]:
-    def onConflict(conflict: Conflict): Outcome[F, Resolution] =
+  private val pickFirst: MergeStrategy[F] = new MergeStrategy[F] {
+    def onConflict(conflict: Conflict): IorT[F, NonEmptyChain[Diagnostic], Resolution] =
       Outcome.ok(Resolution.UseType(conflict.versions.head._2))
+  }
 
-  private val dualAccessor: MergeStrategy[F] = new MergeStrategy[F]:
-    def onConflict(conflict: Conflict): Outcome[F, Resolution] =
+  private val dualAccessor: MergeStrategy[F] = new MergeStrategy[F] {
+    def onConflict(conflict: Conflict): IorT[F, NonEmptyChain[Diagnostic], Resolution] = {
       val types = conflict.versions.toVector.toMap
       Outcome.ok(Resolution.DualAccessor(types))
+    }
+  }
 
-  private val skipConflicts: MergeStrategy[F] = new MergeStrategy[F]:
-    def onConflict(conflict: Conflict): Outcome[F, Resolution] =
+  private val skipConflicts: MergeStrategy[F] = new MergeStrategy[F] {
+    def onConflict(conflict: Conflict): IorT[F, NonEmptyChain[Diagnostic], Resolution] =
       Outcome.ok(Resolution.Skip)
+  }
 
   /** Extract Right or Both result, fail on Left. */
-  private def unwrap(outcome: Outcome[F, Module]): Module =
-    outcome.value match
+  private def unwrap(outcome: IorT[F, NonEmptyChain[Diagnostic], Module]): Module =
+    outcome.value match {
       case Ior.Right(m)   => m
       case Ior.Both(_, m) => m
       case Ior.Left(errs) => fail(s"unexpected errors: ${errs.map(_.message).toList.mkString(", ")}")
+    }
 
-  test("merge identical types from 2 versions"):
+  test("merge identical types from 2 versions") {
     val v1 = module("v1", Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))))
     val v2 = module("v2", Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))))
 
@@ -45,8 +50,9 @@ class MergeSuite extends munit.FunSuite:
     assertEquals(td.name, "User")
     assertEquals(td.fields.size, 1)
     assertEquals(td.meta.get(Merge.Keys.presentIn), Some(Vector("v1", "v2")))
+  }
 
-  test("merge unions fields from different versions"):
+  test("merge unions fields from different versions") {
     val v1 = module(
       "v1",
       Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG), Field("name", TypeExpr.STR)))
@@ -62,8 +68,9 @@ class MergeSuite extends munit.FunSuite:
     assert(fieldNames.contains("id"))
     assert(fieldNames.contains("name"))
     assert(fieldNames.contains("email"))
+  }
 
-  test("merge with function return type conflict -- pickFirst resolves"):
+  test("merge with function return type conflict -- pickFirst resolves") {
     val v1 = module(
       "v1",
       Decl.TypeDecl("Api", TypeKind.Protocol, functions = Vector(Func("getStatus", returnType = TypeExpr.INT)))
@@ -78,8 +85,9 @@ class MergeSuite extends munit.FunSuite:
     val func   = td.functions.find(_.name == "getStatus").get
     assertEquals(func.returnType, TypeExpr.INT)
     assertEquals(func.meta.get(Merge.Keys.conflictType), Some("RESOLVED"))
+  }
 
-  test("merge with function conflict -- dualAccessor resolution"):
+  test("merge with function conflict -- dualAccessor resolution") {
     val v1 = module(
       "v1",
       Decl.TypeDecl("Api", TypeKind.Protocol, functions = Vector(Func("getStatus", returnType = TypeExpr.INT)))
@@ -94,8 +102,9 @@ class MergeSuite extends munit.FunSuite:
     val func   = td.functions.find(_.name == "getStatus").get
     assertEquals(func.meta.get(Merge.Keys.conflictType), Some("DUAL_ACCESSOR"))
     assert(func.meta.get(Merge.Keys.typePerVersion).isDefined)
+  }
 
-  test("merge with conflict -- skip resolution removes function"):
+  test("merge with conflict -- skip resolution removes function") {
     val v1 = module(
       "v1",
       Decl.TypeDecl(
@@ -124,8 +133,9 @@ class MergeSuite extends munit.FunSuite:
     val funcNames = td.functions.map(_.name)
     assert(!funcNames.contains("getStatus"))
     assert(funcNames.contains("getName"))
+  }
 
-  test("merge type present in only one version"):
+  test("merge type present in only one version") {
     val v1 = module(
       "v1",
       Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))),
@@ -140,8 +150,9 @@ class MergeSuite extends munit.FunSuite:
 
     val admin = merged.units.head.declarations.collect { case td: Decl.TypeDecl if td.name == "Admin" => td }.head
     assertEquals(admin.meta.get(Merge.Keys.presentIn), Some(Vector("v1")))
+  }
 
-  test("merge enum unions variants"):
+  test("merge enum unions variants") {
     val v1 = module("v1", Decl.EnumDecl("Status", variants = Vector(EnumVariant("ACTIVE"), EnumVariant("INACTIVE"))))
     val v2 = module("v2", Decl.EnumDecl("Status", variants = Vector(EnumVariant("ACTIVE"), EnumVariant("DELETED"))))
 
@@ -149,8 +160,9 @@ class MergeSuite extends munit.FunSuite:
     val ed           = merged.units.head.declarations.head.asInstanceOf[Decl.EnumDecl]
     val variantNames = ed.variants.map(_.name)
     assertEquals(variantNames.toSet, Set("ACTIVE", "INACTIVE", "DELETED"))
+  }
 
-  test("merge 3 versions"):
+  test("merge 3 versions") {
     val v1 =
       module("v1", Decl.TypeDecl("Api", TypeKind.Protocol, functions = Vector(Func("getA", returnType = TypeExpr.STR))))
     val v2 = module(
@@ -178,19 +190,24 @@ class MergeSuite extends munit.FunSuite:
     val td        = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
     val funcNames = td.functions.map(_.name).toSet
     assertEquals(funcNames, Set("getA", "getB", "getC"))
+  }
 
-  test("merge sets sources on module meta"):
+  test("merge sets sources on module meta") {
     val v1 = module("v1", Decl.TypeDecl("X", TypeKind.Product))
     val v2 = module("v2", Decl.TypeDecl("X", TypeKind.Product))
 
     val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), pickFirst))
     assertEquals(merged.meta.get(Merge.Keys.sources), Some(Vector("v1", "v2")))
+  }
 
-  test("merge mixed kinds produces warning via Ior.Both"):
+  test("merge mixed kinds produces warning via Ior.Both") {
     val v1 = module("v1", Decl.TypeDecl("X", TypeKind.Product))
     val v2 = module("v2", Decl.EnumDecl("X", variants = Vector(EnumVariant("A"))))
 
-    Merge.merge(NonEmptyVector.of(v1, v2), pickFirst).value match
+    Merge.merge(NonEmptyVector.of(v1, v2), pickFirst).value match {
       case Ior.Both(warnings, _) =>
         assert(warnings.exists(d => d.isWarning && d.message.contains("Mixed")))
       case other => fail(s"expected Ior.Both with warnings, got $other")
+    }
+  }
+}
