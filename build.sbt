@@ -15,8 +15,9 @@ ThisBuild / scmInfo := Some(
   ScmInfo(url("https://github.com/alnovis/ircraft"), "scm:git@github.com:alnovis/ircraft.git")
 )
 
-// Sonatype Central (new portal, not legacy oss.sonatype.org)
+// Sonatype Central Portal publishing
 ThisBuild / sonatypeCredentialHost := "central.sonatype.com"
+ThisBuild / sonatypeRepository := "https://central.sonatype.com/api/v1/publisher/"
 
 val commonSettings = Seq(
   javacOptions ++= Seq("-source", "17", "-target", "17"),
