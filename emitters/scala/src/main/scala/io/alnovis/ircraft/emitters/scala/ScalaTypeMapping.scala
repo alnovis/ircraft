@@ -29,7 +29,7 @@ object ScalaTypeMapping extends TypeMapping:
     case MapOf(k, v)       => s"Map[${typeName(k)}, ${typeName(v)}]"
     case Optional(inner)   => s"Option[${typeName(inner)}]"
     case SetOf(elem)       => s"Set[${typeName(elem)}]"
-    case TupleOf(es)       =>
+    case TupleOf(es) =>
       if es.size <= 22 then s"(${es.map(typeName).mkString(", ")})"
       else s"Tuple${es.size}[${es.map(typeName).mkString(", ")}]"
     case Applied(base, args) =>
@@ -39,12 +39,12 @@ object ScalaTypeMapping extends TypeMapping:
     case Unresolved(fqn)   => unreachable(s"Unresolved type reached emitter: $fqn")
     case Local(name)       => name
     case Imported(_, name) => name
-    case FuncType(ps, r)   =>
+    case FuncType(ps, r) =>
       if ps.isEmpty then s"() => ${typeName(r)}"
       else if ps.size == 1 then s"${typeName(ps.head)} => ${typeName(r)}"
       else s"(${ps.map(typeName).mkString(", ")}) => ${typeName(r)}"
-    case Union(alts)       => alts.map(typeName).mkString(" | ")
-    case Intersection(cs)  => cs.map(typeName).mkString(" & ")
+    case Union(alts)      => alts.map(typeName).mkString(" | ")
+    case Intersection(cs) => cs.map(typeName).mkString(" & ")
 
   // Scala doesn't need boxed names -- no primitive/object distinction in generics
   override def boxedName(t: TypeExpr): String = typeName(t)
@@ -54,5 +54,5 @@ object ScalaTypeMapping extends TypeMapping:
       case Named(fqn) if fqn.contains(".") => Set(fqn)
       case Imported(path, _)               => Set(path)
       // List, Map, Set, Option are in scala.Predef -- no import needed
-      case _                               => Set.empty
+      case _ => Set.empty
     }

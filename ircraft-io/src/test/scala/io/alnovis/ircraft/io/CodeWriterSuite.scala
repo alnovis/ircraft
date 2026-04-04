@@ -1,7 +1,7 @@
 package io.alnovis.ircraft.io
 
 import cats.effect.*
-import java.nio.file.{Files, Path}
+import java.nio.file.{ Files, Path }
 import munit.CatsEffectSuite
 
 class CodeWriterSuite extends CatsEffectSuite:
@@ -12,15 +12,14 @@ class CodeWriterSuite extends CatsEffectSuite:
   )
 
   private def deleteRecursive(path: Path): Unit =
-    if Files.isDirectory(path) then
-      Files.list(path).forEach(deleteRecursive)
+    if Files.isDirectory(path) then Files.list(path).forEach(deleteRecursive)
     Files.deleteIfExists(path)
 
   tmpDir.test("CodeWriter writes files to disk") { dir =>
     val writer = CodeWriter[IO]
     val files = Map(
-      Path.of("com/example/User.java") -> "package com.example;\npublic class User {}\n",
-      Path.of("com/example/Order.java") -> "package com.example;\npublic class Order {}\n",
+      Path.of("com/example/User.java")  -> "package com.example;\npublic class User {}\n",
+      Path.of("com/example/Order.java") -> "package com.example;\npublic class Order {}\n"
     )
     for
       count <- writer.write(dir, files)
@@ -33,11 +32,11 @@ class CodeWriterSuite extends CatsEffectSuite:
   }
 
   tmpDir.test("IncrementalWriter skips unchanged files") { dir =>
-    val writer = IncrementalWriter[IO]
+    val writer   = IncrementalWriter[IO]
     val cacheDir = dir.resolve(".cache")
     val files = Map(
       Path.of("A.java") -> "class A {}",
-      Path.of("B.java") -> "class B {}",
+      Path.of("B.java") -> "class B {}"
     )
 
     for

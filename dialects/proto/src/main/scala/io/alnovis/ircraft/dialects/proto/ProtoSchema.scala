@@ -39,25 +39,25 @@ sealed trait ProtoType
 
 object ProtoType:
   // scalars
-  case object Double extends ProtoType
-  case object Float extends ProtoType
-  case object Int32 extends ProtoType
-  case object Int64 extends ProtoType
-  case object UInt32 extends ProtoType
-  case object UInt64 extends ProtoType
-  case object SInt32 extends ProtoType
-  case object SInt64 extends ProtoType
-  case object Fixed32 extends ProtoType
-  case object Fixed64 extends ProtoType
+  case object Double   extends ProtoType
+  case object Float    extends ProtoType
+  case object Int32    extends ProtoType
+  case object Int64    extends ProtoType
+  case object UInt32   extends ProtoType
+  case object UInt64   extends ProtoType
+  case object SInt32   extends ProtoType
+  case object SInt64   extends ProtoType
+  case object Fixed32  extends ProtoType
+  case object Fixed64  extends ProtoType
   case object SFixed32 extends ProtoType
   case object SFixed64 extends ProtoType
-  case object Bool extends ProtoType
-  case object String extends ProtoType
-  case object Bytes extends ProtoType
+  case object Bool     extends ProtoType
+  case object String   extends ProtoType
+  case object Bytes    extends ProtoType
 
   // composite
-  case class Message(fqn: scala.Predef.String) extends ProtoType
-  case class Enum(fqn: scala.Predef.String) extends ProtoType
+  case class Message(fqn: scala.Predef.String)     extends ProtoType
+  case class Enum(fqn: scala.Predef.String)        extends ProtoType
   case class Map(key: ProtoType, value: ProtoType) extends ProtoType
 
 case class ProtoEnum(

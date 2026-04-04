@@ -1,7 +1,7 @@
 package io.alnovis.ircraft.core
 
 import cats.*
-import cats.data.{Ior, NonEmptyVector}
+import cats.data.{ Ior, NonEmptyVector }
 import cats.syntax.all.*
 import io.alnovis.ircraft.core.ir.*
 import io.alnovis.ircraft.core.merge.*
@@ -29,9 +29,9 @@ class MergeSuite extends munit.FunSuite:
   /** Extract Right or Both result, fail on Left. */
   private def unwrap(outcome: Outcome[F, Module]): Module =
     outcome.value match
-      case Ior.Right(m)    => m
-      case Ior.Both(_, m)  => m
-      case Ior.Left(errs)  => fail(s"unexpected errors: ${errs.map(_.message).toList.mkString(", ")}")
+      case Ior.Right(m)   => m
+      case Ior.Both(_, m) => m
+      case Ior.Left(errs) => fail(s"unexpected errors: ${errs.map(_.message).toList.mkString(", ")}")
 
   test("merge identical types from 2 versions"):
     val v1 = module("v1", Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))))
@@ -47,70 +47,93 @@ class MergeSuite extends munit.FunSuite:
     assertEquals(td.meta.get(Merge.Keys.presentIn), Some(Vector("v1", "v2")))
 
   test("merge unions fields from different versions"):
-    val v1 = module("v1", Decl.TypeDecl("User", TypeKind.Product,
-      fields = Vector(Field("id", TypeExpr.LONG), Field("name", TypeExpr.STR))))
-    val v2 = module("v2", Decl.TypeDecl("User", TypeKind.Product,
-      fields = Vector(Field("id", TypeExpr.LONG), Field("email", TypeExpr.STR))))
+    val v1 = module(
+      "v1",
+      Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG), Field("name", TypeExpr.STR)))
+    )
+    val v2 = module(
+      "v2",
+      Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG), Field("email", TypeExpr.STR)))
+    )
 
-    val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), pickFirst))
-    val td = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val merged     = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), pickFirst))
+    val td         = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
     val fieldNames = td.fields.map(_.name)
     assert(fieldNames.contains("id"))
     assert(fieldNames.contains("name"))
     assert(fieldNames.contains("email"))
 
   test("merge with function return type conflict -- pickFirst resolves"):
-    val v1 = module("v1", Decl.TypeDecl("Api", TypeKind.Protocol,
-      functions = Vector(Func("getStatus", returnType = TypeExpr.INT))))
-    val v2 = module("v2", Decl.TypeDecl("Api", TypeKind.Protocol,
-      functions = Vector(Func("getStatus", returnType = TypeExpr.STR))))
+    val v1 = module(
+      "v1",
+      Decl.TypeDecl("Api", TypeKind.Protocol, functions = Vector(Func("getStatus", returnType = TypeExpr.INT)))
+    )
+    val v2 = module(
+      "v2",
+      Decl.TypeDecl("Api", TypeKind.Protocol, functions = Vector(Func("getStatus", returnType = TypeExpr.STR)))
+    )
 
     val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), pickFirst))
-    val td = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
-    val func = td.functions.find(_.name == "getStatus").get
+    val td     = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val func   = td.functions.find(_.name == "getStatus").get
     assertEquals(func.returnType, TypeExpr.INT)
     assertEquals(func.meta.get(Merge.Keys.conflictType), Some("RESOLVED"))
 
   test("merge with function conflict -- dualAccessor resolution"):
-    val v1 = module("v1", Decl.TypeDecl("Api", TypeKind.Protocol,
-      functions = Vector(Func("getStatus", returnType = TypeExpr.INT))))
-    val v2 = module("v2", Decl.TypeDecl("Api", TypeKind.Protocol,
-      functions = Vector(Func("getStatus", returnType = TypeExpr.STR))))
+    val v1 = module(
+      "v1",
+      Decl.TypeDecl("Api", TypeKind.Protocol, functions = Vector(Func("getStatus", returnType = TypeExpr.INT)))
+    )
+    val v2 = module(
+      "v2",
+      Decl.TypeDecl("Api", TypeKind.Protocol, functions = Vector(Func("getStatus", returnType = TypeExpr.STR)))
+    )
 
     val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), dualAccessor))
-    val td = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
-    val func = td.functions.find(_.name == "getStatus").get
+    val td     = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val func   = td.functions.find(_.name == "getStatus").get
     assertEquals(func.meta.get(Merge.Keys.conflictType), Some("DUAL_ACCESSOR"))
     assert(func.meta.get(Merge.Keys.typePerVersion).isDefined)
 
   test("merge with conflict -- skip resolution removes function"):
-    val v1 = module("v1", Decl.TypeDecl("Api", TypeKind.Protocol,
-      functions = Vector(
-        Func("getStatus", returnType = TypeExpr.INT),
-        Func("getName", returnType = TypeExpr.STR),
-      )))
-    val v2 = module("v2", Decl.TypeDecl("Api", TypeKind.Protocol,
-      functions = Vector(
-        Func("getStatus", returnType = TypeExpr.STR),
-        Func("getName", returnType = TypeExpr.STR),
-      )))
+    val v1 = module(
+      "v1",
+      Decl.TypeDecl(
+        "Api",
+        TypeKind.Protocol,
+        functions = Vector(
+          Func("getStatus", returnType = TypeExpr.INT),
+          Func("getName", returnType = TypeExpr.STR)
+        )
+      )
+    )
+    val v2 = module(
+      "v2",
+      Decl.TypeDecl(
+        "Api",
+        TypeKind.Protocol,
+        functions = Vector(
+          Func("getStatus", returnType = TypeExpr.STR),
+          Func("getName", returnType = TypeExpr.STR)
+        )
+      )
+    )
 
-    val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), skipConflicts))
-    val td = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val merged    = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), skipConflicts))
+    val td        = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
     val funcNames = td.functions.map(_.name)
     assert(!funcNames.contains("getStatus"))
     assert(funcNames.contains("getName"))
 
   test("merge type present in only one version"):
-    val v1 = module("v1",
+    val v1 = module(
+      "v1",
       Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))),
-      Decl.TypeDecl("Admin", TypeKind.Product, fields = Vector(Field("role", TypeExpr.STR))),
+      Decl.TypeDecl("Admin", TypeKind.Product, fields = Vector(Field("role", TypeExpr.STR)))
     )
-    val v2 = module("v2",
-      Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))),
-    )
+    val v2 = module("v2", Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))))
 
-    val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), pickFirst))
+    val merged    = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), pickFirst))
     val declNames = merged.units.head.declarations.map(_.name)
     assert(declNames.contains("User"))
     assert(declNames.contains("Admin"))
@@ -119,26 +142,40 @@ class MergeSuite extends munit.FunSuite:
     assertEquals(admin.meta.get(Merge.Keys.presentIn), Some(Vector("v1")))
 
   test("merge enum unions variants"):
-    val v1 = module("v1", Decl.EnumDecl("Status",
-      variants = Vector(EnumVariant("ACTIVE"), EnumVariant("INACTIVE"))))
-    val v2 = module("v2", Decl.EnumDecl("Status",
-      variants = Vector(EnumVariant("ACTIVE"), EnumVariant("DELETED"))))
+    val v1 = module("v1", Decl.EnumDecl("Status", variants = Vector(EnumVariant("ACTIVE"), EnumVariant("INACTIVE"))))
+    val v2 = module("v2", Decl.EnumDecl("Status", variants = Vector(EnumVariant("ACTIVE"), EnumVariant("DELETED"))))
 
-    val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), pickFirst))
-    val ed = merged.units.head.declarations.head.asInstanceOf[Decl.EnumDecl]
+    val merged       = unwrap(Merge.merge(NonEmptyVector.of(v1, v2), pickFirst))
+    val ed           = merged.units.head.declarations.head.asInstanceOf[Decl.EnumDecl]
     val variantNames = ed.variants.map(_.name)
     assertEquals(variantNames.toSet, Set("ACTIVE", "INACTIVE", "DELETED"))
 
   test("merge 3 versions"):
-    val v1 = module("v1", Decl.TypeDecl("Api", TypeKind.Protocol,
-      functions = Vector(Func("getA", returnType = TypeExpr.STR))))
-    val v2 = module("v2", Decl.TypeDecl("Api", TypeKind.Protocol,
-      functions = Vector(Func("getA", returnType = TypeExpr.STR), Func("getB", returnType = TypeExpr.INT))))
-    val v3 = module("v3", Decl.TypeDecl("Api", TypeKind.Protocol,
-      functions = Vector(Func("getA", returnType = TypeExpr.STR), Func("getB", returnType = TypeExpr.INT), Func("getC", returnType = TypeExpr.BOOL))))
+    val v1 =
+      module("v1", Decl.TypeDecl("Api", TypeKind.Protocol, functions = Vector(Func("getA", returnType = TypeExpr.STR))))
+    val v2 = module(
+      "v2",
+      Decl.TypeDecl(
+        "Api",
+        TypeKind.Protocol,
+        functions = Vector(Func("getA", returnType = TypeExpr.STR), Func("getB", returnType = TypeExpr.INT))
+      )
+    )
+    val v3 = module(
+      "v3",
+      Decl.TypeDecl(
+        "Api",
+        TypeKind.Protocol,
+        functions = Vector(
+          Func("getA", returnType = TypeExpr.STR),
+          Func("getB", returnType = TypeExpr.INT),
+          Func("getC", returnType = TypeExpr.BOOL)
+        )
+      )
+    )
 
-    val merged = unwrap(Merge.merge(NonEmptyVector.of(v1, v2, v3), pickFirst))
-    val td = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val merged    = unwrap(Merge.merge(NonEmptyVector.of(v1, v2, v3), pickFirst))
+    val td        = merged.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
     val funcNames = td.functions.map(_.name).toSet
     assertEquals(funcNames, Set("getA", "getB", "getC"))
 

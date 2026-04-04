@@ -2,7 +2,7 @@ package io.alnovis.ircraft.emitters.java
 
 import cats.*
 import io.alnovis.ircraft.core.ir.*
-import io.alnovis.ircraft.emit.{CodeNode, Renderer}
+import io.alnovis.ircraft.emit.{ CodeNode, Renderer }
 
 /** Tests at the CodeNode (tree) level -- structural, not string-based. */
 class CodeNodeSuite extends munit.FunSuite:
@@ -14,18 +14,24 @@ class CodeNodeSuite extends munit.FunSuite:
     emitter.toFileTree(namespace, decl)
 
   test("TypeDecl produces TypeBlock with correct sections"):
-    val tree = toTree("com.example", Decl.TypeDecl(
-      name = "User",
-      kind = TypeKind.Product,
-      fields = Vector(
-        Field("id", TypeExpr.LONG),
-        Field("name", TypeExpr.STR),
-      ),
-      functions = Vector(
-        Func("getId", returnType = TypeExpr.LONG,
-          body = Some(Body.of(Stmt.Return(Some(Expr.Access(Expr.This, "id")))))),
+    val tree = toTree(
+      "com.example",
+      Decl.TypeDecl(
+        name = "User",
+        kind = TypeKind.Product,
+        fields = Vector(
+          Field("id", TypeExpr.LONG),
+          Field("name", TypeExpr.STR)
+        ),
+        functions = Vector(
+          Func(
+            "getId",
+            returnType = TypeExpr.LONG,
+            body = Some(Body.of(Stmt.Return(Some(Expr.Access(Expr.This, "id")))))
+          )
+        )
       )
-    ))
+    )
 
     tree match
       case CodeNode.File(header, _, Vector(CodeNode.TypeBlock(sig, sections))) =>
@@ -44,13 +50,16 @@ class CodeNodeSuite extends munit.FunSuite:
       case other => fail(s"unexpected tree structure: $other")
 
   test("Protocol produces TypeBlock with abstract Func"):
-    val tree = toTree("com.example", Decl.TypeDecl(
-      name = "Service",
-      kind = TypeKind.Protocol,
-      functions = Vector(
-        Func("find", Vector(Param("id", TypeExpr.LONG)), TypeExpr.Named("User")),
+    val tree = toTree(
+      "com.example",
+      Decl.TypeDecl(
+        name = "Service",
+        kind = TypeKind.Protocol,
+        functions = Vector(
+          Func("find", Vector(Param("id", TypeExpr.LONG)), TypeExpr.Named("User"))
+        )
       )
-    ))
+    )
 
     tree match
       case CodeNode.File(_, _, Vector(CodeNode.TypeBlock(sig, sections))) =>
@@ -59,26 +68,33 @@ class CodeNodeSuite extends munit.FunSuite:
         assertEquals(funcs.size, 1)
         funcs.head match
           case CodeNode.Func(_, None) => () // abstract -- no body
-          case other => fail(s"expected abstract Func (None body), got $other")
+          case other                  => fail(s"expected abstract Func (None body), got $other")
       case other => fail(s"unexpected: $other")
 
   test("IfElse produces correct tree structure"):
-    val tree = toTree("com.example", Decl.TypeDecl(
-      name = "Guard",
-      kind = TypeKind.Product,
-      functions = Vector(Func(
-        name = "check",
-        params = Vector(Param("x", TypeExpr.INT)),
-        returnType = TypeExpr.BOOL,
-        body = Some(Body.of(
-          Stmt.If(
-            Expr.BinOp(Expr.Ref("x"), BinaryOp.Gt, Expr.Lit("0", TypeExpr.INT)),
-            Body.of(Stmt.Return(Some(Expr.Lit("true", TypeExpr.BOOL)))),
-            Some(Body.of(Stmt.Return(Some(Expr.Lit("false", TypeExpr.BOOL)))))
+    val tree = toTree(
+      "com.example",
+      Decl.TypeDecl(
+        name = "Guard",
+        kind = TypeKind.Product,
+        functions = Vector(
+          Func(
+            name = "check",
+            params = Vector(Param("x", TypeExpr.INT)),
+            returnType = TypeExpr.BOOL,
+            body = Some(
+              Body.of(
+                Stmt.If(
+                  Expr.BinOp(Expr.Ref("x"), BinaryOp.Gt, Expr.Lit("0", TypeExpr.INT)),
+                  Body.of(Stmt.Return(Some(Expr.Lit("true", TypeExpr.BOOL)))),
+                  Some(Body.of(Stmt.Return(Some(Expr.Lit("false", TypeExpr.BOOL)))))
+                )
+              )
+            )
           )
-        ))
-      ))
-    ))
+        )
+      )
+    )
 
     tree match
       case CodeNode.File(_, _, Vector(CodeNode.TypeBlock(_, sections))) =>
@@ -93,14 +109,17 @@ class CodeNodeSuite extends munit.FunSuite:
       case other => fail(s"unexpected: $other")
 
   test("nested TypeBlock inside TypeBlock"):
-    val tree = toTree("com.example", Decl.TypeDecl(
-      name = "Outer",
-      kind = TypeKind.Product,
-      fields = Vector(Field("x", TypeExpr.INT)),
-      nested = Vector(
-        Decl.TypeDecl("Inner", TypeKind.Product, fields = Vector(Field("y", TypeExpr.STR)))
+    val tree = toTree(
+      "com.example",
+      Decl.TypeDecl(
+        name = "Outer",
+        kind = TypeKind.Product,
+        fields = Vector(Field("x", TypeExpr.INT)),
+        nested = Vector(
+          Decl.TypeDecl("Inner", TypeKind.Product, fields = Vector(Field("y", TypeExpr.STR)))
+        )
       )
-    ))
+    )
 
     tree match
       case CodeNode.File(_, _, Vector(CodeNode.TypeBlock(sig, sections))) =>
@@ -118,16 +137,20 @@ class CodeNodeSuite extends munit.FunSuite:
     val tree = CodeNode.File(
       "package com.example",
       Vector("java.util.List"),
-      Vector(CodeNode.TypeBlock(
-        "public class Demo",
-        Vector(
-          Vector(CodeNode.Line("private final int count;")),
-          Vector(CodeNode.Func(
-            "public int getCount()",
-            Some(Vector(CodeNode.Line("return this.count;")))
-          ))
+      Vector(
+        CodeNode.TypeBlock(
+          "public class Demo",
+          Vector(
+            Vector(CodeNode.Line("private final int count;")),
+            Vector(
+              CodeNode.Func(
+                "public int getCount()",
+                Some(Vector(CodeNode.Line("return this.count;")))
+              )
+            )
+          )
         )
-      ))
+      )
     )
     val source = Renderer.render(tree, ";")
 

@@ -3,7 +3,8 @@ package io.alnovis.ircraft.core
 import cats.*
 import cats.data.*
 
-/** Unified error/warning channel for ircraft pipelines.
+/**
+  * Unified error/warning channel for ircraft pipelines.
   *
   * Three states:
   *   - Right(a)        -- clean success

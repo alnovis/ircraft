@@ -24,10 +24,10 @@ enum ConflictKind:
 sealed trait Resolution
 
 object Resolution:
-  case class UseType(typeExpr: TypeExpr) extends Resolution
+  case class UseType(typeExpr: TypeExpr)                extends Resolution
   case class DualAccessor(types: Map[String, TypeExpr]) extends Resolution
-  case class Custom(decls: Vector[Decl]) extends Resolution
-  case object Skip extends Resolution
+  case class Custom(decls: Vector[Decl])                extends Resolution
+  case object Skip                                      extends Resolution
 
 /** User-provided strategy for resolving conflicts. Uses Outcome for warnings/errors. */
 trait MergeStrategy[F[_]]:
@@ -36,10 +36,10 @@ trait MergeStrategy[F[_]]:
 object Merge:
 
   object Keys:
-    val presentIn: Meta.Key[Vector[String]]            = Meta.Key("merge.presentIn")
-    val conflictType: Meta.Key[String]                 = Meta.Key("merge.conflictType")
+    val presentIn: Meta.Key[Vector[String]]             = Meta.Key("merge.presentIn")
+    val conflictType: Meta.Key[String]                  = Meta.Key("merge.conflictType")
     val typePerVersion: Meta.Key[Map[String, TypeExpr]] = Meta.Key("merge.typePerVersion")
-    val sources: Meta.Key[Vector[String]]              = Meta.Key("merge.sources")
+    val sources: Meta.Key[Vector[String]]               = Meta.Key("merge.sources")
 
   /** Merge N versioned modules into one. Warnings accumulate, errors stop. */
   def merge[F[_]: Monad](
@@ -52,11 +52,13 @@ object Merge:
     }
     val byNamespace = allUnits.groupBy(_._2.namespace)
 
-    byNamespace.toVector.traverse { (ns, vUnits) =>
-      mergeUnits(ns, vUnits, versionNames, strategy)
-    }.map { units =>
-      Module(versionNames.mkString("+"), units, Meta.empty.set(Keys.sources, versionNames))
-    }
+    byNamespace.toVector
+      .traverse { (ns, vUnits) =>
+        mergeUnits(ns, vUnits, versionNames, strategy)
+      }
+      .map { units =>
+        Module(versionNames.mkString("+"), units, Meta.empty.set(Keys.sources, versionNames))
+      }
 
   private def mergeUnits[F[_]: Monad](
     namespace: String,
@@ -69,9 +71,11 @@ object Merge:
     }
     val byName = allDecls.groupBy((_, d) => d.name)
 
-    byName.toVector.traverse { (name, vDecls) =>
-      mergeDecl(name, vDecls, allVersions, strategy)
-    }.map(decls => CompilationUnit(namespace, decls.flatten))
+    byName.toVector
+      .traverse { (name, vDecls) =>
+        mergeDecl(name, vDecls, allVersions, strategy)
+      }
+      .map(decls => CompilationUnit(namespace, decls.flatten))
 
   private def mergeDecl[F[_]: Monad](
     name: String,
@@ -88,7 +92,7 @@ object Merge:
 
       case multiple =>
         val presentVersions = multiple.map(_._1)
-        val decls = multiple.map(_._2)
+        val decls           = multiple.map(_._2)
 
         val allTypeDecls = decls.collect { case td: Decl.TypeDecl => td }
         val allEnumDecls = decls.collect { case ed: Decl.EnumDecl => ed }
@@ -99,8 +103,7 @@ object Merge:
         else if allEnumDecls.size == decls.size then
           val typed = multiple.collect { case (v, ed: Decl.EnumDecl) => (v, ed) }
           Outcome.ok(Some(mergeEnumDecls(typed, presentVersions)))
-        else
-          Outcome.warn(s"Mixed declaration kinds for '$name', using first", Some(decls.head))
+        else Outcome.warn(s"Mixed declaration kinds for '$name', using first", Some(decls.head))
 
   private def mergeTypeDecls[F[_]: Monad](
     name: String,
@@ -109,27 +112,27 @@ object Merge:
     strategy: MergeStrategy[F]
   ): Outcome[F, Decl] =
     val presentVersions = versioned.map(_._1)
-    val first = versioned.head._2
+    val first           = versioned.head._2
 
-    val allFuncs = versioned.flatMap { (v, td) => td.functions.map(f => (v, f)) }
+    val allFuncs    = versioned.flatMap((v, td) => td.functions.map(f => (v, f)))
     val funcsByName = allFuncs.groupBy(_._2.name)
 
-    val allFieldEntries = versioned.flatMap { (v, td) => td.fields.map(f => (v, f)) }
-    val fieldsByName = allFieldEntries.groupBy(_._2.name)
+    val allFieldEntries = versioned.flatMap((v, td) => td.fields.map(f => (v, f)))
+    val fieldsByName    = allFieldEntries.groupBy(_._2.name)
 
-    val allNestedEntries = versioned.flatMap { (v, td) => td.nested.map(d => (v, d)) }
-    val nestedByName = allNestedEntries.groupBy((_, d) => d.name)
+    val allNestedEntries = versioned.flatMap((v, td) => td.nested.map(d => (v, d)))
+    val nestedByName     = allNestedEntries.groupBy((_, d) => d.name)
 
     for
-      mergedFuncs   <- funcsByName.toVector.traverse { (fname, vFuncs) =>
-                         mergeFunctions(name, fname, vFuncs, strategy)
-                       }
-      mergedFields  <- fieldsByName.toVector.traverse { (fname, vFields) =>
-                         mergeFields(name, fname, vFields, strategy)
-                       }
-      mergedNested  <- nestedByName.toVector.traverse { (nname, vNested) =>
-                         mergeDecl(nname, vNested, allVersions, strategy)
-                       }
+      mergedFuncs <- funcsByName.toVector.traverse { (fname, vFuncs) =>
+        mergeFunctions(name, fname, vFuncs, strategy)
+      }
+      mergedFields <- fieldsByName.toVector.traverse { (fname, vFields) =>
+        mergeFields(name, fname, vFields, strategy)
+      }
+      mergedNested <- nestedByName.toVector.traverse { (nname, vNested) =>
+        mergeDecl(nname, vNested, allVersions, strategy)
+      }
     yield
       val mergedSupertypes = versioned.flatMap(_._2.supertypes).distinct
       val meta = first.meta
@@ -157,11 +160,15 @@ object Merge:
   ): Outcome[F, Option[Field]] =
     val first = versioned.head._2
     val types = versioned.map((v, f) => (v, f.fieldType)).distinctBy(_._2)
-    if types.size <= 1 then
-      Outcome.ok(Some(first))
+    if types.size <= 1 then Outcome.ok(Some(first))
     else
-      val conflict = Conflict(declName, fieldName, ConflictKind.FieldType,
-        NonEmptyVector.fromVectorUnsafe(versioned.map((v, f) => (v, f.fieldType))), Meta.empty)
+      val conflict = Conflict(
+        declName,
+        fieldName,
+        ConflictKind.FieldType,
+        NonEmptyVector.fromVectorUnsafe(versioned.map((v, f) => (v, f.fieldType))),
+        Meta.empty
+      )
       strategy.onConflict(conflict).map {
         case Resolution.UseType(t) => Some(first.copy(fieldType = t))
         case Resolution.Skip       => None
@@ -174,16 +181,21 @@ object Merge:
     versioned: Vector[(String, Func)],
     strategy: MergeStrategy[F]
   ): Outcome[F, Option[Func]] =
-    val presentIn = versioned.map(_._1)
-    val first = versioned.head._2
+    val presentIn   = versioned.map(_._1)
+    val first       = versioned.head._2
     val returnTypes = versioned.map((v, f) => (v, f.returnType)).distinctBy(_._2)
 
     if returnTypes.size <= 1 then
       val meta = first.meta.set(Keys.presentIn, presentIn)
       Outcome.ok(Some(first.copy(meta = meta)))
     else
-      val conflict = Conflict(declName, funcName, ConflictKind.FuncReturnType,
-        NonEmptyVector.fromVectorUnsafe(versioned.map((v, f) => (v, f.returnType))), Meta.empty)
+      val conflict = Conflict(
+        declName,
+        funcName,
+        ConflictKind.FuncReturnType,
+        NonEmptyVector.fromVectorUnsafe(versioned.map((v, f) => (v, f.returnType))),
+        Meta.empty
+      )
       strategy.onConflict(conflict).map {
         case Resolution.UseType(t) =>
           val meta = first.meta
@@ -207,7 +219,7 @@ object Merge:
     versioned: Vector[(String, Decl.EnumDecl)],
     presentVersions: Vector[String]
   ): Decl =
-    val first = versioned.head._2
+    val first       = versioned.head._2
     val allVariants = versioned.flatMap(_._2.variants).distinctBy(_.name)
-    val meta = first.meta.set(Keys.presentIn, presentVersions)
+    val meta        = first.meta.set(Keys.presentIn, presentVersions)
     first.copy(variants = allVariants, meta = meta)

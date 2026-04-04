@@ -3,7 +3,7 @@ package io.alnovis.ircraft.core
 import cats.*
 import cats.data.*
 import cats.syntax.all.*
-import io.alnovis.ircraft.core.ir.{Meta, Module}
+import io.alnovis.ircraft.core.ir.{ Meta, Module }
 
 /** Pass = Kleisli[F, Module, Module]. Composable via andThen. */
 type Pass[F[_]] = Kleisli[F, Module, Module]

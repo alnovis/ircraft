@@ -6,14 +6,14 @@ import io.alnovis.ircraft.core.ir.*
 
 /** Well-known Meta keys for proto provenance. */
 object ProtoMeta:
-  val sourceKind: Meta.Key[String]    = Meta.Key("proto.sourceKind")
-  val fieldNumber: Meta.Key[Int]      = Meta.Key("proto.fieldNumber")
-  val protoFqn: Meta.Key[String]      = Meta.Key("proto.fqn")
-  val protoPackage: Meta.Key[String]  = Meta.Key("proto.package")
-  val outerClass: Meta.Key[String]    = Meta.Key("proto.outerClass")
-  val syntax: Meta.Key[String]        = Meta.Key("proto.syntax")
-  val fieldKind: Meta.Key[String]     = Meta.Key("proto.fieldKind")
-  val originalType: Meta.Key[String]  = Meta.Key("proto.originalType")
+  val sourceKind: Meta.Key[String]   = Meta.Key("proto.sourceKind")
+  val fieldNumber: Meta.Key[Int]     = Meta.Key("proto.fieldNumber")
+  val protoFqn: Meta.Key[String]     = Meta.Key("proto.fqn")
+  val protoPackage: Meta.Key[String] = Meta.Key("proto.package")
+  val outerClass: Meta.Key[String]   = Meta.Key("proto.outerClass")
+  val syntax: Meta.Key[String]       = Meta.Key("proto.syntax")
+  val fieldKind: Meta.Key[String]    = Meta.Key("proto.fieldKind")
+  val originalType: Meta.Key[String] = Meta.Key("proto.originalType")
 
 /** Lowering: ProtoFile -> F[Module]. */
 object ProtoLowering:
@@ -25,14 +25,14 @@ object ProtoLowering:
     files.traverse(lowerFile[F]).map(_.combineAll)
 
   private def lowerFile[F[_]: Applicative](file: ProtoFile): F[Module] =
-    val pkg = file.javaPackage.getOrElse(file.packageName)
+    val pkg        = file.javaPackage.getOrElse(file.packageName)
     val outerClass = file.javaOuterClassname.getOrElse(deriveOuterClass(file.name))
     val syntaxStr = file.syntax match
       case ProtoSyntax.Proto2 => "proto2"
       case ProtoSyntax.Proto3 => "proto3"
 
     val messageDecls = file.messages.map(m => lowerMessage(m, pkg, outerClass, file.syntax))
-    val enumDecls = file.enums.map(lowerEnum)
+    val enumDecls    = file.enums.map(lowerEnum)
 
     val unit = CompilationUnit(
       namespace = pkg,
@@ -58,7 +58,7 @@ object ProtoLowering:
     val getters = msg.fields.map { f =>
       val getterName = s"get${capitalize(f.name)}"
       val returnType = lowerType(f.fieldType, f.label)
-      val kind = classifyFieldKind(f)
+      val kind       = classifyFieldKind(f)
       Func(
         name = getterName,
         returnType = returnType,
@@ -79,7 +79,7 @@ object ProtoLowering:
 
     // nested
     val nestedMessages = msg.nestedMessages.map(m => lowerMessage(m, pkg, outerClass, syntax))
-    val nestedEnums = msg.nestedEnums.map(lowerEnum)
+    val nestedEnums    = msg.nestedEnums.map(lowerEnum)
 
     Decl.TypeDecl(
       name = msg.name,
@@ -93,7 +93,7 @@ object ProtoLowering:
     )
 
   private def lowerField(f: ProtoField, @scala.annotation.unused syntax: ProtoSyntax): Field =
-    val fieldType = lowerType(f.fieldType, f.label)
+    val fieldType  = lowerType(f.fieldType, f.label)
     val mutability = Mutability.Immutable
     Field(
       name = f.name,
@@ -120,21 +120,21 @@ object ProtoLowering:
       case ProtoLabel.Required => base
 
   private def scalarType(pt: ProtoType): TypeExpr = pt match
-    case ProtoType.Double   => TypeExpr.DOUBLE
-    case ProtoType.Float    => TypeExpr.FLOAT
-    case ProtoType.Int32    => TypeExpr.INT
-    case ProtoType.Int64    => TypeExpr.LONG
-    case ProtoType.UInt32   => TypeExpr.Primitive.UInt32
-    case ProtoType.UInt64   => TypeExpr.Primitive.UInt64
-    case ProtoType.SInt32   => TypeExpr.Primitive.Int32
-    case ProtoType.SInt64   => TypeExpr.Primitive.Int64
-    case ProtoType.Fixed32  => TypeExpr.Primitive.UInt32
-    case ProtoType.Fixed64  => TypeExpr.Primitive.UInt64
-    case ProtoType.SFixed32 => TypeExpr.Primitive.Int32
-    case ProtoType.SFixed64 => TypeExpr.Primitive.Int64
-    case ProtoType.Bool     => TypeExpr.BOOL
-    case ProtoType.String   => TypeExpr.STR
-    case ProtoType.Bytes    => TypeExpr.BYTES
+    case ProtoType.Double       => TypeExpr.DOUBLE
+    case ProtoType.Float        => TypeExpr.FLOAT
+    case ProtoType.Int32        => TypeExpr.INT
+    case ProtoType.Int64        => TypeExpr.LONG
+    case ProtoType.UInt32       => TypeExpr.Primitive.UInt32
+    case ProtoType.UInt64       => TypeExpr.Primitive.UInt64
+    case ProtoType.SInt32       => TypeExpr.Primitive.Int32
+    case ProtoType.SInt64       => TypeExpr.Primitive.Int64
+    case ProtoType.Fixed32      => TypeExpr.Primitive.UInt32
+    case ProtoType.Fixed64      => TypeExpr.Primitive.UInt64
+    case ProtoType.SFixed32     => TypeExpr.Primitive.Int32
+    case ProtoType.SFixed64     => TypeExpr.Primitive.Int64
+    case ProtoType.Bool         => TypeExpr.BOOL
+    case ProtoType.String       => TypeExpr.STR
+    case ProtoType.Bytes        => TypeExpr.BYTES
     case ProtoType.Message(fqn) => TypeExpr.Unresolved(fqn)
     case ProtoType.Enum(fqn)    => TypeExpr.Unresolved(fqn)
     case ProtoType.Map(k, v)    => TypeExpr.MapOf(scalarType(k), scalarType(v))
@@ -145,12 +145,12 @@ object ProtoLowering:
         f.fieldType match
           case ProtoType.Map(_, _)  => "MAP"
           case _: ProtoType.Message => "REPEATED_MESSAGE"
-          case _: ProtoType.Enum   => "REPEATED_ENUM"
+          case _: ProtoType.Enum    => "REPEATED_ENUM"
           case _                    => "REPEATED_SCALAR"
       case _ =>
         f.fieldType match
           case _: ProtoType.Message => "MESSAGE"
-          case _: ProtoType.Enum   => "ENUM"
+          case _: ProtoType.Enum    => "ENUM"
           case _                    => "SCALAR"
 
   private def needsHasMethod(f: ProtoField, @scala.annotation.unused syntax: ProtoSyntax): Boolean =

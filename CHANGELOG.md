@@ -7,49 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- **Semantic merged into core** -- `ircraft-dialect-semantic` module removed, all Semantic ops now in `ircraft-core` under `io.alnovis.ircraft.core.semantic`. Semantic is the platform, not an optional module.
-- **Proto lowering moved to dialect** -- `pipelines/proto-to-semantic/` eliminated, lowering now lives in `dialects/proto/lowering/`. No separate pipeline modules needed.
-- **Simplified dependencies** -- all dialects and java-api depend only on `core`. No more `dialectSemantic` dependency.
+## [2.0.0-alpha.1] - 2026-04-04
 
-### Added
-- **New Proto Dialect** -- simple single-schema representation (ProtoFileOp, MessageOp, FieldOp, EnumOp, OneofOp). No versioning. TypeRef encodes all type info.
-- **Proto DSL** -- `ProtoSchema.file("pkg", Proto3) { ... }` builder
-- **Proto-to-Semantic lowering** -- MessageOp->InterfaceOp, EnumOp->EnumClassOp, proto syntax-aware has-method generation
-- **ProtoVerifierPass** -- structural validation for proto IR
+Complete rewrite from OOP/MLIR-style to pure functional architecture.
 
-### Removed
-- **Old Proto Dialect** -- deleted versioned proto dialect (presentInVersions, ConflictType, etc.)
-- **Old Proto Pipelines** -- deleted `pipelines/proto-to-java/`, `proto-to-kotlin/`, `proto-to-scala/`
-- **SchemaDiffApi** -- removed from `ircraft-java-api`
-- **Obsolete docs** -- PASS_SEPARATION_PLAN.md, IMPLEMENTATION_PLAN.md, PHASE8_PLAN.md
+### Architecture
+- **Pure FP** -- Scala 3 + Cats, tagless final `F[_]`, zero mutation
+- **Pass = Kleisli[F, Module, Module]** -- composable via `andThen`
+- **Pipeline = function composition** -- `Pipeline.of(pass1, pass2, ...)`
+- **Outcome = IorT** -- Right (success), Both (warnings), Left (error)
+- **Two-phase emit** -- IR -> CodeNode tree -> text via Renderer
 
-### Added
-- **Scala Code Dialect** — DirectScalaEmitter with Scala 3 syntax (trait, enum, case extends, Option[T], Array[Byte], square bracket generics, companion object, ScalaDoc)
-- **Kotlin Code Dialect** — DirectKotlinEmitter with Kotlin syntax (interface, data class, ByteArray, nullable T?, companion object, KDoc)
-- **IR Text Printer** — IrPrinter for human-readable IR visualization (MLIR-style format)
-- **Generic Dialect API** — GenericDialect + GenericOp for zero-boilerplate dialect creation (~6 lines vs ~241 lines)
-- **BaseLanguageTypeMapping** — shared type mapping logic for JVM languages, reducing duplication across Java/Kotlin/Scala
-- **Expression/Statement traversal** -- ExprTraversal + BodyTraversal for method body walk/collect/transform
+### Core IR (language-agnostic)
+- `Module`, `CompilationUnit`, `Decl` (TypeDecl, EnumDecl, FuncDecl, AliasDecl, ConstDecl)
+- `TypeKind` -- Product, Protocol, Abstract, Sum, Singleton
+- `TypeExpr` -- primitives, collections, generics, union, intersection, function types
+- `Expr`, `Stmt`, `Body` -- expression language for method bodies
+- `Stmt.Match` + `Pattern` ADT -- language-agnostic pattern matching
+- `Meta` -- typed metadata with identity-based keys (vault-style)
+- `Doc` -- structured documentation via Meta
 
-### Changed
-- **Dialect isolation** -- Semantic dialect is pure (zero imports from other dialects)
-- **width -> estimatedSize** -- renamed across all Operations for clarity
-- **ContentHashable consistency** -- standardized summon[] usage, AttributeMap.contentHash direct access
-- **Operation.regionOps** -- warns on stderr if region name not found on non-leaf operation
+### Emitter system
+- `LanguageSyntax` trait -- ~30 hooks parameterize BaseEmitter for any language
+- `BaseEmitter` -- generic traversal, language-specific via LanguageSyntax
+- `CodeNode` tree -- TypeBlock, Func, IfElse, MatchBlock, Comment, etc.
+- `Renderer` -- pure, stack-safe (Eval), handles indentation
 
-### Fixed
-- **ContentHash for bodies** — MethodOp.body, ConstructorOp.body, EnumConstantOp.arguments now included in hash
-- **asInstanceOf removal** — replaced with type ascription in lowering
-- **Exhaustive matching** — ProtoVerifierPass and DirectJavaEmitter warn on unknown operation types
+### Built-in emitters
+- **Java** -- JavaEmitter + JavaSyntax + JavaTypeMapping
+- **Scala 3** -- ScalaEmitter + ScalaSyntax + ScalaTypeMapping (trait, enum, def, val, match, Option[T])
+- **Scala 2** -- ScalaSyntax with sealed trait, case object, new keyword, if (cond)
+- `ScalaEmitterConfig` -- scalaVersion, enumStyle, useNewKeyword
+
+### Dialects
+- **Proto** -- ProtoFile/ProtoMessage/ProtoField ADT + ProtoLowering
+
+### Merge
+- `Merge.merge` with `MergeStrategy[F]` + `Outcome`
+- Conflict detection: FieldType, FuncReturnType, Missing
+- Resolution: UseType, DualAccessor, Custom, Skip
+
+### IO
+- `CodeWriter` -- parallel writes with atomic temp + rename via Resource
+- `IncrementalWriter` -- SHA-256 content hashing, skip unchanged files
+
+### Removed (from v1)
+- `Operation` trait, `GreenNode`, `NodeKind`, `Region` -- replaced by ADT
+- `AttributeMap` -- replaced by `Meta` (typed keys)
+- `Pass` trait, `PassContext`, `PassResult` -- replaced by Kleisli
+- `Dialect` trait, `GenericDialect`, `GenericOp` -- dialect = user's ADT
+- `InterfaceOp`, `ClassOp`, `MethodOp` -- replaced by TypeDecl, Func, Field
+- `ContentHash`, `RedTree` -- Scala case classes give immutability/equality for free
+- `IrcraftSchema`, `IrcraftCodec` -- removed
+- `WriterT`/`Pipe` -- replaced by Outcome (IorT)
+- `DiagnosticError` (RuntimeException) -- replaced by Outcome.Left
+
+## [1.0.0-final] - 2026-04-04
+
+Final v1 release (OOP/MLIR-style). Preserved as tag for reference.
 
 ## [0.1.0] - 2025-11-05
 
-### Added
-- **ircraft-core** — GreenNode, Operation, Module, Region, TypeRef, Dialect, Pass, Pipeline, Traversal, ContentHash, Attribute, EmitterUtils
-- **ircraft-dialect-proto** — SchemaOp, MessageOp, FieldOp, EnumOp, OneofOp, ConflictEnumOp, ProtoVerifierPass, ProtoSchema DSL
-- **ircraft-dialect-semantic** — ClassOp, InterfaceOp, MethodOp, EnumClassOp, FieldDeclOp, ConstructorOp, Expression, Statement, Block, SemanticDialect
-- **ircraft-dialect-java** — DirectJavaEmitter, JavaTypeMapping
-- **ircraft-pipeline-proto-to-java** — ProtoToJavaPipeline end-to-end
-- Proto → Semantic lowering (ProtoToSemanticLowering)
-- Integration with proto-wrapper-plugin (IrcraftBridge, IrcraftGenerator)
+Initial release.

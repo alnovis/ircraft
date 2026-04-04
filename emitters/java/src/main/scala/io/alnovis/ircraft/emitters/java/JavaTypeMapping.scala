@@ -34,7 +34,8 @@ object JavaTypeMapping extends TypeMapping:
       s"${typeName(base)}<${args.map(boxedName).mkString(", ")}>"
     case Wildcard(None)    => "?"
     case Wildcard(Some(b)) => s"? extends ${typeName(b)}"
-    case Unresolved(fqn)   => unreachable(s"Unresolved type reached emitter: $fqn. Run Passes.validateResolved before emission.")
+    case Unresolved(fqn) =>
+      unreachable(s"Unresolved type reached emitter: $fqn. Run Passes.validateResolved before emission.")
     case Local(name)       => name
     case Imported(_, name) => name
     case FuncType(_, _)    => "Object"

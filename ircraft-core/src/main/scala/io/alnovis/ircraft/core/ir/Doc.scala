@@ -8,7 +8,7 @@ case class Doc(
   returns: Option[String] = None,
   throws: Vector[(String, String)] = Vector.empty,
   tags: Vector[(String, String)] = Vector.empty,
-  examples: Vector[String] = Vector.empty,
+  examples: Vector[String] = Vector.empty
 )
 
 object Doc:

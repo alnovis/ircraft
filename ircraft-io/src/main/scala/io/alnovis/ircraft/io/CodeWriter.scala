@@ -3,7 +3,7 @@ package io.alnovis.ircraft.io
 import cats.effect.*
 import cats.effect.implicits.*
 import cats.syntax.all.*
-import java.nio.file.{Files, Path, StandardCopyOption}
+import java.nio.file.{ Files, Path, StandardCopyOption }
 
 /** Writes generated files to disk. */
 trait CodeWriter[F[_]]:
@@ -22,10 +22,11 @@ object CodeWriter:
       Files.createDirectories(target.getParent)
       Files.createTempFile(target.getParent, ".ircraft-", ".tmp")
     }
-    val release: Path => F[Unit] = tmp =>
-      Async[F].interruptible(Files.deleteIfExists(tmp)).void
+    val release: Path => F[Unit] = tmp => Async[F].interruptible(Files.deleteIfExists(tmp)).void
 
     Resource.make(acquire)(release).use { tmp =>
       Async[F].interruptible(Files.writeString(tmp, content)) *>
-        Async[F].interruptible(Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)).void
+        Async[F]
+          .interruptible(Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE))
+          .void
     }

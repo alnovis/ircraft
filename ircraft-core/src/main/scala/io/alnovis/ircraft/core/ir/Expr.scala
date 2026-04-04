@@ -5,14 +5,14 @@ sealed trait Expr
 object Expr:
   // -- Atoms --
   case class Lit(value: String, litType: TypeExpr) extends Expr
-  case class Ref(name: String) extends Expr
-  case object Null extends Expr
-  case object This extends Expr
-  case object Super extends Expr
+  case class Ref(name: String)                     extends Expr
+  case object Null                                 extends Expr
+  case object This                                 extends Expr
+  case object Super                                extends Expr
 
   // -- Access --
   case class Access(expr: Expr, field: String) extends Expr
-  case class Index(expr: Expr, index: Expr) extends Expr
+  case class Index(expr: Expr, index: Expr)    extends Expr
 
   // -- Calls --
   case class Call(
@@ -25,8 +25,8 @@ object Expr:
   case class New(typeExpr: TypeExpr, args: Vector[Expr] = Vector.empty) extends Expr
 
   // -- Operators --
-  case class BinOp(left: Expr, op: BinaryOp, right: Expr) extends Expr
-  case class UnOp(op: UnaryOp, expr: Expr) extends Expr
+  case class BinOp(left: Expr, op: BinaryOp, right: Expr)     extends Expr
+  case class UnOp(op: UnaryOp, expr: Expr)                    extends Expr
   case class Ternary(cond: Expr, ifTrue: Expr, ifFalse: Expr) extends Expr
 
   // -- Cast --

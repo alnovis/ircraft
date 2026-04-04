@@ -6,6 +6,7 @@ sealed trait Decl:
   def withMeta(meta: Meta): Decl
 
 object Decl:
+
   case class TypeDecl(
     name: String,
     kind: TypeKind,
@@ -35,7 +36,7 @@ object Decl:
     func: Func,
     meta: Meta = Meta.empty
   ) extends Decl:
-    def name: String = func.name
+    def name: String            = func.name
     def withMeta(m: Meta): Decl = copy(meta = m)
 
   case class AliasDecl(

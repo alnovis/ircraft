@@ -21,9 +21,14 @@ trait LanguageSyntax:
 
   // -- Functions --
   def funcSignature(
-    vis: String, modifiers: Set[FuncModifier], typeParams: String,
-    returnType: String, name: String, params: String,
-    isAbstract: Boolean, parentKind: TypeKind
+    vis: String,
+    modifiers: Set[FuncModifier],
+    typeParams: String,
+    returnType: String,
+    name: String,
+    params: String,
+    isAbstract: Boolean,
+    parentKind: TypeKind
   ): String
   def paramDecl(name: String, typeName: String): String
 
@@ -77,20 +82,20 @@ trait LanguageSyntax:
     else ("/**" +: content.map(l => s" * $l") :+ " */").mkString("\n")
 
   // -- Naming conventions --
-  def transformMethodName(name: String): String = name  // override for Scala: strip "get", camelCase
-  def transformFieldName(name: String): String = name   // override for Scala: camelCase
+  def transformMethodName(name: String): String = name // override for Scala: strip "get", camelCase
+  def transformFieldName(name: String): String  = name // override for Scala: camelCase
 
   // -- Body style --
   /** true = Scala style `def x: Int = expr`, false = Java style `int x() { return expr; }` */
   def useFuncEqualsStyle: Boolean = false
 
   // -- Pattern matching --
-  def matchHeader(expr: String): String                    // "expr match" (Scala) or "// match on expr" (Java -- rendered as if-chain)
-  def matchCaseHeader(pattern: String): String             // "case pattern =>" (Scala) or "case pattern:" (Java switch)
-  def patternTypeTest(name: String, typeName: String): String  // "name: Type" (Scala) or "Type name" (Java instanceof)
-  def patternWildcard: String                              // "_" (Scala) or "default" (Java)
-  def patternLiteral(value: String): String                // value as-is
-  def supportsNativeMatch: Boolean                         // true = render as match, false = render as if-chain
+  def matchHeader(expr: String): String // "expr match" (Scala) or "// match on expr" (Java -- rendered as if-chain)
+  def matchCaseHeader(pattern: String): String // "case pattern =>" (Scala) or "case pattern:" (Java switch)
+  def patternTypeTest(name: String, typeName: String): String // "name: Type" (Scala) or "Type name" (Java instanceof)
+  def patternWildcard: String                                 // "_" (Scala) or "default" (Java)
+  def patternLiteral(value: String): String                   // value as-is
+  def supportsNativeMatch: Boolean                            // true = render as match, false = render as if-chain
 
   // -- Operators --
   def binOp(op: BinaryOp): String

@@ -1,13 +1,13 @@
 package io.alnovis.ircraft.emitters.scala
 
 import io.alnovis.ircraft.core.ir.*
-import io.alnovis.ircraft.emit.{LanguageSyntax, TypeMapping}
+import io.alnovis.ircraft.emit.{ LanguageSyntax, TypeMapping }
 
 class ScalaSyntax(config: ScalaEmitterConfig) extends LanguageSyntax:
 
   private val isScala3 = config.scalaVersion == ScalaTarget.Scala3
 
-  val fileExtension: String = "scala"
+  val fileExtension: String       = "scala"
   val statementTerminator: String = ""
 
   def packageDecl(pkg: String): String = s"package $pkg"
@@ -25,7 +25,7 @@ class ScalaSyntax(config: ScalaEmitterConfig) extends LanguageSyntax:
   def enumSignature(vis: String, name: String, supertypes: Vector[String], hasValues: Boolean): String =
     config.enumStyle match
       case EnumStyle.Scala3Enum =>
-        val ext = extendsClause(supertypes)
+        val ext    = extendsClause(supertypes)
         val params = if hasValues then "(val value: Int)" else ""
         s"${vis}enum $name$params$ext"
       case EnumStyle.SealedTrait =>
@@ -34,7 +34,7 @@ class ScalaSyntax(config: ScalaEmitterConfig) extends LanguageSyntax:
         else s"${vis}sealed trait $name$ext"
 
   def enumVariant(name: String, args: String, isLast: Boolean, enumName: String): String =
-    val stripped = stripEnumPrefix(name, enumName)
+    val stripped  = stripEnumPrefix(name, enumName)
     val scalaName = toPascalCase(stripped)
     config.enumStyle match
       case EnumStyle.Scala3Enum =>
@@ -53,12 +53,17 @@ class ScalaSyntax(config: ScalaEmitterConfig) extends LanguageSyntax:
     s"${vis}val $name: $typeName = $value"
 
   def funcSignature(
-    vis: String, modifiers: Set[FuncModifier], typeParams: String,
-    returnType: String, name: String, params: String,
-    isAbstract: Boolean, parentKind: TypeKind
+    vis: String,
+    modifiers: Set[FuncModifier],
+    typeParams: String,
+    returnType: String,
+    name: String,
+    params: String,
+    isAbstract: Boolean,
+    parentKind: TypeKind
   ): String =
     val overrideMod = if modifiers.contains(FuncModifier.Override) then "override " else ""
-    val paramsStr = if params.isEmpty then "" else s"($params)"
+    val paramsStr   = if params.isEmpty then "" else s"($params)"
     s"${vis}${overrideMod}def $name$typeParams$paramsStr: $returnType"
 
   def paramDecl(name: String, typeName: String): String = s"$name: $typeName"
@@ -95,14 +100,16 @@ class ScalaSyntax(config: ScalaEmitterConfig) extends LanguageSyntax:
   val thisLiteral: String  = "this"
   val superLiteral: String = "super"
 
-  def returnStmt(expr: String): String = expr  // Scala: last expression is return value
-  def returnVoid: String = "()"
+  def returnStmt(expr: String): String = expr // Scala: last expression is return value
+  def returnVoid: String               = "()"
+
   def letStmt(mutable: Boolean, typeName: String, name: String, init: Option[String]): String =
     val keyword = if mutable then "var" else "val"
     val initStr = init.map(v => s" = $v").getOrElse("")
     s"$keyword $name: $typeName$initStr"
   def assignStmt(target: String, value: String): String = s"$target = $value"
-  def throwStmt(expr: String): String = s"throw $expr"
+  def throwStmt(expr: String): String                   = s"throw $expr"
+
   def forEachHeader(varName: String, typeName: String, iterExpr: String): String =
     if isScala3 then s"for $varName <- $iterExpr do"
     else s"for ($varName <- $iterExpr)"
@@ -130,29 +137,31 @@ class ScalaSyntax(config: ScalaEmitterConfig) extends LanguageSyntax:
     case UnaryOp.Negate => "-"
     case UnaryOp.BitNot => "~"
 
-  val supportsNativeMatch: Boolean = true
-  def matchHeader(expr: String): String = s"$expr match"
-  def matchCaseHeader(pattern: String): String = s"case $pattern =>"
+  val supportsNativeMatch: Boolean                            = true
+  def matchHeader(expr: String): String                       = s"$expr match"
+  def matchCaseHeader(pattern: String): String                = s"case $pattern =>"
   def patternTypeTest(name: String, typeName: String): String = s"$name: $typeName"
-  def patternWildcard: String = "_"
-  def patternLiteral(value: String): String = value
+  def patternWildcard: String                                 = "_"
+  def patternLiteral(value: String): String                   = value
 
   // -- Naming conventions --
 
   // Standard method names that should never be transformed
-  private val preservedNames = Set("toString", "hashCode", "equals", "clone", "finalize", "getClass", "notify", "notifyAll", "wait")
+  private val preservedNames =
+    Set("toString", "hashCode", "equals", "clone", "finalize", "getClass", "notify", "notifyAll", "wait")
 
   override def transformMethodName(name: String): String =
     if preservedNames.contains(name) then name
-    else name match
-      case s if s.startsWith("get") && s.length > 3 =>
-        toCamelCase(s.drop(3))
-      case s if s.startsWith("has") && s.length > 3 =>
-        "has" + toPascalCase(s.drop(3))
-      case s if s.startsWith("is") && s.length > 2 =>
-        s
-      case s =>
-        toCamelCase(s)
+    else
+      name match
+        case s if s.startsWith("get") && s.length > 3 =>
+          toCamelCase(s.drop(3))
+        case s if s.startsWith("has") && s.length > 3 =>
+          "has" + toPascalCase(s.drop(3))
+        case s if s.startsWith("is") && s.length > 2 =>
+          s
+        case s =>
+          toCamelCase(s)
 
   override def transformFieldName(name: String): String = toCamelCase(name)
 
@@ -174,8 +183,7 @@ class ScalaSyntax(config: ScalaEmitterConfig) extends LanguageSyntax:
       val parts = s.toLowerCase.split("_").filter(_.nonEmpty)
       if parts.isEmpty then s
       else parts.head + parts.tail.map(w => w.head.toUpper +: w.tail).mkString
-    else if s.nonEmpty && s.head.isUpper then
-      s.head.toLower +: s.tail
+    else if s.nonEmpty && s.head.isUpper then s.head.toLower +: s.tail
     else s
 
   /** Strip enum name prefix from variant name. E.g., "TEST_ENUM_UNKNOWN" with enum "TestEnum" -> "UNKNOWN". */

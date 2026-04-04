@@ -8,7 +8,7 @@ object Meta:
   val empty: Meta = Map.empty
 
   given Monoid[Meta] with
-    def empty: Meta = Meta.empty
+    def empty: Meta                     = Meta.empty
     def combine(x: Meta, y: Meta): Meta = x ++ y
 
   /** Type-safe entry for constructing Meta. */
@@ -19,7 +19,8 @@ object Meta:
 
   def of(entries: Entry*): Meta = entries.foldLeft(empty)((m, e) => e.applyTo(m))
 
-  /** Typed metadata key. Identity-based equality (vault-style).
+  /**
+    * Typed metadata key. Identity-based equality (vault-style).
     * Each `Key` allocation is unique — two keys with the same name
     * but created separately are distinct. This prevents type erasure
     * issues with generic type parameters.
@@ -31,6 +32,7 @@ object Meta:
     def apply[A](name: String): Key[A] = new Key[A](name)
 
   extension (m: Meta)
+
     def get[A](key: Key[A]): Option[A] =
       m.get(key).map(_.asInstanceOf[A])
 

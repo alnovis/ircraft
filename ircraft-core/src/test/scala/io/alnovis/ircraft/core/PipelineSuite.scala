@@ -28,7 +28,7 @@ class PipelineSuite extends munit.FunSuite:
       })
     }
 
-    val input = moduleWith(Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))))
+    val input  = moduleWith(Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))))
     val result = Pipeline.run(addField, input)
 
     val fields = result.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].fields
@@ -36,10 +36,10 @@ class PipelineSuite extends munit.FunSuite:
     assertEquals(fields.last.name, "added")
 
   test("Pipeline.of composes passes left to right"):
-    val pass1 = Pass.pure[F]("p1")(m => m.copy(name = m.name + "-1"))
-    val pass2 = Pass.pure[F]("p2")(m => m.copy(name = m.name + "-2"))
+    val pass1    = Pass.pure[F]("p1")(m => m.copy(name = m.name + "-1"))
+    val pass2    = Pass.pure[F]("p2")(m => m.copy(name = m.name + "-2"))
     val pipeline = Pipeline.of(pass1, pass2)
-    val result = Pipeline.run(pipeline, emptyModule)
+    val result   = Pipeline.run(pipeline, emptyModule)
     assertEquals(result.name, "test-1-2")
 
   test("Pass.id returns module unchanged"):
@@ -51,11 +51,13 @@ class PipelineSuite extends munit.FunSuite:
     val p2 = Pass.pure[F]("p2")(m => m.copy(name = m.name + "-2"))
     val p3 = Pass.pure[F]("p3")(m => m.copy(name = m.name + "-3"))
 
-    val pipeline = Pipeline.build(Vector(
-      (p1, true),
-      (p2, false),
-      (p3, true),
-    ))
+    val pipeline = Pipeline.build(
+      Vector(
+        (p1, true),
+        (p2, false),
+        (p3, true)
+      )
+    )
     val result = Pipeline.run(pipeline, emptyModule)
     assertEquals(result.name, "test-1-3")
 
@@ -93,11 +95,13 @@ class PipelineSuite extends munit.FunSuite:
       val units = tables.map { t =>
         CompilationUnit(
           "com.example.model",
-          Vector(Decl.TypeDecl(
-            name = t.name,
-            kind = TypeKind.Product,
-            fields = t.columns.map(c => Field(c, TypeExpr.STR))
-          ))
+          Vector(
+            Decl.TypeDecl(
+              name = t.name,
+              kind = TypeKind.Product,
+              fields = t.columns.map(c => Field(c, TypeExpr.STR))
+            )
+          )
         )
       }
       Module("sql", units)
@@ -110,8 +114,11 @@ class PipelineSuite extends munit.FunSuite:
 
   test("Passes.validateResolved detects unresolved types via Outcome"):
     val module = moduleWith(
-      Decl.TypeDecl("Order", TypeKind.Product,
-        fields = Vector(Field("address", TypeExpr.Unresolved("com.example.Address"))))
+      Decl.TypeDecl(
+        "Order",
+        TypeKind.Product,
+        fields = Vector(Field("address", TypeExpr.Unresolved("com.example.Address")))
+      )
     )
     Pipeline.run(Passes.validateResolved[Id], module).value match
       case Ior.Left(errors) =>
@@ -120,9 +127,8 @@ class PipelineSuite extends munit.FunSuite:
 
   test("Passes.validateResolved passes clean module"):
     val module = moduleWith(
-      Decl.TypeDecl("User", TypeKind.Product,
-        fields = Vector(Field("name", TypeExpr.STR)))
+      Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("name", TypeExpr.STR)))
     )
     Pipeline.run(Passes.validateResolved[Id], module).value match
       case Ior.Right(m) => assertEquals(m.units.size, 1)
-      case other => fail(s"expected Ior.Right, got $other")
+      case other        => fail(s"expected Ior.Right, got $other")

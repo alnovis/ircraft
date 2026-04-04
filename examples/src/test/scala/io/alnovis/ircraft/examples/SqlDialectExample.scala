@@ -7,15 +7,15 @@ import io.alnovis.ircraft.core.ir.*
 import io.alnovis.ircraft.emitters.java.JavaEmitter
 
 /**
- * End-to-end example: SQL Schema -> IR -> Pipeline -> Java code.
- *
- * Demonstrates the full ircraft v2 workflow:
- *   1. Define source dialect as ADT (SqlSchema)
- *   2. Define Lowering (SqlSchema -> Module)
- *   3. Define custom passes (add audit fields, add @NotNull)
- *   4. Compose pipeline
- *   5. Emit Java source
- */
+  * End-to-end example: SQL Schema -> IR -> Pipeline -> Java code.
+  *
+  * Demonstrates the full ircraft v2 workflow:
+  *   1. Define source dialect as ADT (SqlSchema)
+  *   2. Define Lowering (SqlSchema -> Module)
+  *   3. Define custom passes (add audit fields, add @NotNull)
+  *   4. Compose pipeline
+  *   5. Emit Java source
+  */
 class SqlDialectExample extends munit.FunSuite:
 
   type F[A] = Id[A]
@@ -37,31 +37,33 @@ class SqlDialectExample extends munit.FunSuite:
           defaultValue = col.default.map(d => Expr.Lit(d, TypeExpr.STR)),
           annotations =
             if !col.nullable then Vector(Annotation("NotNull"))
-            else Vector.empty,
+            else Vector.empty
         )
       }
       CompilationUnit(
         namespace = "com.example.model",
-        declarations = Vector(Decl.TypeDecl(
-          name = table.name,
-          kind = TypeKind.Product,
-          fields = fields,
-        ))
+        declarations = Vector(
+          Decl.TypeDecl(
+            name = table.name,
+            kind = TypeKind.Product,
+            fields = fields
+          )
+        )
       )
     }
     Module("sql-schema", units)
   }
 
   private def sqlTypeToIr(sqlType: String): TypeExpr = sqlType.toUpperCase match
-    case "BIGSERIAL" | "BIGINT" | "INT8" => TypeExpr.LONG
-    case "SERIAL" | "INTEGER" | "INT" | "INT4" => TypeExpr.INT
-    case "BOOLEAN" | "BOOL"  => TypeExpr.BOOL
-    case "DOUBLE PRECISION" | "FLOAT8" => TypeExpr.DOUBLE
-    case "REAL" | "FLOAT4"  => TypeExpr.FLOAT
+    case "BIGSERIAL" | "BIGINT" | "INT8"                                              => TypeExpr.LONG
+    case "SERIAL" | "INTEGER" | "INT" | "INT4"                                        => TypeExpr.INT
+    case "BOOLEAN" | "BOOL"                                                           => TypeExpr.BOOL
+    case "DOUBLE PRECISION" | "FLOAT8"                                                => TypeExpr.DOUBLE
+    case "REAL" | "FLOAT4"                                                            => TypeExpr.FLOAT
     case s if s.startsWith("VARCHAR") || s.startsWith("TEXT") || s.startsWith("CHAR") => TypeExpr.STR
-    case s if s.startsWith("DECIMAL") || s.startsWith("NUMERIC") => TypeExpr.DOUBLE
+    case s if s.startsWith("DECIMAL") || s.startsWith("NUMERIC")                      => TypeExpr.DOUBLE
     case "TIMESTAMP" | "TIMESTAMPTZ" => TypeExpr.Named("java.time.Instant")
-    case _ => TypeExpr.STR
+    case _                           => TypeExpr.STR
 
   // -- 3. Custom passes ---------------------------------------------------
 
@@ -72,10 +74,12 @@ class SqlDialectExample extends munit.FunSuite:
           val hasCreatedAt = td.fields.exists(_.name == "created_at")
           if hasCreatedAt then td
           else
-            td.copy(fields = td.fields ++ Vector(
-              Field("created_at", TypeExpr.Named("java.time.Instant"), mutability = Mutability.Immutable),
-              Field("updated_at", TypeExpr.Named("java.time.Instant"), mutability = Mutability.Immutable),
-            ))
+            td.copy(fields =
+              td.fields ++ Vector(
+                Field("created_at", TypeExpr.Named("java.time.Instant"), mutability = Mutability.Immutable),
+                Field("updated_at", TypeExpr.Named("java.time.Instant"), mutability = Mutability.Immutable)
+              )
+            )
         case other => other
       })
     })
@@ -111,16 +115,22 @@ class SqlDialectExample extends munit.FunSuite:
 
   test("full pipeline: SQL tables -> Java source"):
     val tables = Vector(
-      SqlTable("User", Vector(
-        SqlColumn("id", "BIGSERIAL", nullable = false),
-        SqlColumn("name", "VARCHAR(255)", nullable = false),
-        SqlColumn("email", "VARCHAR(255)", nullable = true),
-      )),
-      SqlTable("Order", Vector(
-        SqlColumn("id", "BIGSERIAL", nullable = false),
-        SqlColumn("user_id", "BIGINT", nullable = false),
-        SqlColumn("total", "DECIMAL(10,2)", nullable = false),
-      )),
+      SqlTable(
+        "User",
+        Vector(
+          SqlColumn("id", "BIGSERIAL", nullable = false),
+          SqlColumn("name", "VARCHAR(255)", nullable = false),
+          SqlColumn("email", "VARCHAR(255)", nullable = true)
+        )
+      ),
+      SqlTable(
+        "Order",
+        Vector(
+          SqlColumn("id", "BIGSERIAL", nullable = false),
+          SqlColumn("user_id", "BIGINT", nullable = false),
+          SqlColumn("total", "DECIMAL(10,2)", nullable = false)
+        )
+      )
     )
 
     // lowering
@@ -159,10 +169,15 @@ class SqlDialectExample extends munit.FunSuite:
     assert(orderSource.contains("double total;"))
 
   test("pipeline is composable -- add extra pass"):
-    val tables = Vector(SqlTable("Item", Vector(
-      SqlColumn("id", "SERIAL", nullable = false),
-      SqlColumn("name", "TEXT", nullable = false),
-    )))
+    val tables = Vector(
+      SqlTable(
+        "Item",
+        Vector(
+          SqlColumn("id", "SERIAL", nullable = false),
+          SqlColumn("name", "TEXT", nullable = false)
+        )
+      )
+    )
 
     val addToString: Pass[F] = Pass.pure[F]("add-toString") { module =>
       module.copy(units = module.units.map { unit =>
@@ -172,9 +187,15 @@ class SqlDialectExample extends munit.FunSuite:
               name = "toString",
               returnType = TypeExpr.STR,
               modifiers = Set(FuncModifier.Override),
-              body = Some(Body.of(Stmt.Return(Some(
-                Expr.Call(Some(Expr.Access(Expr.This, "name")), "toString")
-              ))))
+              body = Some(
+                Body.of(
+                  Stmt.Return(
+                    Some(
+                      Expr.Call(Some(Expr.Access(Expr.This, "name")), "toString")
+                    )
+                  )
+                )
+              )
             )
             td.copy(functions = td.functions :+ toString)
           case other => other
@@ -183,9 +204,9 @@ class SqlDialectExample extends munit.FunSuite:
     }
 
     val fullPipeline = Pipeline.of(pipeline, addToString)
-    val module = sqlLowering(tables)
-    val enriched = Pipeline.run(fullPipeline, module)
-    val files = javaEmitter(enriched)
+    val module       = sqlLowering(tables)
+    val enriched     = Pipeline.run(fullPipeline, module)
+    val files        = javaEmitter(enriched)
 
     val source = files.values.head
     assert(source.contains("getId"))

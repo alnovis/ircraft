@@ -12,7 +12,7 @@ class IrSuite extends munit.FunSuite:
         Field("id", TypeExpr.LONG),
         Field("name", TypeExpr.STR),
         Field("email", TypeExpr.STR),
-        Field("active", TypeExpr.BOOL),
+        Field("active", TypeExpr.BOOL)
       )
     )
     assertEquals(decl.name, "User")
@@ -27,7 +27,7 @@ class IrSuite extends munit.FunSuite:
       kind = TypeKind.Protocol,
       functions = Vector(
         Func("findById", Vector(Param("id", TypeExpr.LONG)), TypeExpr.Optional(TypeExpr.Named("User"))),
-        Func("save", Vector(Param("entity", TypeExpr.Named("User"))), TypeExpr.VOID),
+        Func("save", Vector(Param("entity", TypeExpr.Named("User"))), TypeExpr.VOID)
       )
     )
     assertEquals(decl.functions.size, 2)
@@ -39,7 +39,7 @@ class IrSuite extends munit.FunSuite:
       variants = Vector(
         EnumVariant("Red"),
         EnumVariant("Green"),
-        EnumVariant("Blue"),
+        EnumVariant("Blue")
       )
     )
     assertEquals(decl.variants.size, 3)
@@ -49,7 +49,7 @@ class IrSuite extends munit.FunSuite:
       name = "HttpStatus",
       variants = Vector(
         EnumVariant("OK", args = Vector(Expr.Lit("200", TypeExpr.INT))),
-        EnumVariant("NOT_FOUND", args = Vector(Expr.Lit("404", TypeExpr.INT))),
+        EnumVariant("NOT_FOUND", args = Vector(Expr.Lit("404", TypeExpr.INT)))
       ),
       functions = Vector(
         Func("code", returnType = TypeExpr.INT)
@@ -62,7 +62,7 @@ class IrSuite extends munit.FunSuite:
       namespace = "com.example.model",
       declarations = Vector(
         Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))),
-        Decl.TypeDecl("Order", TypeKind.Product, fields = Vector(Field("total", TypeExpr.DOUBLE))),
+        Decl.TypeDecl("Order", TypeKind.Product, fields = Vector(Field("total", TypeExpr.DOUBLE)))
       )
     )
     val module = Module("test", Vector(unit))
@@ -83,15 +83,17 @@ class IrSuite extends munit.FunSuite:
     val getter = Func(
       name = "getName",
       returnType = TypeExpr.STR,
-      body = Some(Body.of(
-        Stmt.Return(Some(Expr.Access(Expr.This, "name")))
-      ))
+      body = Some(
+        Body.of(
+          Stmt.Return(Some(Expr.Access(Expr.This, "name")))
+        )
+      )
     )
     assert(getter.body.isDefined)
     assertEquals(getter.body.get.stmts.size, 1)
 
   test("Meta typed keys"):
-    val presentIn = Meta.Key[Vector[String]]("merge.presentIn")
+    val presentIn    = Meta.Key[Vector[String]]("merge.presentIn")
     val conflictType = Meta.Key[String]("merge.conflictType")
 
     val meta = Meta.empty
@@ -103,21 +105,21 @@ class IrSuite extends munit.FunSuite:
     assert(meta.contains(presentIn))
 
   test("TypeExpr composite types"):
-    val listOfUsers = TypeExpr.ListOf(TypeExpr.Named("User"))
-    val mapOfIds = TypeExpr.MapOf(TypeExpr.STR, TypeExpr.LONG)
+    val listOfUsers   = TypeExpr.ListOf(TypeExpr.Named("User"))
+    val mapOfIds      = TypeExpr.MapOf(TypeExpr.STR, TypeExpr.LONG)
     val optionalEmail = TypeExpr.Optional(TypeExpr.STR)
     assert(optionalEmail.isInstanceOf[TypeExpr.Optional])
 
     listOfUsers match
       case TypeExpr.ListOf(TypeExpr.Named(fqn)) => assertEquals(fqn, "User")
-      case _ => fail("pattern match failed")
+      case _                                    => fail("pattern match failed")
 
     mapOfIds match
       case TypeExpr.MapOf(TypeExpr.Primitive.Str, TypeExpr.Primitive.Int64) => ()
-      case _ => fail("pattern match failed")
+      case _                                                                => fail("pattern match failed")
 
   test("TypeExpr function type"):
     val mapper = TypeExpr.FuncType(Vector(TypeExpr.STR), TypeExpr.INT)
     mapper match
       case TypeExpr.FuncType(Vector(TypeExpr.Primitive.Str), TypeExpr.Primitive.Int32) => ()
-      case _ => fail("pattern match failed")
+      case _                                                                           => fail("pattern match failed")

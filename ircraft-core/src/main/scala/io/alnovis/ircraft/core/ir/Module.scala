@@ -13,6 +13,7 @@ object Module:
 
   given Monoid[Module] with
     def empty: Module = Module("", Vector.empty)
+
     def combine(x: Module, y: Module): Module =
       Module(
         name = if x.name.isEmpty then y.name else if y.name.isEmpty then x.name else s"${x.name}+${y.name}",

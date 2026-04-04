@@ -11,12 +11,12 @@ import io.alnovis.ircraft.core.ir.*
 type Emitter[F[_]] = Kleisli[F, Module, Map[Path, String]]
 
 /**
- * Generic two-phase emitter parameterized by LanguageSyntax.
- * Phase 1: Semantic IR -> CodeNode tree (via syntax)
- * Phase 2: CodeNode -> String (via Renderer, pure)
- *
- * Subclasses only provide `syntax` and `tm`. All traversal is here.
- */
+  * Generic two-phase emitter parameterized by LanguageSyntax.
+  * Phase 1: Semantic IR -> CodeNode tree (via syntax)
+  * Phase 2: CodeNode -> String (via Renderer, pure)
+  *
+  * Subclasses only provide `syntax` and `tm`. All traversal is here.
+  */
 abstract class BaseEmitter[F[_]: Monad]:
 
   protected def syntax: LanguageSyntax
@@ -25,22 +25,24 @@ abstract class BaseEmitter[F[_]: Monad]:
   final val emitter: Emitter[F] = Kleisli(apply)
 
   final def apply(module: Module): F[Map[Path, String]] =
-    module.units.flatTraverse { unit =>
-      unit.declarations.traverse { decl =>
-        emitFileTree(unit.namespace, decl).map { tree =>
-          val name = decl.name
-          val path = Path.of(unit.namespace.replace('.', '/'), s"$name.${syntax.fileExtension}")
-          val source = Renderer.render(tree, syntax.statementTerminator)
-          (path, source)
+    module.units
+      .flatTraverse { unit =>
+        unit.declarations.traverse { decl =>
+          emitFileTree(unit.namespace, decl).map { tree =>
+            val name   = decl.name
+            val path   = Path.of(unit.namespace.replace('.', '/'), s"$name.${syntax.fileExtension}")
+            val source = Renderer.render(tree, syntax.statementTerminator)
+            (path, source)
+          }
         }
       }
-    }.map { pairs =>
-      val filtered = pairs.filter((_, source) => source.trim.nonEmpty)
-      SortedMap.from(filtered)(using Ordering.by(_.toString))
-    }
+      .map { pairs =>
+        val filtered = pairs.filter((_, source) => source.trim.nonEmpty)
+        SortedMap.from(filtered)(using Ordering.by(_.toString))
+      }
 
   def toFileTree(namespace: String, decl: Decl): F[CodeNode] = emitFileTree(namespace, decl)
-  def toDeclTree(decl: Decl): F[CodeNode] = emitDeclTree(decl)
+  def toDeclTree(decl: Decl): F[CodeNode]                    = emitDeclTree(decl)
 
   // -- File tree -----------------------------------------------------------
 
@@ -66,22 +68,21 @@ abstract class BaseEmitter[F[_]: Monad]:
       funcNodes   <- td.functions.traverse(f => emitFuncNode(f, td.kind))
       nestedNodes <- td.nested.traverse(emitDeclTree)
     yield
-      val vis = syntax.visibility(td.visibility)
-      val typeParams = syntax.typeParamList(td.typeParams, tm)
+      val vis            = syntax.visibility(td.visibility)
+      val typeParams     = syntax.typeParamList(td.typeParams, tm)
       val supertypeNames = td.supertypes.map(tm.typeName)
-      val sig = syntax.typeSignature(vis, td.kind, td.name, typeParams, supertypeNames)
-      val sections = Vector(fieldNodes, funcNodes, nestedNodes).filter(_.nonEmpty)
-      val typeBlock = CodeNode.TypeBlock(sig, sections)
+      val sig            = syntax.typeSignature(vis, td.kind, td.name, typeParams, supertypeNames)
+      val sections       = Vector(fieldNodes, funcNodes, nestedNodes).filter(_.nonEmpty)
+      val typeBlock      = CodeNode.TypeBlock(sig, sections)
       wrapWithDocAndAnnotations(td.meta, td.annotations, typeBlock)
 
   private def emitEnumDecl(ed: Decl.EnumDecl): F[CodeNode] =
-    for
-      funcNodes <- ed.functions.traverse(f => emitFuncNode(f, TypeKind.Product))
+    for funcNodes <- ed.functions.traverse(f => emitFuncNode(f, TypeKind.Product))
     yield
-      val vis = syntax.visibility(ed.visibility)
+      val vis            = syntax.visibility(ed.visibility)
       val supertypeNames = ed.supertypes.map(tm.typeName)
-      val hasValues = ed.variants.exists(_.args.nonEmpty)
-      val sig = syntax.enumSignature(vis, ed.name, supertypeNames, hasValues)
+      val hasValues      = ed.variants.exists(_.args.nonEmpty)
+      val sig            = syntax.enumSignature(vis, ed.name, supertypeNames, hasValues)
 
       val constantSection =
         if ed.variants.isEmpty then Vector.empty
@@ -92,7 +93,7 @@ abstract class BaseEmitter[F[_]: Monad]:
             CodeNode.Line(syntax.enumVariant(v.name, args, idx == lastIdx, ed.name))
           }
 
-      val sections = Vector(constantSection, funcNodes).filter(_.nonEmpty)
+      val sections  = Vector(constantSection, funcNodes).filter(_.nonEmpty)
       val enumBlock = CodeNode.TypeBlock(sig, sections)
       wrapWithDocAndAnnotations(ed.meta, ed.annotations, enumBlock)
 
@@ -100,14 +101,16 @@ abstract class BaseEmitter[F[_]: Monad]:
 
   private def emitFuncNode(f: Func, parentKind: TypeKind): F[CodeNode] =
     // Only transform public API method names (not protected/private internal methods)
-    val name = if f.visibility == Visibility.Public || f.visibility == Visibility.PackagePrivate
-      then syntax.transformMethodName(f.name) else f.name
-    val vis = syntax.visibility(f.visibility)
+    val name =
+      if f.visibility == Visibility.Public || f.visibility == Visibility.PackagePrivate
+      then syntax.transformMethodName(f.name)
+      else f.name
+    val vis        = syntax.visibility(f.visibility)
     val typeParams = syntax.typeParamList(f.typeParams, tm)
-    val ret = tm.typeName(f.returnType)
-    val params = f.params.map(p => syntax.paramDecl(p.name, tm.typeName(p.paramType))).mkString(", ")
+    val ret        = tm.typeName(f.returnType)
+    val params     = f.params.map(p => syntax.paramDecl(p.name, tm.typeName(p.paramType))).mkString(", ")
     val isAbstract = f.body.isEmpty && !f.modifiers.contains(FuncModifier.Default)
-    val sig = syntax.funcSignature(vis, f.modifiers, typeParams, ret, name, params, isAbstract, parentKind)
+    val sig        = syntax.funcSignature(vis, f.modifiers, typeParams, ret, name, params, isAbstract, parentKind)
 
     f.body match
       case None =>
@@ -120,8 +123,7 @@ abstract class BaseEmitter[F[_]: Monad]:
               stmtNodes.head match
                 case CodeNode.Line(text) => CodeNode.Line(s"$sig = $text")
                 case _                   => CodeNode.Func(sig, Some(stmtNodes))
-            else
-              CodeNode.Func(sig, Some(stmtNodes))
+            else CodeNode.Func(sig, Some(stmtNodes))
           wrapWithDocAndAnnotations(f.meta, f.annotations, funcNode)
         }
 
@@ -147,33 +149,39 @@ abstract class BaseEmitter[F[_]: Monad]:
     case Stmt.While(cond, body) =>
       body.stmts.traverse(emitStmtNode).map(bodyNodes => CodeNode.WhileLoop(emitExprText(cond), bodyNodes))
     case Stmt.Match(expr, cases) =>
-      cases.traverse { mc =>
-        mc.body.stmts.traverse(emitStmtNode).map { bodyNodes =>
-          val patternStr = emitPattern(mc.pattern)
-          val guardStr = mc.guard.map(g => s" if ${emitExprText(g)}").getOrElse("")
-          val header = if syntax.supportsNativeMatch
-            then syntax.matchCaseHeader(s"$patternStr$guardStr")
-            else s"// case $patternStr$guardStr"  // fallback comment
-          (header, bodyNodes)
+      cases
+        .traverse { mc =>
+          mc.body.stmts.traverse(emitStmtNode).map { bodyNodes =>
+            val patternStr = emitPattern(mc.pattern)
+            val guardStr   = mc.guard.map(g => s" if ${emitExprText(g)}").getOrElse("")
+            val header =
+              if syntax.supportsNativeMatch
+              then syntax.matchCaseHeader(s"$patternStr$guardStr")
+              else s"// case $patternStr$guardStr" // fallback comment
+            (header, bodyNodes)
+          }
         }
-      }.map { renderedCases =>
-        if syntax.supportsNativeMatch then
-          CodeNode.MatchBlock(syntax.matchHeader(emitExprText(expr)), renderedCases)
-        else
-          // fallback: render as if-chain for languages without pattern matching
-          emitMatchAsIfChain(expr, cases)
-      }
+        .map { renderedCases =>
+          if syntax.supportsNativeMatch then CodeNode.MatchBlock(syntax.matchHeader(emitExprText(expr)), renderedCases)
+          else
+            // fallback: render as if-chain for languages without pattern matching
+            emitMatchAsIfChain(expr, cases)
+        }
     case Stmt.Switch(expr, cases, default) =>
       for
-        caseNodes    <- cases.traverse(sc => sc.body.stmts.traverse(emitStmtNode).map(ns => (emitExprText(sc.pattern), ns)))
+        caseNodes <- cases.traverse(sc =>
+          sc.body.stmts.traverse(emitStmtNode).map(ns => (emitExprText(sc.pattern), ns))
+        )
         defaultNodes <- default.traverse(_.stmts.traverse(emitStmtNode))
       yield CodeNode.SwitchBlock(emitExprText(expr), caseNodes, defaultNodes)
-    case Stmt.Throw(e)    => Monad[F].pure(CodeNode.Line(syntax.throwStmt(emitExprText(e))))
-    case Stmt.Comment(t)  => Monad[F].pure(CodeNode.Comment(t))
+    case Stmt.Throw(e)   => Monad[F].pure(CodeNode.Line(syntax.throwStmt(emitExprText(e))))
+    case Stmt.Comment(t) => Monad[F].pure(CodeNode.Comment(t))
     case Stmt.TryCatch(tryBody, catches, finallyBody) =>
       for
-        tryNodes     <- tryBody.stmts.traverse(emitStmtNode)
-        catchNodes   <- catches.traverse(c => c.body.stmts.traverse(emitStmtNode).map(ns => (s"${tm.typeName(c.exType)} ${c.name}", ns)))
+        tryNodes <- tryBody.stmts.traverse(emitStmtNode)
+        catchNodes <- catches.traverse(c =>
+          c.body.stmts.traverse(emitStmtNode).map(ns => (s"${tm.typeName(c.exType)} ${c.name}", ns))
+        )
         finallyNodes <- finallyBody.traverse(_.stmts.traverse(emitStmtNode))
       yield CodeNode.TryCatch(tryNodes, catchNodes, finallyNodes)
 
@@ -192,9 +200,9 @@ abstract class BaseEmitter[F[_]: Monad]:
       recv match
         case Some(r) => s"${emitExprText(r)}.$name($argsStr)"
         case None    => s"$name($argsStr)"
-    case Expr.New(t, args) => syntax.newExpr(tm.typeName(t), args.map(emitExprText).mkString(", "))
-    case Expr.BinOp(l, op, r) => s"(${emitExprText(l)} ${syntax.binOp(op)} ${emitExprText(r)})"
-    case Expr.UnOp(op, e)     => s"${syntax.unaryOp(op)}${emitExprText(e)}"
+    case Expr.New(t, args)     => syntax.newExpr(tm.typeName(t), args.map(emitExprText).mkString(", "))
+    case Expr.BinOp(l, op, r)  => s"(${emitExprText(l)} ${syntax.binOp(op)} ${emitExprText(r)})"
+    case Expr.UnOp(op, e)      => s"${syntax.unaryOp(op)}${emitExprText(e)}"
     case Expr.Ternary(c, t, f) => syntax.ternaryExpr(emitExprText(c), emitExprText(t), emitExprText(f))
     case Expr.Cast(e, t)       => syntax.castExpr(emitExprText(e), tm.typeName(t))
     case Expr.Lambda(ps, body) =>
@@ -207,19 +215,28 @@ abstract class BaseEmitter[F[_]: Monad]:
     case Expr.TypeRef(t) => tm.typeName(t)
 
   private def emitStmtInline(s: Stmt): String = s match
-    case Stmt.Return(Some(e))       => syntax.returnStmt(emitExprText(e)).stripSuffix(syntax.statementTerminator)
-    case Stmt.Return(None)          => syntax.returnVoid.stripSuffix(syntax.statementTerminator)
-    case Stmt.Eval(e)               => emitExprText(e)
-    case Stmt.Assign(target, value) => syntax.assignStmt(emitExprText(target), emitExprText(value)).stripSuffix(syntax.statementTerminator)
-    case Stmt.Throw(e)              => syntax.throwStmt(emitExprText(e)).stripSuffix(syntax.statementTerminator)
-    case _                          => s"/* unsupported: ${s.getClass.getSimpleName} */"
+    case Stmt.Return(Some(e)) => syntax.returnStmt(emitExprText(e)).stripSuffix(syntax.statementTerminator)
+    case Stmt.Return(None)    => syntax.returnVoid.stripSuffix(syntax.statementTerminator)
+    case Stmt.Eval(e)         => emitExprText(e)
+    case Stmt.Assign(target, value) =>
+      syntax.assignStmt(emitExprText(target), emitExprText(value)).stripSuffix(syntax.statementTerminator)
+    case Stmt.Throw(e) => syntax.throwStmt(emitExprText(e)).stripSuffix(syntax.statementTerminator)
+    case _             => s"/* unsupported: ${s.getClass.getSimpleName} */"
 
   // -- Fields --------------------------------------------------------------
 
   private def emitField(f: Field): CodeNode =
     val name = syntax.transformFieldName(f.name)
-    val vis = syntax.visibility(f.visibility)
-    val fieldLine = CodeNode.Line(syntax.fieldDecl(vis, f.mutability == Mutability.Mutable, tm.typeName(f.fieldType), name, f.defaultValue.map(emitExprText)))
+    val vis  = syntax.visibility(f.visibility)
+    val fieldLine = CodeNode.Line(
+      syntax.fieldDecl(
+        vis,
+        f.mutability == Mutability.Mutable,
+        tm.typeName(f.fieldType),
+        name,
+        f.defaultValue.map(emitExprText)
+      )
+    )
     wrapWithDocAndAnnotations(f.meta, f.annotations, fieldLine)
 
   private def emitConstDecl(cd: Decl.ConstDecl): CodeNode =
@@ -243,9 +260,9 @@ abstract class BaseEmitter[F[_]: Monad]:
 
   private def emitPattern(p: Pattern): String = p match
     case Pattern.TypeTest(name, typeExpr) => syntax.patternTypeTest(name, tm.typeName(typeExpr))
-    case Pattern.Literal(value)          => syntax.patternLiteral(emitExprText(value))
-    case Pattern.Binding(name)           => name
-    case Pattern.Wildcard                => syntax.patternWildcard
+    case Pattern.Literal(value)           => syntax.patternLiteral(emitExprText(value))
+    case Pattern.Binding(name)            => name
+    case Pattern.Wildcard                 => syntax.patternWildcard
 
   /** Fallback for languages without pattern matching: render Match as if-chain. */
   private def emitMatchAsIfChain(expr: Expr, cases: Vector[MatchCase]): CodeNode =
@@ -256,7 +273,7 @@ abstract class BaseEmitter[F[_]: Monad]:
         case Pattern.Literal(value) =>
           s"${emitExprText(expr)} == ${emitExprText(value)}"
         case Pattern.Wildcard | Pattern.Binding(_) =>
-          "true"  // default case
+          "true" // default case
       val guardStr = mc.guard.map(g => s" && ${emitExprText(g)}").getOrElse("")
       // Simplify: each case as an if block with body
       val bodyNodes = mc.body.stmts.map { s =>
