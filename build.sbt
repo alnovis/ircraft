@@ -4,6 +4,7 @@ import sbt.Keys.*
 ThisBuild / organization := "io.alnovis.ircraft"
 ThisBuild / version      := "2.0.0-SNAPSHOT"
 ThisBuild / scalaVersion := "3.6.4"
+ThisBuild / versionScheme := Some("early-semver")
 
 ThisBuild / homepage := Some(url("https://github.com/alnovis/ircraft"))
 ThisBuild / licenses := List("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0"))
@@ -13,6 +14,9 @@ ThisBuild / developers := List(
 ThisBuild / scmInfo := Some(
   ScmInfo(url("https://github.com/alnovis/ircraft"), "scm:git@github.com:alnovis/ircraft.git")
 )
+
+// Sonatype Central (new portal, not legacy oss.sonatype.org)
+ThisBuild / sonatypeCredentialHost := "central.sonatype.com"
 
 val commonSettings = Seq(
   javacOptions ++= Seq("-source", "17", "-target", "17"),
