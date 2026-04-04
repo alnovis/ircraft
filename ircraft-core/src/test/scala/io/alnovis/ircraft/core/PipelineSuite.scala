@@ -1,131 +1,128 @@
 package io.alnovis.ircraft.core
 
+import cats.*
+import cats.data.*
+import cats.syntax.all.*
+import io.alnovis.ircraft.core.ir.*
+
 class PipelineSuite extends munit.FunSuite:
 
-  // A simple test Operation
-  case class TestOp(value: String) extends Operation:
-    val kind: NodeKind           = NodeKind("test", "op")
-    val attributes: AttributeMap = AttributeMap(Attribute.StringAttr("value", value))
-    val regions: Vector[Region]  = Vector.empty
-    val span: Option[Span]       = None
-    lazy val contentHash: Int    = ContentHash.ofString(value)
-    val estimatedSize: Int       = value.length
+  type F[A] = Id[A]
 
-  val ctx: PassContext = PassContext()
+  // Outcome over Id for tests with warnings/errors
+  type OF[A] = Outcome[Id, A]
 
-  test("identity pass returns module unchanged"):
-    val identityPass = new Pass:
-      val name                                                    = "identity"
-      val description                                             = "does nothing"
-      def run(module: IrModule, context: PassContext): PassResult = PassResult(module)
+  private val emptyModule = Module.empty("test")
 
-    val module = IrModule("test", Vector(TestOp("hello")))
-    val result = identityPass.run(module, ctx)
-    assertEquals(result.module.name, "test")
-    assert(result.isSuccess)
+  private def moduleWith(decls: Decl*): Module =
+    Module("test", Vector(CompilationUnit("com.example", decls.toVector)))
 
-  test("pipeline executes passes in order"):
-    var order = Vector.empty[String]
+  test("Pass.pure transforms module"):
+    val addField = Pass.pure[F]("add-field") { module =>
+      module.copy(units = module.units.map { unit =>
+        unit.copy(declarations = unit.declarations.map {
+          case td: Decl.TypeDecl =>
+            td.copy(fields = td.fields :+ Field("added", TypeExpr.STR))
+          case other => other
+        })
+      })
+    }
 
-    def makePass(n: String): Pass = new Pass:
-      val name        = n
-      val description = s"pass $n"
-      def run(module: IrModule, context: PassContext): PassResult =
-        order = order :+ n
-        PassResult(module)
+    val input = moduleWith(Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))))
+    val result = Pipeline.run(addField, input)
 
-    val pipeline = Pipeline("test-pipeline", makePass("a"), makePass("b"), makePass("c"))
-    pipeline.run(IrModule.empty("test"), ctx)
+    val fields = result.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].fields
+    assertEquals(fields.size, 2)
+    assertEquals(fields.last.name, "added")
 
-    assertEquals(order, Vector("a", "b", "c"))
+  test("Pipeline.of composes passes left to right"):
+    val pass1 = Pass.pure[F]("p1")(m => m.copy(name = m.name + "-1"))
+    val pass2 = Pass.pure[F]("p2")(m => m.copy(name = m.name + "-2"))
+    val pipeline = Pipeline.of(pass1, pass2)
+    val result = Pipeline.run(pipeline, emptyModule)
+    assertEquals(result.name, "test-1-2")
 
-  test("pipeline stops on error when failFast"):
-    var executed = Vector.empty[String]
+  test("Pass.id returns module unchanged"):
+    val result = Pipeline.run(Pass.id[F], emptyModule)
+    assertEquals(result, emptyModule)
 
-    val passOk = new Pass:
-      val name        = "ok"
-      val description = "succeeds"
-      def run(module: IrModule, context: PassContext): PassResult =
-        executed = executed :+ name
-        PassResult(module)
+  test("Pipeline.build filters disabled passes"):
+    val p1 = Pass.pure[F]("p1")(m => m.copy(name = m.name + "-1"))
+    val p2 = Pass.pure[F]("p2")(m => m.copy(name = m.name + "-2"))
+    val p3 = Pass.pure[F]("p3")(m => m.copy(name = m.name + "-3"))
 
-    val passFail = new Pass:
-      val name        = "fail"
-      val description = "fails"
-      def run(module: IrModule, context: PassContext): PassResult =
-        executed = executed :+ name
-        PassResult(module, List(DiagnosticMessage.error("boom")))
+    val pipeline = Pipeline.build(Vector(
+      (p1, true),
+      (p2, false),
+      (p3, true),
+    ))
+    val result = Pipeline.run(pipeline, emptyModule)
+    assertEquals(result.name, "test-1-3")
 
-    val passAfter = new Pass:
-      val name        = "after"
-      val description = "should not run"
-      def run(module: IrModule, context: PassContext): PassResult =
-        executed = executed :+ name
-        PassResult(module)
+  test("Outcome.fail stops pipeline (fail-fast via IorT Left)"):
+    val failPass = Pass[OF]("fail") { _ =>
+      Outcome.fail("fatal")
+    }
+    val neverRun = Pass.pure[OF]("never") { m =>
+      m.copy(name = "should-not-reach")
+    }
+    val pipeline = Pipeline.of(failPass, neverRun)
+    Pipeline.run(pipeline, emptyModule).value match
+      case Ior.Left(errors) =>
+        assert(errors.exists(_.message == "fatal"))
+      case other => fail(s"expected Ior.Left, got $other")
 
-    val pipeline = Pipeline("test", Vector(passOk, passFail, passAfter), failFast = true)
-    val result   = pipeline.run(IrModule.empty("test"), ctx)
+  test("Outcome.warn continues pipeline and accumulates"):
+    val warnPass = Pass[OF]("warn") { module =>
+      Outcome.warn("something fishy", module)
+    }
+    val addSuffix = Pass.pure[OF]("suffix") { m =>
+      m.copy(name = m.name + "-done")
+    }
+    val pipeline = Pipeline.of(warnPass, addSuffix)
+    Pipeline.run(pipeline, emptyModule).value match
+      case Ior.Both(warnings, result) =>
+        assert(warnings.exists(_.isWarning))
+        assertEquals(result.name, "test-done")
+      case other => fail(s"expected Ior.Both, got $other")
 
-    assert(result.hasErrors)
-    assertEquals(executed, Vector("ok", "fail"))
+  test("Lowering.pure creates module from source"):
+    case class SqlTable(name: String, columns: Vector[String])
 
-  test("pipeline skips disabled passes"):
-    var executed = Vector.empty[String]
+    val lowering: Lowering[F, Vector[SqlTable]] = Lowering.pure { tables =>
+      val units = tables.map { t =>
+        CompilationUnit(
+          "com.example.model",
+          Vector(Decl.TypeDecl(
+            name = t.name,
+            kind = TypeKind.Product,
+            fields = t.columns.map(c => Field(c, TypeExpr.STR))
+          ))
+        )
+      }
+      Module("sql", units)
+    }
 
-    val enabledPass = new Pass:
-      val name        = "enabled"
-      val description = "runs"
-      def run(module: IrModule, context: PassContext): PassResult =
-        executed = executed :+ name
-        PassResult(module)
+    val tables = Vector(SqlTable("Users", Vector("id", "name", "email")))
+    val module = lowering(tables)
+    assertEquals(module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].name, "Users")
+    assertEquals(module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].fields.size, 3)
 
-    val disabledPass = new Pass:
-      val name                                              = "disabled"
-      val description                                       = "skipped"
-      override def isEnabled(context: PassContext): Boolean = false
-      def run(module: IrModule, context: PassContext): PassResult =
-        executed = executed :+ name
-        PassResult(module)
+  test("Passes.validateResolved detects unresolved types via Outcome"):
+    val module = moduleWith(
+      Decl.TypeDecl("Order", TypeKind.Product,
+        fields = Vector(Field("address", TypeExpr.Unresolved("com.example.Address"))))
+    )
+    Pipeline.run(Passes.validateResolved[Id], module).value match
+      case Ior.Left(errors) =>
+        assert(errors.exists(d => d.isError && d.message.contains("Unresolved")))
+      case other => fail(s"expected Ior.Left, got $other")
 
-    val pipeline = Pipeline("test", Vector(enabledPass, disabledPass, enabledPass))
-    pipeline.run(IrModule.empty("test"), ctx)
-
-    assertEquals(executed, Vector("enabled", "enabled"))
-
-  test("pipeline collects diagnostics from all passes"):
-    val pass1 = new Pass:
-      val name        = "p1"
-      val description = "warns"
-      def run(module: IrModule, context: PassContext): PassResult =
-        PassResult(module, List(DiagnosticMessage.warning("w1")))
-
-    val pass2 = new Pass:
-      val name        = "p2"
-      val description = "warns"
-      def run(module: IrModule, context: PassContext): PassResult =
-        PassResult(module, List(DiagnosticMessage.warning("w2")))
-
-    val pipeline = Pipeline("test", Vector(pass1, pass2))
-    val result   = pipeline.run(IrModule.empty("test"), ctx)
-
-    assert(result.isSuccess)
-    assertEquals(result.warnings.size, 2)
-
-  test("IrModule.collect finds operations recursively"):
-    val op1    = TestOp("a")
-    val op2    = TestOp("b")
-    val module = IrModule("test", Vector(op1, op2))
-
-    val found = module.collect { case t: TestOp => t }
-    assertEquals(found.size, 2)
-    assertEquals(found.map(_.value), Vector("a", "b"))
-
-  test("pipeline andThen composes"):
-    val p1 = Pipeline("first", Vector.empty)
-    val pass = new Pass:
-      val name                                                    = "x"
-      val description                                             = "x"
-      def run(module: IrModule, context: PassContext): PassResult = PassResult(module)
-
-    val p2 = p1.andThen(pass)
-    assertEquals(p2.passes.size, 1)
+  test("Passes.validateResolved passes clean module"):
+    val module = moduleWith(
+      Decl.TypeDecl("User", TypeKind.Product,
+        fields = Vector(Field("name", TypeExpr.STR)))
+    )
+    Pipeline.run(Passes.validateResolved[Id], module).value match
+      case Ior.Right(m) => assertEquals(m.units.size, 1)
+      case other => fail(s"expected Ior.Right, got $other")
