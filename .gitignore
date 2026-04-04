@@ -18,3 +18,7 @@ Thumbs.db
 .env
 *.pem
 .aider*
+
+# Internal docs (not published)
+docs/V2_PLAN.md
+docs/CONCEPT_ANALYSIS.md

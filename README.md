@@ -1,262 +1,146 @@
-# IRCraft
+# ircraft
 
-MLIR-inspired IR framework for transforming domain schemas into multi-language code, written in Scala 3.
+Pure functional framework for building code generators. Scala 3 + Cats.
 
 > Design background: [Compiler Ideas for Code Generation](https://alnovis.io/blog/compiler-ideas-for-code-generation)
 
-## How It Works
+## What It Does
 
-IRCraft is a framework for **A -> Semantic -> B/C** transformations with optional intermediate effects (merge, enrichment):
-
-```mermaid
-flowchart LR
-    A1["Proto"] -->|lower| S["Semantic IR"]
-    A2["OpenAPI"] -->|lower| S
-    A3["GraphQL"] -->|lower| S
-    S -->|emit| B1[".java"]
-    S -->|emit| B2[".kt"]
-    S -->|emit| B3[".scala"]
-
-    style S fill:#f59e0b,color:#fff
-    style A1 fill:#4a9eff,color:#fff
-    style A2 fill:#4a9eff,color:#fff
-    style A3 fill:#4a9eff,color:#fff
-    style B1 fill:#10b981,color:#fff
-    style B2 fill:#10b981,color:#fff
-    style B3 fill:#10b981,color:#fff
+```
+Source Schema (Proto, OpenAPI, SQL, your DSL)
+  |  Lowering (your function)
+  v
+Language-Agnostic IR (Module, TypeDecl, Func, Field)
+  |  Passes (composable transformations)
+  v
+Enriched IR
+  |  Emitter (Java, Scala 3, Scala 2, your language)
+  v
+Generated Source Code
 ```
 
-| Concept | Role |
-|---------|------|
-| **Dialect** | Groups related Operations at one abstraction level |
-| **Operation** | Immutable, content-addressable IR node (GreenNode) |
-| **Pass** | Transforms a Module (IR tree) -- stateless, testable |
-| **Pipeline** | Composes Passes -- fail-fast or collect-all modes |
-| **Lowering** | A Pass that crosses dialect boundaries |
-| **Emitter** | Converts Semantic IR to source code |
-
-## Dialects
-
-### Source Dialects (A -> Semantic)
-
-| Dialect | Ops | Lowering |
-|---------|-----|----------|
-| **Proto** | ProtoFileOp, MessageOp, FieldOp, EnumOp, OneofOp | Message->Interface, Enum->EnumClass |
-| **OpenAPI** | OpenApiSpecOp, SchemaObjectOp, OperationOp, ParameterOp, ... (21 ops) | Schema->Class, Operation->Method |
-| **GraphQL** | GqlSchemaOp, ObjectTypeOp, InputObjectTypeOp, UnionTypeOp, ... (12 ops) | ObjectType->Interface, InputType->Class |
-
-### Target Dialects (Semantic -> B)
-
-| Dialect | Output |
-|---------|--------|
-| **Java** | `.java` files (JavaDoc, generics, boxing) |
-| **Kotlin** | `.kt` files (nullable `T?`, companion objects, KDoc) |
-| **Scala** | `.scala` files (traits, `Option[T]`, ScalaDoc) |
-
-### Semantic IR (in core)
-
-The shared OOP abstraction layer: `FileOp`, `ClassOp`, `InterfaceOp`, `MethodOp`, `EnumClassOp`, `FieldDeclOp`, `ConstructorOp`, `Expression`, `Statement`, `Block`.
-
-## Modules
-
-| Module | Description |
-|--------|-------------|
-| `ircraft-core` | IR framework + Semantic IR + Dialect Framework (`core.framework.*`) |
-| `ircraft-dialect-proto` | Protobuf schema IR + lowering |
-| `ircraft-dialect-openapi` | OpenAPI 3.0 spec IR + lowering |
-| `ircraft-dialect-graphql` | GraphQL schema IR + lowering |
-| `ircraft-dialect-java` | Java emitter + type mapping |
-| `ircraft-dialect-kotlin` | Kotlin emitter + type mapping |
-| `ircraft-dialect-scala` | Scala 3 emitter + type mapping |
-| `ircraft-java-api` | Java-friendly facade (Ops, Expr, Types, IR) |
+ircraft provides the IR, passes, pipeline composition, and emitters. You provide the source dialect and business logic.
 
 ## Quick Start
 
-### Proto -> Java
-
 ```scala
+import cats.*
 import io.alnovis.ircraft.core.*
-import io.alnovis.ircraft.dialect.proto.ops.*
-import io.alnovis.ircraft.dialect.proto.dsl.ProtoSchema
-import io.alnovis.ircraft.dialect.proto.lowering.ProtoToSemanticLowering
+import io.alnovis.ircraft.core.ir.*
+import io.alnovis.ircraft.emitters.scala.ScalaEmitter
 
-// 1. Build Proto IR
-val file = ProtoSchema.file("com.example", ProtoSyntax.Proto3) { f =>
-  f.message("Money") { msg =>
-    msg.field("amount", 1, TypeRef.LONG)
-    msg.field("currency", 2, TypeRef.STRING)
-    msg.repeatedField("tags", 3, TypeRef.STRING)
-  }
-  f.enum_("Currency") { e =>
-    e.value("UNKNOWN", 0)
-    e.value("USD", 1)
-    e.value("EUR", 2)
-  }
+// 1. Define your source (just case classes)
+case class SqlTable(name: String, columns: Vector[(String, String)])
+
+// 2. Define lowering
+val lowering: Lowering[Id, Vector[SqlTable]] = Lowering.pure { tables =>
+  Module("sql", tables.map { t =>
+    CompilationUnit("com.example.model", Vector(Decl.TypeDecl(
+      name = t.name,
+      kind = TypeKind.Product,
+      fields = t.columns.map((name, typ) => Field(name, sqlType(typ)))
+    )))
+  })
 }
 
-// 2. Lower to Semantic IR
-val module = IrModule("my-api", Vector(file))
-val result = ProtoToSemanticLowering.run(module, PassContext())
-// result.module contains FileOps with InterfaceOp(Money) and EnumClassOp(Currency)
+// 3. Define passes
+val addGetters = Pass.pure[Id]("add-getters") { module => /* ... */ module }
+
+// 4. Compose pipeline
+val pipeline = Pipeline.of(addGetters)
+
+// 5. Run
+val module = lowering(Vector(SqlTable("User", Vector("id" -> "BIGINT", "name" -> "VARCHAR"))))
+val enriched = Pipeline.run(pipeline, module)
+val files = ScalaEmitter.scala3[Id].apply(enriched)
+// files: Map[Path, String] with User.scala containing:
+//   class User {
+//     val id: Long
+//     val name: String
+//   }
 ```
 
-### OpenAPI -> Semantic
+## Core Concepts
+
+| Concept | Type | Description |
+|---------|------|-------------|
+| **Module** | `case class` | IR tree root. Contains CompilationUnits with Decls |
+| **Pass** | `Kleisli[F, Module, Module]` | Composable transformation. `Pipeline.of(a, b, c)` |
+| **Lowering** | `Kleisli[F, Source, Module]` | Your source -> IR conversion |
+| **Emitter** | `Kleisli[F, Module, Map[Path, String]]` | IR -> source files |
+| **Outcome** | `IorT[F, NonEmptyChain[Diagnostic], A]` | Success / Warnings+Success / Error |
+| **LanguageSyntax** | `trait` | Parameterizes emitter for any target language |
+
+`F[_]` is tagless final: `Id` for tests, `IO` for production.
+
+## Semantic IR
+
+Language-agnostic. Describes **what**, not **how**.
+
+```
+TypeDecl(Product)    -> Java class, Scala class, Rust struct, Go struct
+TypeDecl(Protocol)   -> Java interface, Scala trait, Rust trait
+TypeDecl(Abstract)   -> abstract class
+EnumDecl             -> Java enum, Scala 3 enum, Scala 2 sealed trait
+Func                 -> method / def / fn
+Field                -> field / val / property
+Stmt.Match           -> Java if-chain, Scala match, Rust match
+```
+
+Types: `Primitive` (Bool, Int32, Str, ...), `ListOf`, `MapOf`, `Optional`, `SetOf`, `TupleOf`, `FuncType`, `Union`, `Intersection`.
+
+## Multi-Language Emitters
 
 ```scala
-import io.alnovis.ircraft.dialect.openapi.dsl.OpenApiSchema
-import io.alnovis.ircraft.dialect.openapi.ops.*
-import io.alnovis.ircraft.dialect.openapi.lowering.OpenApiToSemanticLowering
+// Java
+JavaEmitter[IO]          // .java, public class, interface, ;, new, <T>
 
-val spec = OpenApiSchema.spec("Pet Store", "1.0.0") { s =>
-  s.schema("Pet") { obj =>
-    obj.property("id", TypeRef.LONG, required = true)
-    obj.property("name", TypeRef.STRING, required = true)
-    obj.property("status", TypeRef.STRING)
-  }
-  s.path("/pets") { path =>
-    path.get("listPets") { op =>
-      op.queryParam("limit", TypeRef.INT)
-      op.response(200, "List of pets", schemaType = TypeRef.ListType(TypeRef.NamedType("Pet")))
-    }
-  }
-}
+// Scala 3
+ScalaEmitter.scala3[IO]  // .scala, trait, enum, def, val, Option[T], match, =>
+
+// Scala 2
+ScalaEmitter.scala2[IO]  // .scala, sealed trait, new, if (cond)
 ```
 
-### GraphQL -> Semantic
+Adding a new language = implement `LanguageSyntax` + `TypeMapping`. All traversal is reused from `BaseEmitter`.
+
+See [Emitters Guide](docs/EMITTERS.md) for details.
+
+## Error Handling: Outcome
+
+Unified via `IorT` (cats):
 
 ```scala
-import io.alnovis.ircraft.dialect.graphql.dsl.GraphQlSchema
-import io.alnovis.ircraft.dialect.graphql.ops.*
-
-val schema = GraphQlSchema.schema("Query") { s =>
-  s.objectType("User") { t =>
-    t.field("id", TypeRef.NamedType("ID"))
-    t.field("name", TypeRef.STRING)
-    t.field("posts", TypeRef.ListType(TypeRef.NamedType("Post"))) { f =>
-      f.argument("limit", TypeRef.INT, defaultValue = Some("10"))
-    }
-  }
-  s.enumType("Role") { e =>
-    e.value("ADMIN")
-    e.value("USER")
-  }
-  s.unionType("SearchResult", members = List("User", "Post"))
-}
+Outcome.ok(module)              // Ior.Right -- clean success
+Outcome.warn("deprecated", m)   // Ior.Both  -- success with warning
+Outcome.fail("unresolved type") // Ior.Left  -- error, pipeline stops
 ```
 
-### Three Ways to Create Dialects
+## Modules
 
-```scala
-// 1. Derived -- zero boilerplate, compile-time
-case class Person(name: String, age: Int) derives IrcraftSchema
+| Module | Description | Dependencies |
+|--------|-------------|-------------|
+| `ircraft-core` | IR ADTs, Pass, Pipeline, Outcome, Merge | cats-core |
+| `ircraft-emit` | CodeNode, Renderer, LanguageSyntax, BaseEmitter | ircraft-core |
+| `ircraft-io` | CodeWriter, IncrementalWriter (atomic writes) | cats-effect |
+| `ircraft-dialect-proto` | Proto source ADT + ProtoLowering | ircraft-core |
+| `ircraft-emitter-java` | JavaEmitter + JavaSyntax + JavaTypeMapping | ircraft-emit |
+| `ircraft-emitter-scala` | ScalaEmitter + ScalaSyntax + ScalaTypeMapping | ircraft-emit |
 
-// 2. Generic -- quick start, ~6 lines
-val D = GenericDialect("config"):
-  leaf("entry", "key" -> StringField, "value" -> StringField)
-  container("section", "name" -> StringField)("entries")
+## Documentation
 
-// 3. Typed -- production, full control
-case class MessageOp(name: String, ...) extends Operation
-```
-
-See [Creating a Custom Dialect](docs/CUSTOM_DIALECT.md) for details.
-
-### Dialect Framework (given/using, type classes)
-
-```scala
-import io.alnovis.ircraft.core.framework.*
-
-// Name conversion via given
-given NameConverter = NameConverter.snakeCase
-NameConverter.snakeCase.getterName("user_name") // "getUserName"
-
-// Generic enum building via type class
-val protoEnum = SemanticBuilders.enumFrom(
-  "Status",
-  Vector(EnumValueMapper.IntValued("ACTIVE", 1), EnumValueMapper.IntValued("INACTIVE", 2))
-)
-
-// Generic interface building
-val iface = SemanticBuilders.interfaceFrom(
-  "Money",
-  Vector("amount" -> TypeRef.LONG, "currency" -> TypeRef.STRING)
-)
-
-// Composable verifier
-import VerifierDsl.*
-def verify(msg: MessageOp): List[DiagnosticMessage] =
-  nameNotEmpty(msg, msg.name) ++
-  noDuplicates(msg.fields, _.number, "field number", s"in '${msg.name}'", msg.span)
-```
-
-## Project Structure
-
-```
-ircraft/
-├── ircraft-core/                          # Core IR framework
-│   └── src/main/scala/io/alnovis/ircraft/core/
-│       ├── GreenNode.scala                # Immutable content-addressable node
-│       ├── Operation.scala                # IR operation (extends GreenNode)
-│       ├── IrModule.scala                 # Top-level IR container
-│       ├── TypeRef.scala                  # Type system (10 variants)
-│       ├── Dialect.scala                  # Dialect trait (default verify)
-│       ├── Pass.scala                     # Pass, Lowering, Pipeline
-│       ├── IrcraftSchema.scala            # derives IrcraftSchema
-│       ├── GenericDialect.scala           # GenericDialect + GenericOp
-│       ├── framework/                     # Dialect Framework
-│       │   ├── NameConverter.scala        # given/using name conversion
-│       │   ├── SemanticBuilders.scala     # interfaceFrom, classFrom, enumFrom
-│       │   ├── EnumValueMapper.scala      # type class for enum lowering
-│       │   ├── VerifierDsl.scala          # composable validators
-│       │   ├── LoweringHelper.scala       # abstract base for lowerings
-│       │   ├── SourceDialect.scala        # mixin: A -> Semantic
-│       │   └── TargetDialect.scala        # mixin: Semantic -> B
-│       └── semantic/                      # Semantic IR (the platform)
-│           ├── SemanticDialect.scala
-│           ├── ops/                       # ClassOp, InterfaceOp, MethodOp, ...
-│           ├── expr/                      # Expression, Statement, Block
-│           └── emit/                      # BaseEmitter
-│
-├── dialects/
-│   ├── proto/                             # Protobuf (6 ops + lowering)
-│   ├── openapi/                           # OpenAPI 3.0 (21 ops + lowering)
-│   ├── graphql/                           # GraphQL (12 ops + lowering)
-│   ├── java/                              # Java emitter
-│   ├── kotlin/                            # Kotlin emitter
-│   └── scala/                             # Scala 3 emitter
-│
-├── ircraft-java-api/                      # Java-friendly facade
-├── examples/                              # Example dialects
-├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── CUSTOM_DIALECT.md
-│   ├── JAVA_FACADE_API.md
-│   └── EMIT_BASED_LOWERING.md
-└── build.sbt
-```
-
-## Roadmap
-
-| Phase | Status | Description |
-|-------|--------|-------------|
-| 1 | Done | ircraft-core (GreenNode, TypeRef, Pass, Pipeline) |
-| 2 | Done | Semantic IR in core (ClassOp, InterfaceOp, Expression AST) |
-| 3 | Done | Java, Kotlin, Scala emitters |
-| 4 | Done | Java facade API |
-| 5 | Done | Generic Dialect + Derived schemas |
-| 6 | Done | Proto Dialect (simple, no versioning) + lowering |
-| 7 | Done | OpenAPI Dialect (full) + lowering |
-| 8 | Done | GraphQL Dialect (full) + lowering |
-| 9 | Done | Dialect Framework (NameConverter, SemanticBuilders, VerifierDsl) |
-| 10 | Planned | IR serialization (textual + JSON) |
-| 11 | Planned | Red Tree (parent refs, LSP support) |
+- **[User Guide](docs/GUIDE.md)** -- start here: step-by-step from schema to generated code
+- [Passes Guide](docs/PASSES.md) -- how to write passes, compose pipelines, handle errors
+- [Dialects Guide](docs/DIALECTS.md) -- how to create source dialects, Lowering, Meta, Doc, Merge
+- [Emitters Guide](docs/EMITTERS.md) -- how emitters work, LanguageSyntax, create your own
+- [Architecture](docs/ARCHITECTURE.md) -- internal architecture and design decisions
 
 ## Tech Stack
 
-- **Scala 3.6.4** -- case classes, sealed traits, enums, given/using, type classes, extension methods
-- **sbt 1.10** -- build tool
-- **MUnit** -- test framework
-- **Zero external dependencies** (only Scala stdlib)
+- **Scala 3.6.4**
+- **Cats 2.12.0** (cats-core in core, cats-effect 3.5.7 in io)
+- **MUnit 1.1.0**
+- **sbt 1.10.11**
 
 ## License
 
