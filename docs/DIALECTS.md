@@ -52,7 +52,7 @@ val restLowering: Lowering[Id, RestApi] = Lowering.pure { api =>
   val modelUnits = api.models.map { model =>
     CompilationUnit(
       namespace = s"com.example.${api.name.toLowerCase}.model",
-      declarations = Vector(Decl.TypeDecl(
+      declarations = Vector(Decl.typeDecl(
         name = model.name,
         kind = TypeKind.Product,
         fields = model.fields.map { f =>
@@ -166,11 +166,11 @@ val lowering: Lowering[IO, Path] = Lowering { path =>
 
 | Type | Use for |
 |------|---------|
-| `Decl.TypeDecl(name, kind, fields, functions, nested, supertypes)` | Class, trait, struct |
-| `Decl.EnumDecl(name, variants, functions)` | Enumeration |
-| `Decl.FuncDecl(func)` | Top-level function |
-| `Decl.ConstDecl(name, constType, value)` | Constant |
-| `Decl.AliasDecl(name, target)` | Type alias |
+| `Decl.typeDecl(name, kind, fields, functions, nested, supertypes)` | Class, trait, struct |
+| `Decl.enumDecl(name, variants, functions)` | Enumeration |
+| `Decl.funcDecl(func)` | Top-level function |
+| `Decl.constDecl(name, constType, value)` | Constant |
+| `Decl.aliasDecl(name, target)` | Type alias |
 
 ### TypeKind
 
@@ -267,7 +267,7 @@ val doc = Doc(
 )
 
 // Attach via Meta
-Decl.TypeDecl("User", TypeKind.Product, meta = Meta.empty.set(Doc.key, doc))
+Decl.typeDecl("User", TypeKind.Product, meta = Meta.empty.set(Doc.key, doc))
 
 // Emitter renders as Javadoc / Scaladoc / rustdoc automatically
 ```
@@ -296,3 +296,241 @@ val merged: Outcome[Id, Module] = Merge.merge(
 ```
 
 Merge detects conflicts (same field, different types) and delegates resolution to your strategy.
+
+## Extensible Dialect Functors (FP-MLIR)
+
+For advanced use cases where the standard IR (`SemanticF`) is not expressive enough, ircraft supports **open-world extensibility** via Data Types a la Carte. You define your dialect as a functor, mix it with `SemanticF` via a coproduct, and progressively lower it.
+
+### When to Use This
+
+- Your domain has constructs that don't map cleanly to `Decl` (e.g., GraphQL directives, SQL constraints, Terraform providers)
+- You want **type-safe progressive lowering** -- the compiler guarantees your dialect is fully eliminated before emission
+- You're building a reusable dialect that others can compose with their own
+
+For simple schema-to-code scenarios, the standard Source Dialect approach (above) is sufficient.
+
+### Architecture Overview
+
+The standard Source Dialect approach lowers directly to `SemanticF`:
+
+```mermaid
+flowchart LR
+    Source["Source ADT<br/>(RestApi, SqlTable, ...)"]
+    Module["Module[Fix[SemanticF]]"]
+    Pass["Passes<br/>(enrich, validate)"]
+    Emit["Emitter<br/>(Java, Scala, ...)"]
+    Code["Generated Code"]
+
+    Source -->|"Lowering"| Module -->|"Pipeline"| Pass -->|"Emit"| Emit --> Code
+```
+
+The Extensible Dialect Functor approach adds an intermediate level with **mixed IR** and **type-safe progressive lowering**:
+
+```mermaid
+flowchart TD
+    subgraph Source["Source (Level 3)"]
+        S1["ProtoFile"]
+        S2["GraphQL Schema"]
+        S3["SQL DDL"]
+    end
+
+    subgraph Mixed["Mixed IR (Level 2)"]
+        M1["Fix[ProtoF :+: SemanticF]"]
+        M2["Fix[GraphQLF :+: SemanticF]"]
+        M3["Fix[SqlF :+: SemanticF]"]
+    end
+
+    subgraph Core["Core IR (Level 1)"]
+        C["Fix[SemanticF]"]
+    end
+
+    subgraph Output["Emission"]
+        E["Module[Fix[SemanticF]]"]
+        J["Java"]
+        SC["Scala"]
+    end
+
+    S1 -->|"Lowering"| M1
+    S2 -->|"Lowering"| M2
+    S3 -->|"Lowering"| M3
+
+    M1 -->|"eliminate.dialect"| C
+    M2 -->|"eliminate.dialect"| C
+    M3 -->|"eliminate.dialect"| C
+
+    C --> E
+    E --> J
+    E --> SC
+
+    style Mixed fill:#334466,stroke:#6699cc,color:#ffffff
+    style Core fill:#2d5a3d,stroke:#66aa88,color:#ffffff
+```
+
+Each `eliminate.dialect` step **shrinks the coproduct** -- the type system guarantees that no custom dialect operations survive past this point:
+
+```mermaid
+flowchart LR
+    A["Fix[GraphQLF :+: SemanticF]<br/><i>mixed: may contain GraphQL nodes</i>"]
+    B["Fix[SemanticF]<br/><i>clean: only standard IR nodes</i>"]
+    X["Emitter"]
+
+    A -->|"eliminate.dialect(algebra)"| B --> X
+    A -.->|"compile error"| X
+
+    style A fill:#5c3400,stroke:#e65100,color:#ffcc80
+    style B fill:#1b4d2e,stroke:#2e7d32,color:#a5d6a7
+```
+
+### Step 1: Define Your Dialect Functor
+
+A dialect functor is an `enum` (or `sealed trait`) parameterized by `+A`, where `A` marks recursive children:
+
+```scala
+import io.alnovis.ircraft.core.algebra.{Fix, DialectInfo}
+
+enum GraphQLF[+A]:
+  case SchemaNodeF(queries: Vector[A], mutations: Vector[A])
+  case DirectiveNodeF(name: String, args: Map[String, String], target: A)
+  case FragmentNodeF(name: String, onType: String, selections: Vector[A])
+```
+
+### Step 2: Write Functor and Traverse Instances
+
+Follow these **3 rules** for each field:
+
+```mermaid
+flowchart LR
+    Field["Field Type?"]
+    Data["Data<br/>(String, Int, Vector[Field], ...)"]
+    Direct["A<br/>(direct recursive)"]
+    Coll["Vector[A] / Option[A]<br/>(collection of recursive)"]
+
+    CopyMap["map: copy as-is"]
+    CopyTrav["traverse: pure(copy)"]
+    ApplyF["map: f(x)"]
+    TraverseF["traverse: f(x)"]
+    MapF["map: .map(f)"]
+    TraverseCol["traverse: .traverse(f)"]
+
+    Field --> Data --> CopyMap & CopyTrav
+    Field --> Direct --> ApplyF & TraverseF
+    Field --> Coll --> MapF & TraverseCol
+
+    style Data fill:#424242,stroke:#999,color:#e0e0e0
+    style Direct fill:#1a3a5c,stroke:#4488cc,color:#bbdefb
+    style Coll fill:#5c1a1a,stroke:#cc4444,color:#ffcdd2
+```
+
+| Field type | `map` | `traverse` | `foldLeft` | `foldRight` |
+|-----------|-------|-----------|-----------|------------|
+| Data (`String`, `Int`, `Vector[Field]`, ...) | copy as-is | copy as-is + `pure` | `b` (skip) | `lb` (skip) |
+| `A` (direct recursive) | `f(x)` | `f(x)` | `f(b, x)` | `f(x, lb)` |
+| `Vector[A]` / `Option[A]` / `List[A]` | `.map(f)` | `.traverse(f)` | `.foldLeft(b)(f)` | `.foldRight(lb)(f)` |
+
+For data-only cases (no `A` fields at all):
+- `map`: return unchanged
+- `traverse`: wrap in `Applicative[G].pure(...)`
+- `foldLeft`: return `b`
+- `foldRight`: return `lb`
+
+Complete example:
+
+```scala
+import cats.{Applicative, Eval, Functor, Traverse}
+import cats.syntax.all._
+
+object GraphQLF:
+  import GraphQLF._
+
+  given Functor[GraphQLF] with
+    def map[A, B](fa: GraphQLF[A])(f: A => B): GraphQLF[B] = fa match
+      case SchemaNodeF(q, m)       => SchemaNodeF(q.map(f), m.map(f))
+      case DirectiveNodeF(n, a, t) => DirectiveNodeF(n, a, f(t))
+      case FragmentNodeF(n, o, s)  => FragmentNodeF(n, o, s.map(f))
+
+  given Traverse[GraphQLF] with
+    def traverse[G[_]: Applicative, A, B](fa: GraphQLF[A])(f: A => G[B]): G[GraphQLF[B]] = fa match
+      case SchemaNodeF(q, m)       => (q.traverse(f), m.traverse(f)).mapN(SchemaNodeF(_, _))
+      case DirectiveNodeF(n, a, t) => f(t).map(DirectiveNodeF(n, a, _))
+      case FragmentNodeF(n, o, s)  => s.traverse(f).map(FragmentNodeF(n, o, _))
+
+    def foldLeft[A, B](fa: GraphQLF[A], b: B)(f: (B, A) => B): B = fa match
+      case SchemaNodeF(q, m)       => m.foldLeft(q.foldLeft(b)(f))(f)
+      case DirectiveNodeF(_, _, t) => f(b, t)
+      case FragmentNodeF(_, _, s)  => s.foldLeft(b)(f)
+
+    def foldRight[A, B](fa: GraphQLF[A], lb: Eval[B])(f: (A, Eval[B]) => Eval[B]): Eval[B] = fa match
+      case SchemaNodeF(q, m)       => q.foldRight(m.foldRight(lb)(f))(f)
+      case DirectiveNodeF(_, _, t) => f(t, lb)
+      case FragmentNodeF(_, _, s)  => s.foldRight(lb)(f)
+
+  given DialectInfo[GraphQLF] = DialectInfo("GraphQLF", 3)
+```
+
+### Step 3: Define Lowering Algebra
+
+The lowering algebra converts each operation of your dialect into a `SemanticF` subtree:
+
+```scala
+import io.alnovis.ircraft.core.algebra.Algebra.Algebra
+import io.alnovis.ircraft.core.ir._
+import io.alnovis.ircraft.core.ir.SemanticF._
+
+val graphqlToSemantic: Algebra[GraphQLF, Fix[SemanticF]] = {
+  case SchemaNodeF(queries, mutations) =>
+    Fix[SemanticF](TypeDeclF("Schema", TypeKind.Product, nested = queries ++ mutations))
+  case DirectiveNodeF(name, args, target) =>
+    // Wrap target in a TypeDecl with directive metadata
+    val meta = Meta.empty.set(Meta.Key[Map[String, String]]("directive.args"), args)
+    Fix[SemanticF](TypeDeclF(s"@$name", TypeKind.Abstract, nested = Vector(target), meta = meta))
+  case FragmentNodeF(name, onType, selections) =>
+    Fix[SemanticF](TypeDeclF(name, TypeKind.Protocol,
+      supertypes = Vector(TypeExpr.Named(onType)), nested = selections))
+}
+```
+
+### Step 4: Build Mixed IR and Eliminate
+
+```scala
+import io.alnovis.ircraft.core.algebra._
+
+// Define the mixed IR type
+type GraphQLIR = GraphQLF :+: SemanticF
+
+// Build your tree using Inject
+val injGql = Inject[GraphQLF, GraphQLIR]
+val injSem = Inject[SemanticF, GraphQLIR]
+
+val tree: Fix[GraphQLIR] = Fix(injGql.inj(
+  SchemaNodeF(
+    queries = Vector(
+      Fix(injSem.inj(TypeDeclF[Fix[GraphQLIR]]("User", TypeKind.Product,
+        fields = Vector(Field("id", TypeExpr.LONG)))))
+    ),
+    mutations = Vector.empty
+  )
+))
+
+// Eliminate GraphQLF, producing pure SemanticF
+val clean: Fix[SemanticF] = eliminate.dialect(graphqlToSemantic).apply(tree)
+
+// Now emit as usual
+val module = Module("graphql", Vector(CompilationUnit("com.example", Vector(clean))))
+val files = JavaEmitter[Id].apply(module)
+```
+
+**Type safety**: `eliminate.dialect` returns `Fix[SemanticF]`. Passing `Fix[GraphQLIR]` directly to the emitter won't compile -- the compiler forces you to eliminate all custom dialect operations first.
+
+### Recursion Schemes
+
+Use `scheme.cata` for generic bottom-up traversal on any dialect:
+
+```scala
+// Count all nodes in any dialect tree
+def countNodes[F[_]: Traverse]: Fix[F] => Int =
+  scheme.cata[F, Int] { fa =>
+    Traverse[F].foldLeft(fa, 1)((acc, child) => acc + child)
+  }
+```
+
+`scheme.cata` is stack-safe (trampolined via `cats.Eval`) and works with any `Traverse[F]` -- your dialect, `SemanticF`, or a coproduct of both.

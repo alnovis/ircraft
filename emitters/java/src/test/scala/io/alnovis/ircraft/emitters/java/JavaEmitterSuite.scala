@@ -1,25 +1,27 @@
 package io.alnovis.ircraft.emitters.java
 
 import cats._
+import io.alnovis.ircraft.core.algebra.Fix
 import io.alnovis.ircraft.core.ir._
+import io.alnovis.ircraft.core.ir.SemanticF._
 
 class JavaEmitterSuite extends munit.FunSuite {
 
   type F[A] = Id[A]
   private val emitter = JavaEmitter[F]
 
-  private def emit(namespace: String, decls: Decl*): Map[java.nio.file.Path, String] = {
+  private def emit(namespace: String, decls: Fix[SemanticF]*): Map[java.nio.file.Path, String] = {
     val module = Module("test", Vector(CompilationUnit(namespace, decls.toVector)))
     emitter(module)
   }
 
-  private def emitOne(namespace: String, decl: Decl): String =
+  private def emitOne(namespace: String, decl: Fix[SemanticF]): String =
     emit(namespace, decl).values.head
 
   test("emit simple Product (class) with fields") {
     val source = emitOne(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "User",
         kind = TypeKind.Product,
         fields = Vector(
@@ -37,7 +39,7 @@ class JavaEmitterSuite extends munit.FunSuite {
   test("emit Protocol (interface) with methods") {
     val source = emitOne(
       "com.example.api",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "UserService",
         kind = TypeKind.Protocol,
         functions = Vector(
@@ -54,7 +56,7 @@ class JavaEmitterSuite extends munit.FunSuite {
   test("emit Abstract class") {
     val source = emitOne(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "AbstractEntity",
         kind = TypeKind.Abstract,
         fields = Vector(Field("id", TypeExpr.LONG)),
@@ -77,7 +79,7 @@ class JavaEmitterSuite extends munit.FunSuite {
   test("emit EnumDecl") {
     val source = emitOne(
       "com.example",
-      Decl.EnumDecl(
+      Decl.enumDecl(
         name = "Color",
         variants = Vector(
           EnumVariant("RED"),
@@ -95,7 +97,7 @@ class JavaEmitterSuite extends munit.FunSuite {
   test("emit valued enum with constructor") {
     val source = emitOne(
       "com.example",
-      Decl.EnumDecl(
+      Decl.enumDecl(
         name = "HttpStatus",
         variants = Vector(
           EnumVariant("OK", args = Vector(Expr.Lit("200", TypeExpr.INT))),
@@ -118,7 +120,7 @@ class JavaEmitterSuite extends munit.FunSuite {
   test("emit interface with default method") {
     val source = emitOne(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Printable",
         kind = TypeKind.Protocol,
         functions = Vector(
@@ -144,7 +146,7 @@ class JavaEmitterSuite extends munit.FunSuite {
   test("emit class extending superclass and implementing interface") {
     val source = emitOne(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Admin",
         kind = TypeKind.Product,
         supertypes = Vector(TypeExpr.Named("User"), TypeExpr.Named("Serializable")),
@@ -157,7 +159,7 @@ class JavaEmitterSuite extends munit.FunSuite {
   test("emit interface extending interfaces") {
     val source = emitOne(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "ReadWriteStore",
         kind = TypeKind.Protocol,
         supertypes = Vector(TypeExpr.Named("ReadStore"), TypeExpr.Named("WriteStore"))
@@ -169,7 +171,7 @@ class JavaEmitterSuite extends munit.FunSuite {
   test("emit class with generic type params") {
     val source = emitOne(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Repository",
         kind = TypeKind.Protocol,
         typeParams = Vector(TypeParam("T"), TypeParam("ID", Vector(TypeExpr.Named("Serializable")))),
@@ -184,7 +186,7 @@ class JavaEmitterSuite extends munit.FunSuite {
   test("imports are collected for List/Map types") {
     val source = emitOne(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Container",
         kind = TypeKind.Product,
         fields = Vector(
@@ -202,7 +204,7 @@ class JavaEmitterSuite extends munit.FunSuite {
   test("emit method with body: if/return") {
     val source = emitOne(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Guard",
         kind = TypeKind.Product,
         functions = Vector(
@@ -232,8 +234,8 @@ class JavaEmitterSuite extends munit.FunSuite {
   test("emit multiple files from one module") {
     val files = emit(
       "com.example",
-      Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))),
-      Decl.EnumDecl("Role", variants = Vector(EnumVariant("ADMIN"), EnumVariant("USER")))
+      Decl.typeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))),
+      Decl.enumDecl("Role", variants = Vector(EnumVariant("ADMIN"), EnumVariant("USER")))
     )
     assertEquals(files.size, 2)
     val paths = files.keys.map(_.toString).toSet
@@ -242,8 +244,8 @@ class JavaEmitterSuite extends munit.FunSuite {
   }
 
   test("emit nested types") {
-    val inner = Decl.TypeDecl("Address", TypeKind.Product, fields = Vector(Field("city", TypeExpr.STR)))
-    val outer = Decl.TypeDecl(
+    val inner = Decl.typeDecl("Address", TypeKind.Product, fields = Vector(Field("city", TypeExpr.STR)))
+    val outer = Decl.typeDecl(
       name = "User",
       kind = TypeKind.Product,
       fields = Vector(Field("name", TypeExpr.STR)),
@@ -258,7 +260,7 @@ class JavaEmitterSuite extends munit.FunSuite {
   test("emit annotations") {
     val source = emitOne(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "User",
         kind = TypeKind.Product,
         annotations = Vector(Annotation("Entity")),

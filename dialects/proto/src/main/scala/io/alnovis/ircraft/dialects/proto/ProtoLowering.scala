@@ -2,7 +2,9 @@ package io.alnovis.ircraft.dialects.proto
 
 import cats._
 import cats.syntax.all._
+import io.alnovis.ircraft.core.algebra.Fix
 import io.alnovis.ircraft.core.ir._
+import io.alnovis.ircraft.core.ir.SemanticF._
 
 /** Well-known Meta keys for proto provenance. */
 object ProtoMeta {
@@ -16,16 +18,16 @@ object ProtoMeta {
   val originalType: Meta.Key[String] = Meta.Key("proto.originalType")
 }
 
-/** Lowering: ProtoFile -> F[Module]. */
+/** Lowering: ProtoFile -> F[Module[Fix[SemanticF]]]. */
 object ProtoLowering {
 
-  def lower[F[_]: Applicative](file: ProtoFile): F[Module] =
+  def lower[F[_]: Applicative](file: ProtoFile): F[Module[Fix[SemanticF]]] =
     lowerFile(file)
 
-  def lowerAll[F[_]: Applicative](files: Vector[ProtoFile]): F[Module] =
+  def lowerAll[F[_]: Applicative](files: Vector[ProtoFile]): F[Module[Fix[SemanticF]]] =
     files.toList.traverse(lowerFile[F](_)).map(_.toVector.combineAll)
 
-  private def lowerFile[F[_]: Applicative](file: ProtoFile): F[Module] = {
+  private def lowerFile[F[_]: Applicative](file: ProtoFile): F[Module[Fix[SemanticF]]] = {
     val pkg        = file.javaPackage.getOrElse(file.packageName)
     val outerClass = file.javaOuterClassname.getOrElse(deriveOuterClass(file.name))
     val syntaxStr = file.syntax match {
@@ -52,7 +54,7 @@ object ProtoLowering {
     pkg: String,
     outerClass: String,
     syntax: ProtoSyntax
-  ): Decl = {
+  ): Fix[SemanticF] = {
     val protoFqn = s"$pkg.$outerClass.${msg.name}"
 
     val fields = msg.fields.map(f => lowerField(f, syntax))
@@ -84,7 +86,7 @@ object ProtoLowering {
     val nestedMessages = msg.nestedMessages.map(m => lowerMessage(m, pkg, outerClass, syntax))
     val nestedEnums    = msg.nestedEnums.map(lowerEnum)
 
-    Decl.TypeDecl(
+    Decl.typeDecl(
       name = msg.name,
       kind = TypeKind.Protocol,
       fields = fields,
@@ -107,8 +109,8 @@ object ProtoLowering {
     )
   }
 
-  private def lowerEnum(e: ProtoEnum): Decl =
-    Decl.EnumDecl(
+  private def lowerEnum(e: ProtoEnum): Fix[SemanticF] =
+    Decl.enumDecl(
       name = e.name,
       variants = e.values.map(v => EnumVariant(v.name, Vector(Expr.Lit(v.number.toString, TypeExpr.INT)))),
       meta = Meta.empty.set(ProtoMeta.sourceKind, "enum")

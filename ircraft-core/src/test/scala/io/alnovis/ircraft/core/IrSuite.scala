@@ -1,11 +1,13 @@
 package io.alnovis.ircraft.core
 
+import io.alnovis.ircraft.core.algebra.Fix
 import io.alnovis.ircraft.core.ir._
+import io.alnovis.ircraft.core.ir.SemanticF._
 
 class IrSuite extends munit.FunSuite {
 
   test("construct a simple TypeDecl with fields") {
-    val decl = Decl.TypeDecl(
+    val decl = Decl.typeDecl(
       name = "User",
       kind = TypeKind.Product,
       fields = Vector(
@@ -15,15 +17,19 @@ class IrSuite extends munit.FunSuite {
         Field("active", TypeExpr.BOOL)
       )
     )
-    assertEquals(decl.name, "User")
-    assertEquals(decl.kind, TypeKind.Product)
-    assertEquals(decl.fields.size, 4)
-    assertEquals(decl.fields.head.name, "id")
-    assertEquals(decl.fields.head.fieldType, TypeExpr.LONG)
+    decl.unfix match {
+      case TypeDeclF(name, kind, fields, _, _, _, _, _, _, _) =>
+        assertEquals(name, "User")
+        assertEquals(kind, TypeKind.Product)
+        assertEquals(fields.size, 4)
+        assertEquals(fields.head.name, "id")
+        assertEquals(fields.head.fieldType, TypeExpr.LONG)
+      case _ => fail("expected TypeDeclF")
+    }
   }
 
   test("construct a Protocol with functions") {
-    val decl = Decl.TypeDecl(
+    val decl = Decl.typeDecl(
       name = "Repository",
       kind = TypeKind.Protocol,
       functions = Vector(
@@ -31,12 +37,16 @@ class IrSuite extends munit.FunSuite {
         Func("save", Vector(Param("entity", TypeExpr.Named("User"))), TypeExpr.VOID)
       )
     )
-    assertEquals(decl.functions.size, 2)
-    assertEquals(decl.functions.head.name, "findById")
+    decl.unfix match {
+      case TypeDeclF(_, _, _, functions, _, _, _, _, _, _) =>
+        assertEquals(functions.size, 2)
+        assertEquals(functions.head.name, "findById")
+      case _ => fail("expected TypeDeclF")
+    }
   }
 
   test("construct EnumDecl with variants") {
-    val decl = Decl.EnumDecl(
+    val decl = Decl.enumDecl(
       name = "Color",
       variants = Vector(
         EnumVariant("Red"),
@@ -44,11 +54,15 @@ class IrSuite extends munit.FunSuite {
         EnumVariant("Blue")
       )
     )
-    assertEquals(decl.variants.size, 3)
+    decl.unfix match {
+      case EnumDeclF(_, variants, _, _, _, _, _) =>
+        assertEquals(variants.size, 3)
+      case _ => fail("expected EnumDeclF")
+    }
   }
 
   test("construct valued EnumDecl") {
-    val decl = Decl.EnumDecl(
+    val decl = Decl.enumDecl(
       name = "HttpStatus",
       variants = Vector(
         EnumVariant("OK", args = Vector(Expr.Lit("200", TypeExpr.INT))),
@@ -58,15 +72,19 @@ class IrSuite extends munit.FunSuite {
         Func("code", returnType = TypeExpr.INT)
       )
     )
-    assertEquals(decl.variants.head.args.size, 1)
+    decl.unfix match {
+      case EnumDeclF(_, variants, _, _, _, _, _) =>
+        assertEquals(variants.head.args.size, 1)
+      case _ => fail("expected EnumDeclF")
+    }
   }
 
   test("construct Module with CompilationUnits") {
     val unit = CompilationUnit(
       namespace = "com.example.model",
       declarations = Vector(
-        Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))),
-        Decl.TypeDecl("Order", TypeKind.Product, fields = Vector(Field("total", TypeExpr.DOUBLE)))
+        Decl.typeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))),
+        Decl.typeDecl("Order", TypeKind.Product, fields = Vector(Field("total", TypeExpr.DOUBLE)))
       )
     )
     val module = Module("test", Vector(unit))
@@ -75,14 +93,18 @@ class IrSuite extends munit.FunSuite {
   }
 
   test("nested TypeDecl") {
-    val inner = Decl.TypeDecl("Address", TypeKind.Product, fields = Vector(Field("street", TypeExpr.STR)))
-    val outer = Decl.TypeDecl(
+    val inner = Decl.typeDecl("Address", TypeKind.Product, fields = Vector(Field("street", TypeExpr.STR)))
+    val outer = Decl.typeDecl(
       name = "User",
       kind = TypeKind.Product,
       fields = Vector(Field("name", TypeExpr.STR)),
       nested = Vector(inner)
     )
-    assertEquals(outer.nested.size, 1)
+    outer.unfix match {
+      case TypeDeclF(_, _, _, _, nested, _, _, _, _, _) =>
+        assertEquals(nested.size, 1)
+      case _ => fail("expected TypeDeclF")
+    }
   }
 
   test("function with body") {

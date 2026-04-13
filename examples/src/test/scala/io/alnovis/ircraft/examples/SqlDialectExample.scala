@@ -3,29 +3,17 @@ package io.alnovis.ircraft.examples
 import cats._
 import cats.syntax.all._
 import io.alnovis.ircraft.core._
+import io.alnovis.ircraft.core.algebra.Fix
 import io.alnovis.ircraft.core.ir._
+import io.alnovis.ircraft.core.ir.SemanticF._
 import io.alnovis.ircraft.emitters.java.JavaEmitter
 
-/**
-  * End-to-end example: SQL Schema -> IR -> Pipeline -> Java code.
-  *
-  * Demonstrates the full ircraft v2 workflow:
-  *   1. Define source dialect as ADT (SqlSchema)
-  *   2. Define Lowering (SqlSchema -> Module)
-  *   3. Define custom passes (add audit fields, add @NotNull)
-  *   4. Compose pipeline
-  *   5. Emit Java source
-  */
 class SqlDialectExample extends munit.FunSuite {
 
   type F[A] = Id[A]
 
-  // -- 1. Source dialect: just an ADT --------------------------------------
-
   case class SqlTable(name: String, columns: Vector[SqlColumn])
   case class SqlColumn(name: String, sqlType: String, nullable: Boolean, default: Option[String] = None)
-
-  // -- 2. Lowering: SqlTable -> Module ------------------------------------
 
   val sqlLowering: Lowering[F, Vector[SqlTable]] = Lowering.pure { tables =>
     val units = tables.map { table =>
@@ -43,7 +31,7 @@ class SqlDialectExample extends munit.FunSuite {
       CompilationUnit(
         namespace = "com.example.model",
         declarations = Vector(
-          Decl.TypeDecl(
+          Decl.typeDecl(
             name = table.name,
             kind = TypeKind.Product,
             fields = fields
@@ -66,53 +54,49 @@ class SqlDialectExample extends munit.FunSuite {
     case _                           => TypeExpr.STR
   }
 
-  // -- 3. Custom passes ---------------------------------------------------
-
   val addAuditFields: Pass[F] = Pass.pure[F]("add-audit-fields") { module =>
     module.copy(units = module.units.map { unit =>
-      unit.copy(declarations = unit.declarations.map {
-        case td: Decl.TypeDecl =>
-          val hasCreatedAt = td.fields.exists(_.name == "created_at")
-          if (hasCreatedAt) td
-          else
-            td.copy(fields =
-              td.fields ++ Vector(
-                Field("created_at", TypeExpr.Named("java.time.Instant"), mutability = Mutability.Immutable),
-                Field("updated_at", TypeExpr.Named("java.time.Instant"), mutability = Mutability.Immutable)
-              )
-            )
-        case other => other
+      unit.copy(declarations = unit.declarations.map { fix =>
+        fix.unfix match {
+          case td: TypeDeclF[Fix[SemanticF] @unchecked] =>
+            val hasCreatedAt = td.fields.exists(_.name == "created_at")
+            if (hasCreatedAt) fix
+            else
+              Fix[SemanticF](td.copy(fields =
+                td.fields ++ Vector(
+                  Field("created_at", TypeExpr.Named("java.time.Instant"), mutability = Mutability.Immutable),
+                  Field("updated_at", TypeExpr.Named("java.time.Instant"), mutability = Mutability.Immutable)
+                )
+              ))
+          case _ => fix
+        }
       })
     })
   }
 
   val addGetters: Pass[F] = Pass.pure[F]("add-getters") { module =>
     module.copy(units = module.units.map { unit =>
-      unit.copy(declarations = unit.declarations.map {
-        case td: Decl.TypeDecl =>
-          val getters = td.fields.map { f =>
-            val getterName = s"get${f.name.split("_").map(s => s.head.toUpper +: s.tail).mkString}"
-            Func(
-              name = getterName,
-              returnType = f.fieldType,
-              body = Some(Body.of(Stmt.Return(Some(Expr.Access(Expr.This, f.name)))))
-            )
-          }
-          td.copy(functions = td.functions ++ getters)
-        case other => other
+      unit.copy(declarations = unit.declarations.map { fix =>
+        fix.unfix match {
+          case td: TypeDeclF[Fix[SemanticF] @unchecked] =>
+            val getters = td.fields.map { f =>
+              val getterName = s"get${f.name.split("_").map(s => s.head.toUpper +: s.tail).mkString}"
+              Func(
+                name = getterName,
+                returnType = f.fieldType,
+                body = Some(Body.of(Stmt.Return(Some(Expr.Access(Expr.This, f.name)))))
+              )
+            }
+            Fix[SemanticF](td.copy(functions = td.functions ++ getters))
+          case _ => fix
+        }
       })
     })
   }
 
-  // -- 4. Pipeline --------------------------------------------------------
-
   val pipeline: Pass[F] = Pipeline.of(addAuditFields, addGetters)
 
-  // -- 5. Emit Java -------------------------------------------------------
-
   val javaEmitter = JavaEmitter[F]
-
-  // -- Tests --------------------------------------------------------------
 
   test("full pipeline: SQL tables -> Java source") {
     val tables = Vector(
@@ -134,25 +118,23 @@ class SqlDialectExample extends munit.FunSuite {
       )
     )
 
-    // lowering
-    val module = sqlLowering(tables)
+    val module   = sqlLowering(tables)
     assertEquals(module.units.size, 2)
 
-    // pipeline
     val enriched = Pipeline.run(pipeline, module)
 
-    // verify audit fields added
-    val userDecl = enriched.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val userDecl = enriched.units.head.declarations.head.unfix match {
+      case td: TypeDeclF[Fix[SemanticF] @unchecked] => td
+      case other => fail(s"expected TypeDeclF, got $other")
+    }
     assert(userDecl.fields.exists(_.name == "created_at"))
     assert(userDecl.fields.exists(_.name == "updated_at"))
 
-    // verify getters added
     val getterNames = userDecl.functions.map(_.name)
     assert(getterNames.contains("getId"))
     assert(getterNames.contains("getName"))
     assert(getterNames.contains("getCreatedAt"))
 
-    // emit Java
     val files = javaEmitter(enriched)
     assertEquals(files.size, 2)
 
@@ -183,24 +165,26 @@ class SqlDialectExample extends munit.FunSuite {
 
     val addToString: Pass[F] = Pass.pure[F]("add-toString") { module =>
       module.copy(units = module.units.map { unit =>
-        unit.copy(declarations = unit.declarations.map {
-          case td: Decl.TypeDecl =>
-            val toString = Func(
-              name = "toString",
-              returnType = TypeExpr.STR,
-              modifiers = Set(FuncModifier.Override),
-              body = Some(
-                Body.of(
-                  Stmt.Return(
-                    Some(
-                      Expr.Call(Some(Expr.Access(Expr.This, "name")), "toString")
+        unit.copy(declarations = unit.declarations.map { fix =>
+          fix.unfix match {
+            case td: TypeDeclF[Fix[SemanticF] @unchecked] =>
+              val toString = Func(
+                name = "toString",
+                returnType = TypeExpr.STR,
+                modifiers = Set(FuncModifier.Override),
+                body = Some(
+                  Body.of(
+                    Stmt.Return(
+                      Some(
+                        Expr.Call(Some(Expr.Access(Expr.This, "name")), "toString")
+                      )
                     )
                   )
                 )
               )
-            )
-            td.copy(functions = td.functions :+ toString)
-          case other => other
+              Fix[SemanticF](td.copy(functions = td.functions :+ toString))
+            case _ => fix
+          }
         })
       })
     }

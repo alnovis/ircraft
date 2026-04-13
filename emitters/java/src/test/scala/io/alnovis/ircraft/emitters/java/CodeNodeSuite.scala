@@ -1,7 +1,9 @@
 package io.alnovis.ircraft.emitters.java
 
 import cats._
+import io.alnovis.ircraft.core.algebra.Fix
 import io.alnovis.ircraft.core.ir._
+import io.alnovis.ircraft.core.ir.SemanticF._
 import io.alnovis.ircraft.emit.{ CodeNode, Renderer }
 
 /** Tests at the CodeNode (tree) level -- structural, not string-based. */
@@ -10,13 +12,13 @@ class CodeNodeSuite extends munit.FunSuite {
   type F[A] = Id[A]
   private val emitter = JavaEmitter[F]
 
-  private def toTree(namespace: String, decl: Decl): CodeNode =
+  private def toTree(namespace: String, decl: Fix[SemanticF]): CodeNode =
     emitter.toFileTree(namespace, decl)
 
   test("TypeDecl produces TypeBlock with correct sections") {
     val tree = toTree(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "User",
         kind = TypeKind.Product,
         fields = Vector(
@@ -55,7 +57,7 @@ class CodeNodeSuite extends munit.FunSuite {
   test("Protocol produces TypeBlock with abstract Func") {
     val tree = toTree(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Service",
         kind = TypeKind.Protocol,
         functions = Vector(
@@ -80,7 +82,7 @@ class CodeNodeSuite extends munit.FunSuite {
   test("IfElse produces correct tree structure") {
     val tree = toTree(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Guard",
         kind = TypeKind.Product,
         functions = Vector(
@@ -120,12 +122,12 @@ class CodeNodeSuite extends munit.FunSuite {
   test("nested TypeBlock inside TypeBlock") {
     val tree = toTree(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Outer",
         kind = TypeKind.Product,
         fields = Vector(Field("x", TypeExpr.INT)),
         nested = Vector(
-          Decl.TypeDecl("Inner", TypeKind.Product, fields = Vector(Field("y", TypeExpr.STR)))
+          Decl.typeDecl("Inner", TypeKind.Product, fields = Vector(Field("y", TypeExpr.STR)))
         )
       )
     )

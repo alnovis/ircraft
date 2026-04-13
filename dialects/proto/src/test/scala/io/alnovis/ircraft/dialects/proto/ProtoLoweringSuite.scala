@@ -1,14 +1,28 @@
 package io.alnovis.ircraft.dialects.proto
 
 import cats._
+import io.alnovis.ircraft.core.algebra.Fix
 import io.alnovis.ircraft.core.ir._
+import io.alnovis.ircraft.core.ir.SemanticF._
 
 class ProtoLoweringSuite extends munit.FunSuite {
 
   type F[A] = Id[A]
 
-  private def lower(file: ProtoFile): Module =
+  private def lower(file: ProtoFile): Module[Fix[SemanticF]] =
     ProtoLowering.lower[F](file)
+
+  /** Extract TypeDeclF from Fix[SemanticF] or fail. */
+  private def asTypeDecl(fix: Fix[SemanticF]): TypeDeclF[Fix[SemanticF]] = fix match {
+    case Decl.TypeDecl(td) => td
+    case other => fail(s"expected TypeDeclF but got: $other")
+  }
+
+  /** Extract EnumDeclF from Fix[SemanticF] or fail. */
+  private def asEnumDecl(fix: Fix[SemanticF]): EnumDeclF[Fix[SemanticF]] = fix match {
+    case Decl.EnumDecl(ed) => ed
+    case other => fail(s"expected EnumDeclF but got: $other")
+  }
 
   private val simpleProto = ProtoFile(
     name = "user.proto",
@@ -40,14 +54,14 @@ class ProtoLoweringSuite extends munit.FunSuite {
     val unit = module.units.head
     assertEquals(unit.namespace, "com.example.proto")
 
-    val decl = unit.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val decl = asTypeDecl(unit.declarations.head)
     assertEquals(decl.name, "User")
     assertEquals(decl.kind, TypeKind.Protocol)
   }
 
   test("fields are lowered with correct types") {
     val module = lower(simpleProto)
-    val decl   = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val decl   = asTypeDecl(module.units.head.declarations.head)
 
     val fieldTypes = decl.fields.map(f => f.name -> f.fieldType)
     assertEquals(
@@ -63,7 +77,7 @@ class ProtoLoweringSuite extends munit.FunSuite {
 
   test("getter functions are generated") {
     val module    = lower(simpleProto)
-    val decl      = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val decl      = asTypeDecl(module.units.head.declarations.head)
     val funcNames = decl.functions.map(_.name)
     assert(funcNames.contains("getId"))
     assert(funcNames.contains("getName"))
@@ -73,7 +87,7 @@ class ProtoLoweringSuite extends munit.FunSuite {
 
   test("has-methods for proto3 optional fields") {
     val module     = lower(simpleProto)
-    val decl       = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val decl       = asTypeDecl(module.units.head.declarations.head)
     val hasMethods = decl.functions.filter(_.name.startsWith("has"))
     // proto3: only optional fields get has-method
     assertEquals(hasMethods.size, 1)
@@ -98,7 +112,7 @@ class ProtoLoweringSuite extends munit.FunSuite {
       )
     )
     val module     = lower(proto2)
-    val decl       = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val decl       = asTypeDecl(module.units.head.declarations.head)
     val hasMethods = decl.functions.filter(_.name.startsWith("has")).map(_.name)
     // proto2: only optional gets has, required does not (always present), repeated does not
     assertEquals(hasMethods.toSet, Set("hasY"))
@@ -119,7 +133,7 @@ class ProtoLoweringSuite extends munit.FunSuite {
       )
     )
     val module = lower(proto)
-    val decl   = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val decl   = asTypeDecl(module.units.head.declarations.head)
     assertEquals(decl.fields.head.fieldType, TypeExpr.ListOf(TypeExpr.STR))
   }
 
@@ -138,7 +152,7 @@ class ProtoLoweringSuite extends munit.FunSuite {
       )
     )
     val module = lower(proto)
-    val decl   = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val decl   = asTypeDecl(module.units.head.declarations.head)
     assertEquals(decl.fields.head.fieldType, TypeExpr.MapOf(TypeExpr.STR, TypeExpr.INT))
   }
 
@@ -163,7 +177,7 @@ class ProtoLoweringSuite extends munit.FunSuite {
       )
     )
     val module = lower(proto)
-    val decl   = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val decl   = asTypeDecl(module.units.head.declarations.head)
     assertEquals(decl.fields.head.fieldType, TypeExpr.Unresolved("com.example.Address"))
   }
 
@@ -182,7 +196,7 @@ class ProtoLoweringSuite extends munit.FunSuite {
       )
     )
     val module = lower(proto)
-    val decl   = module.units.head.declarations.head.asInstanceOf[Decl.EnumDecl]
+    val decl   = asEnumDecl(module.units.head.declarations.head)
     assertEquals(decl.name, "Status")
     assertEquals(decl.variants.size, 3)
     assertEquals(decl.variants.head.name, "UNKNOWN")
@@ -209,15 +223,15 @@ class ProtoLoweringSuite extends munit.FunSuite {
       )
     )
     val module = lower(proto)
-    val user   = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val user   = asTypeDecl(module.units.head.declarations.head)
     assertEquals(user.nested.size, 1)
-    val address = user.nested.head.asInstanceOf[Decl.TypeDecl]
+    val address = asTypeDecl(user.nested.head)
     assertEquals(address.name, "Address")
   }
 
   test("meta preserves proto provenance") {
     val module = lower(simpleProto)
-    val decl   = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val decl   = asTypeDecl(module.units.head.declarations.head)
     assertEquals(decl.meta.get(ProtoMeta.sourceKind), Some("message"))
     assert(decl.meta.get(ProtoMeta.protoFqn).isDefined)
   }
@@ -239,7 +253,7 @@ class ProtoLoweringSuite extends munit.FunSuite {
       )
     )
     val module = lower(proto)
-    val decl   = module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl]
+    val decl   = asTypeDecl(module.units.head.declarations.head)
     val kinds  = decl.functions.filter(_.name.startsWith("get")).map(f => f.name -> f.meta.get(ProtoMeta.fieldKind))
     assertEquals(
       kinds,

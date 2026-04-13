@@ -5,19 +5,21 @@ import cats.data.Kleisli
 import cats.syntax.all._
 import java.nio.file.Path
 import scala.collection.immutable.SortedMap
+import io.alnovis.ircraft.core.algebra.Fix
 import io.alnovis.ircraft.core.ir._
+import io.alnovis.ircraft.core.ir.SemanticF._
 
 abstract class BaseEmitter[F[_]: Monad] {
 
   protected def syntax: LanguageSyntax
   protected def tm: TypeMapping
 
-  final def apply(module: Module): F[Map[Path, String]] = {
+  final def apply(module: Module[Fix[SemanticF]]): F[Map[Path, String]] = {
     module.units
       .flatTraverse { unit =>
         unit.declarations.traverse { decl =>
           emitFileTree(unit.namespace, decl).map { tree =>
-            val name   = decl.name
+            val name   = SemanticF.name(decl.unfix)
             val path   = Path.of(unit.namespace.replace('.', '/'), s"$name.${syntax.fileExtension}")
             val source = Renderer.render(tree, syntax.statementTerminator)
             (path, source)
@@ -31,25 +33,25 @@ abstract class BaseEmitter[F[_]: Monad] {
       }
   }
 
-  def toFileTree(namespace: String, decl: Decl): F[CodeNode] = emitFileTree(namespace, decl)
-  def toDeclTree(decl: Decl): F[CodeNode]                    = emitDeclTree(decl)
+  def toFileTree(namespace: String, decl: Fix[SemanticF]): F[CodeNode] = emitFileTree(namespace, decl)
+  def toDeclTree(decl: Fix[SemanticF]): F[CodeNode]                    = emitDeclTree(decl)
 
-  protected def emitFileTree(namespace: String, decl: Decl): F[CodeNode] = {
+  protected def emitFileTree(namespace: String, decl: Fix[SemanticF]): F[CodeNode] = {
     emitDeclTree(decl).map { declTree =>
       val imports = ImportCollector.collect(decl, tm)
       CodeNode.File(syntax.packageDecl(namespace), imports.toVector, Vector(declTree))
     }
   }
 
-  protected def emitDeclTree(decl: Decl): F[CodeNode] = decl match {
-    case td: Decl.TypeDecl  => emitTypeDecl(td)
-    case ed: Decl.EnumDecl  => emitEnumDecl(ed)
-    case fd: Decl.FuncDecl  => emitFuncNode(fd.func, TypeKind.Product)
-    case cd: Decl.ConstDecl => Monad[F].pure(emitConstDecl(cd))
-    case _: Decl.AliasDecl  => Monad[F].pure(CodeNode.Line(""))
+  protected def emitDeclTree(decl: Fix[SemanticF]): F[CodeNode] = decl.unfix match {
+    case td: TypeDeclF[Fix[SemanticF] @unchecked]  => emitTypeDecl(td)
+    case ed: EnumDeclF[Fix[SemanticF] @unchecked]  => emitEnumDecl(ed)
+    case fd: FuncDeclF[Fix[SemanticF] @unchecked]  => emitFuncNode(fd.func, TypeKind.Product)
+    case cd: ConstDeclF[Fix[SemanticF] @unchecked] => Monad[F].pure(emitConstDecl(cd))
+    case _: AliasDeclF[Fix[SemanticF] @unchecked]  => Monad[F].pure(CodeNode.Line(""))
   }
 
-  private def emitTypeDecl(td: Decl.TypeDecl): F[CodeNode] = {
+  private def emitTypeDecl(td: TypeDeclF[Fix[SemanticF]]): F[CodeNode] = {
     val fieldNodes = if (td.kind == TypeKind.Protocol) Vector.empty else td.fields.map(emitField)
     for {
       funcNodes   <- td.functions.traverse(f => emitFuncNode(f, td.kind))
@@ -65,7 +67,7 @@ abstract class BaseEmitter[F[_]: Monad] {
     }
   }
 
-  private def emitEnumDecl(ed: Decl.EnumDecl): F[CodeNode] = {
+  private def emitEnumDecl(ed: EnumDeclF[Fix[SemanticF]]): F[CodeNode] = {
     for {
       funcNodes <- ed.functions.traverse(f => emitFuncNode(f, TypeKind.Product))
     } yield {
@@ -232,7 +234,7 @@ abstract class BaseEmitter[F[_]: Monad] {
     wrapWithDocAndAnnotations(f.meta, f.annotations, fieldLine)
   }
 
-  private def emitConstDecl(cd: Decl.ConstDecl): CodeNode = {
+  private def emitConstDecl(cd: ConstDeclF[Fix[SemanticF]]): CodeNode = {
     val vis = syntax.visibility(cd.visibility)
     CodeNode.Line(syntax.constDecl(vis, tm.typeName(cd.constType), cd.name, emitExprText(cd.value)))
   }

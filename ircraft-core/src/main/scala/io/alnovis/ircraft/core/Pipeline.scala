@@ -2,7 +2,8 @@ package io.alnovis.ircraft.core
 
 import cats._
 import cats.data._
-import io.alnovis.ircraft.core.ir.Module
+import io.alnovis.ircraft.core.algebra.Fix
+import io.alnovis.ircraft.core.ir.{Module, SemanticF}
 
 object Pipeline {
 
@@ -15,6 +16,6 @@ object Pipeline {
     else enabled.reduceLeft(_ andThen _)
   }
 
-  def run[F[_]](pipeline: Pass[F], module: Module): F[Module] =
+  def run[F[_]](pipeline: Pass[F], module: Module[Fix[SemanticF]]): F[Module[Fix[SemanticF]]] =
     pipeline.run(module)
 }

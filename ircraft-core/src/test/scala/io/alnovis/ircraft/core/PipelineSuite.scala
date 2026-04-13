@@ -3,7 +3,9 @@ package io.alnovis.ircraft.core
 import cats._
 import cats.data._
 import cats.syntax.all._
+import io.alnovis.ircraft.core.algebra.Fix
 import io.alnovis.ircraft.core.ir._
+import io.alnovis.ircraft.core.ir.SemanticF._
 
 class PipelineSuite extends munit.FunSuite {
 
@@ -12,28 +14,33 @@ class PipelineSuite extends munit.FunSuite {
   // Outcome over Id for tests with warnings/errors
   type OF[A] = IorT[Id, NonEmptyChain[Diagnostic], A]
 
-  private val emptyModule = Module.empty("test")
+  private val emptyModule = Module.empty[Fix[SemanticF]]("test")
 
-  private def moduleWith(decls: Decl*): Module =
+  private def moduleWith(decls: Fix[SemanticF]*): Module[Fix[SemanticF]] =
     Module("test", Vector(CompilationUnit("com.example", decls.toVector)))
 
   test("Pass.pure transforms module") {
     val addField = Pass.pure[F]("add-field") { module =>
       module.copy(units = module.units.map { unit =>
-        unit.copy(declarations = unit.declarations.map {
-          case td: Decl.TypeDecl =>
-            td.copy(fields = td.fields :+ Field("added", TypeExpr.STR))
-          case other => other
+        unit.copy(declarations = unit.declarations.map { fix =>
+          fix.unfix match {
+            case td: TypeDeclF[Fix[SemanticF] @unchecked] =>
+              Fix[SemanticF](td.copy(fields = td.fields :+ Field("added", TypeExpr.STR)))
+            case other => fix
+          }
         })
       })
     }
 
-    val input  = moduleWith(Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))))
+    val input  = moduleWith(Decl.typeDecl("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG))))
     val result = Pipeline.run(addField, input)
 
-    val fields = result.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].fields
-    assertEquals(fields.size, 2)
-    assertEquals(fields.last.name, "added")
+    result.units.head.declarations.head.unfix match {
+      case TypeDeclF(_, _, fields, _, _, _, _, _, _, _) =>
+        assertEquals(fields.size, 2)
+        assertEquals(fields.last.name, "added")
+      case _ => fail("expected TypeDeclF")
+    }
   }
 
   test("Pipeline.of composes passes left to right") {
@@ -104,7 +111,7 @@ class PipelineSuite extends munit.FunSuite {
         CompilationUnit(
           "com.example.model",
           Vector(
-            Decl.TypeDecl(
+            Decl.typeDecl(
               name = t.name,
               kind = TypeKind.Product,
               fields = t.columns.map(c => Field(c, TypeExpr.STR))
@@ -117,13 +124,17 @@ class PipelineSuite extends munit.FunSuite {
 
     val tables = Vector(SqlTable("Users", Vector("id", "name", "email")))
     val module = lowering(tables)
-    assertEquals(module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].name, "Users")
-    assertEquals(module.units.head.declarations.head.asInstanceOf[Decl.TypeDecl].fields.size, 3)
+    module.units.head.declarations.head.unfix match {
+      case TypeDeclF(name, _, fields, _, _, _, _, _, _, _) =>
+        assertEquals(name, "Users")
+        assertEquals(fields.size, 3)
+      case _ => fail("expected TypeDeclF")
+    }
   }
 
   test("Passes.validateResolved detects unresolved types via Outcome") {
     val module = moduleWith(
-      Decl.TypeDecl(
+      Decl.typeDecl(
         "Order",
         TypeKind.Product,
         fields = Vector(Field("address", TypeExpr.Unresolved("com.example.Address")))
@@ -138,7 +149,7 @@ class PipelineSuite extends munit.FunSuite {
 
   test("Passes.validateResolved passes clean module") {
     val module = moduleWith(
-      Decl.TypeDecl("User", TypeKind.Product, fields = Vector(Field("name", TypeExpr.STR)))
+      Decl.typeDecl("User", TypeKind.Product, fields = Vector(Field("name", TypeExpr.STR)))
     )
     Pipeline.run(Passes.validateResolved[Id], module).value match {
       case Ior.Right(m) => assertEquals(m.units.size, 1)

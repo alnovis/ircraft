@@ -1,7 +1,9 @@
 package io.alnovis.ircraft.emitters.scala
 
 import cats._
+import io.alnovis.ircraft.core.algebra.Fix
 import io.alnovis.ircraft.core.ir._
+import io.alnovis.ircraft.core.ir.SemanticF._
 
 class ScalaEmitterSuite extends munit.FunSuite {
 
@@ -9,16 +11,16 @@ class ScalaEmitterSuite extends munit.FunSuite {
   private val scala3Emitter = ScalaEmitter.scala3[F]
   private val scala2Emitter = ScalaEmitter.scala2[F]
 
-  private def emit3(namespace: String, decls: Decl*): Map[java.nio.file.Path, String] =
+  private def emit3(namespace: String, decls: Fix[SemanticF]*): Map[java.nio.file.Path, String] =
     scala3Emitter(Module("test", Vector(CompilationUnit(namespace, decls.toVector))))
 
-  private def emit2(namespace: String, decls: Decl*): Map[java.nio.file.Path, String] =
+  private def emit2(namespace: String, decls: Fix[SemanticF]*): Map[java.nio.file.Path, String] =
     scala2Emitter(Module("test", Vector(CompilationUnit(namespace, decls.toVector))))
 
-  private def emitOne3(namespace: String, decl: Decl): String =
+  private def emitOne3(namespace: String, decl: Fix[SemanticF]): String =
     emit3(namespace, decl).values.head
 
-  private def emitOne2(namespace: String, decl: Decl): String =
+  private def emitOne2(namespace: String, decl: Fix[SemanticF]): String =
     emit2(namespace, decl).values.head
 
   // -- Scala 3 tests -------------------------------------------------------
@@ -26,7 +28,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 3: Product -> class with val fields (camelCase)") {
     val source = emitOne3(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "User",
         kind = TypeKind.Product,
         fields = Vector(
@@ -46,7 +48,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 3: Protocol -> trait with def (no fields, no get prefix)") {
     val source = emitOne3(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "UserService",
         kind = TypeKind.Protocol,
         fields = Vector(Field("id", TypeExpr.LONG)), // should be skipped for trait
@@ -67,7 +69,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 3: Abstract class with equals-style body") {
     val source = emitOne3(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "AbstractEntity",
         kind = TypeKind.Abstract,
         functions = Vector(
@@ -88,7 +90,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 3: Enum with Scala3Enum style (no values)") {
     val source = emitOne3(
       "com.example",
-      Decl.EnumDecl(
+      Decl.enumDecl(
         name = "Color",
         variants = Vector(
           EnumVariant("RED"),
@@ -108,7 +110,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 3: Enum with values and prefix stripping") {
     val source = emitOne3(
       "com.example",
-      Decl.EnumDecl(
+      Decl.enumDecl(
         name = "TestEnum",
         variants = Vector(
           EnumVariant("TEST_ENUM_UNKNOWN", args = Vector(Expr.Lit("0", TypeExpr.INT))),
@@ -127,7 +129,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 3: extends with") {
     val source = emitOne3(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Admin",
         kind = TypeKind.Product,
         supertypes = Vector(TypeExpr.Named("User"), TypeExpr.Named("Serializable"))
@@ -140,7 +142,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 3: type params with upper bound") {
     val source = emitOne3(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Repository",
         kind = TypeKind.Protocol,
         typeParams = Vector(TypeParam("T"), TypeParam("ID", Vector(TypeExpr.Named("Serializable")))),
@@ -157,7 +159,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 3: new without keyword (case class apply)") {
     val source = emitOne3(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Factory",
         kind = TypeKind.Product,
         functions = Vector(
@@ -184,7 +186,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 3: cast uses asInstanceOf") {
     val source = emitOne3(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Converter",
         kind = TypeKind.Product,
         functions = Vector(
@@ -212,7 +214,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 3: ternary uses if-then-else") {
     val source = emitOne3(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Guard",
         kind = TypeKind.Product,
         functions = Vector(
@@ -245,7 +247,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 3: lambda uses =>") {
     val source = emitOne3(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Mapper",
         kind = TypeKind.Product,
         functions = Vector(
@@ -283,7 +285,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 3: Optional becomes Option[T]") {
     val source = emitOne3(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Container",
         kind = TypeKind.Product,
         fields = Vector(
@@ -299,7 +301,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 3: no imports for stdlib collections") {
     val source = emitOne3(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Data",
         kind = TypeKind.Product,
         fields = Vector(
@@ -312,7 +314,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   }
 
   test("Scala 3: file extension is .scala") {
-    val files = emit3("com.example", Decl.TypeDecl("User", TypeKind.Product))
+    val files = emit3("com.example", Decl.typeDecl("User", TypeKind.Product))
     val paths = files.keys.map(_.toString).toSet
     assert(paths.exists(_.endsWith(".scala")))
   }
@@ -322,7 +324,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 2: simple enum as sealed trait") {
     val source = emitOne2(
       "com.example",
-      Decl.EnumDecl(
+      Decl.enumDecl(
         name = "Color",
         variants = Vector(
           EnumVariant("RED"),
@@ -339,7 +341,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 2: valued enum as sealed abstract class") {
     val source = emitOne2(
       "com.example",
-      Decl.EnumDecl(
+      Decl.enumDecl(
         name = "Status",
         variants = Vector(
           EnumVariant("UNKNOWN", args = Vector(Expr.Lit("0", TypeExpr.INT))),
@@ -355,7 +357,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 2: new keyword used") {
     val source = emitOne2(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Factory",
         kind = TypeKind.Product,
         functions = Vector(
@@ -381,7 +383,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
   test("Scala 2: ternary uses if (cond) syntax") {
     val source = emitOne2(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Guard",
         kind = TypeKind.Product,
         functions = Vector(
@@ -422,7 +424,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
     )
     val source = emitOne3(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "User",
         kind = TypeKind.Product,
         fields = Vector(Field("id", TypeExpr.LONG)),
@@ -445,7 +447,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
     )
     val source = emitOne3(
       "com.example",
-      Decl.TypeDecl(
+      Decl.typeDecl(
         name = "Service",
         kind = TypeKind.Protocol,
         functions = Vector(
@@ -466,7 +468,7 @@ class ScalaEmitterSuite extends munit.FunSuite {
     val docMeta = Meta.empty.set(Doc.key, Doc(summary = "Simple enum."))
     val source = emitOne3(
       "com.example",
-      Decl.EnumDecl(
+      Decl.enumDecl(
         name = "Status",
         variants = Vector(EnumVariant("ACTIVE"), EnumVariant("INACTIVE")),
         meta = docMeta

@@ -2,15 +2,16 @@ package io.alnovis.ircraft.core
 
 import cats._
 import cats.data._
-import io.alnovis.ircraft.core.ir.Module
+import io.alnovis.ircraft.core.algebra.Fix
+import io.alnovis.ircraft.core.ir.{Module, SemanticF}
 
 // Lowering type alias defined in package.scala
 
 object Lowering {
 
-  def pure[F[_]: Applicative, Source](f: Source => Module): Lowering[F, Source] =
+  def pure[F[_]: Applicative, Source](f: Source => Module[Fix[SemanticF]]): Lowering[F, Source] =
     Kleisli(source => Applicative[F].pure(f(source)))
 
-  def apply[F[_], Source](f: Source => F[Module]): Lowering[F, Source] =
+  def apply[F[_], Source](f: Source => F[Module[Fix[SemanticF]]]): Lowering[F, Source] =
     Kleisli(f)
 }

@@ -1,8 +1,10 @@
 package io.alnovis.ircraft.core
 
 import cats._
-import cats.data._
+import cats.data.{IorT, NonEmptyChain}
+import io.alnovis.ircraft.core.algebra.Fix
 import io.alnovis.ircraft.core.ir._
+import io.alnovis.ircraft.core.ir.SemanticF._
 import io.alnovis.ircraft.core.ir.TypeExpr.TypeExprOps
 
 object Passes {
@@ -23,14 +25,14 @@ object Passes {
       }
     }
 
-  private def findUnresolved(decl: Decl): Vector[(String, String, String)] =
-    decl match {
-      case td: Decl.TypeDecl =>
-        td.fields.flatMap(f => findInType(f.fieldType).map(fqn => (td.name, f.name, fqn))) ++
-          td.functions.flatMap(f => findInFunc(td.name, f)) ++
-          td.nested.flatMap(findUnresolved)
-      case ed: Decl.EnumDecl =>
-        ed.functions.flatMap(f => findInFunc(ed.name, f))
+  private def findUnresolved(fix: Fix[SemanticF]): Vector[(String, String, String)] =
+    fix.unfix match {
+      case TypeDeclF(name, _, fields, functions, nested, _, _, _, _, _) =>
+        fields.flatMap(f => findInType(f.fieldType).map(fqn => (name, f.name, fqn))) ++
+          functions.flatMap(f => findInFunc(name, f)) ++
+          nested.flatMap(findUnresolved)
+      case EnumDeclF(name, _, functions, _, _, _, _) =>
+        functions.flatMap(f => findInFunc(name, f))
       case _ => Vector.empty
     }
 

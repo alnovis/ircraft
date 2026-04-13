@@ -1,25 +1,27 @@
 package io.alnovis.ircraft.emit
 
+import io.alnovis.ircraft.core.algebra.Fix
 import io.alnovis.ircraft.core.ir._
+import io.alnovis.ircraft.core.ir.SemanticF._
 
 object ImportCollector {
 
-  def collect(decl: Decl, tm: TypeMapping): Set[String] = decl match {
-    case td: Decl.TypeDecl  => collectTypeDecl(td, tm)
-    case ed: Decl.EnumDecl  => collectEnumDecl(ed, tm)
-    case fd: Decl.FuncDecl  => collectFunc(fd.func, tm)
-    case ad: Decl.AliasDecl => tm.imports(ad.target)
-    case cd: Decl.ConstDecl => tm.imports(cd.constType) ++ collectExpr(cd.value, tm)
+  def collect(decl: Fix[SemanticF], tm: TypeMapping): Set[String] = decl.unfix match {
+    case td: TypeDeclF[Fix[SemanticF] @unchecked]  => collectTypeDecl(td, tm)
+    case ed: EnumDeclF[Fix[SemanticF] @unchecked]  => collectEnumDecl(ed, tm)
+    case fd: FuncDeclF[Fix[SemanticF] @unchecked]  => collectFunc(fd.func, tm)
+    case ad: AliasDeclF[Fix[SemanticF] @unchecked]  => tm.imports(ad.target)
+    case cd: ConstDeclF[Fix[SemanticF] @unchecked] => tm.imports(cd.constType) ++ collectExpr(cd.value, tm)
   }
 
-  private def collectTypeDecl(td: Decl.TypeDecl, tm: TypeMapping): Set[String] =
+  private def collectTypeDecl(td: TypeDeclF[Fix[SemanticF]], tm: TypeMapping): Set[String] =
     td.supertypes.flatMap(tm.imports).toSet ++
       td.fields.flatMap(f => collectField(f, tm)) ++
       td.functions.flatMap(f => collectFunc(f, tm)) ++
       td.nested.flatMap(n => collect(n, tm)) ++
       td.typeParams.flatMap(_.upperBounds.flatMap(tm.imports))
 
-  private def collectEnumDecl(ed: Decl.EnumDecl, tm: TypeMapping): Set[String] =
+  private def collectEnumDecl(ed: EnumDeclF[Fix[SemanticF]], tm: TypeMapping): Set[String] =
     ed.supertypes.flatMap(tm.imports).toSet ++
       ed.functions.flatMap(f => collectFunc(f, tm)) ++
       ed.variants.flatMap(v => v.args.flatMap(e => collectExpr(e, tm)) ++ v.fields.flatMap(f => collectField(f, tm)))

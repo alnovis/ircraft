@@ -5,7 +5,9 @@ import cats.data.{ Ior, IorT, NonEmptyChain, NonEmptyVector }
 import cats.syntax.all._
 import scala.collection.compat._
 import io.alnovis.ircraft.core._
+import io.alnovis.ircraft.core.algebra.Fix
 import io.alnovis.ircraft.core.ir._
+import io.alnovis.ircraft.core.ir.SemanticF._
 
 case class Conflict(
   declName: String,
@@ -26,10 +28,10 @@ object ConflictKind {
 sealed trait Resolution
 
 object Resolution {
-  case class UseType(typeExpr: TypeExpr)                extends Resolution
-  case class DualAccessor(types: Map[String, TypeExpr]) extends Resolution
-  case class Custom(decls: Vector[Decl])                extends Resolution
-  case object Skip                                      extends Resolution
+  case class UseType(typeExpr: TypeExpr)                        extends Resolution
+  case class DualAccessor(types: Map[String, TypeExpr])         extends Resolution
+  case class Custom(decls: Vector[Fix[SemanticF]])              extends Resolution
+  case object Skip                                              extends Resolution
 }
 
 trait MergeStrategy[F[_]] {
@@ -48,9 +50,9 @@ object Merge {
   }
 
   def merge[F[_]: Monad](
-    versions: NonEmptyVector[(String, Module)],
+    versions: NonEmptyVector[(String, Module[Fix[SemanticF]])],
     strategy: MergeStrategy[F]
-  ): IorT[F, Diags, Module] = {
+  ): IorT[F, Diags, Module[Fix[SemanticF]]] = {
     val versionNames = versions.map(_._1).toVector
     val allUnits = versions.toVector.flatMap {
       case (vn, m) =>
@@ -69,15 +71,15 @@ object Merge {
 
   private def mergeUnits[F[_]: Monad](
     namespace: String,
-    versionedUnits: Vector[(String, CompilationUnit)],
+    versionedUnits: Vector[(String, CompilationUnit[Fix[SemanticF]])],
     allVersions: Vector[String],
     strategy: MergeStrategy[F]
-  ): IorT[F, Diags, CompilationUnit] = {
+  ): IorT[F, Diags, CompilationUnit[Fix[SemanticF]]] = {
     val allDecls = versionedUnits.flatMap {
       case (v, u) =>
         u.declarations.map(d => (v, d))
     }
-    val byName = allDecls.groupBy { case (_, d) => d.name }
+    val byName = allDecls.groupBy { case (_, d) => SemanticF.name(d.unfix) }
 
     traverseIor(byName.toVector) {
       case (name, vDecls) =>
@@ -88,30 +90,39 @@ object Merge {
 
   private def mergeDecl[F[_]: Monad](
     name: String,
-    versionedDecls: Vector[(String, Decl)],
+    versionedDecls: Vector[(String, Fix[SemanticF])],
     allVersions: Vector[String],
     strategy: MergeStrategy[F]
-  ): IorT[F, Diags, Option[Decl]] = {
+  ): IorT[F, Diags, Option[Fix[SemanticF]]] = {
     versionedDecls match {
       case Vector((v, single)) =>
-        val meta = single match {
-          case td: Decl.TypeDecl => td.meta.set(Keys.presentIn, Vector(v))
-          case _                 => Meta.empty.set(Keys.presentIn, Vector(v))
-        }
-        Outcome.ok(Some(single.withMeta(meta)))
+        val m = SemanticF.meta(single.unfix).set(Keys.presentIn, Vector(v))
+        Outcome.ok(Some(Fix(SemanticF.withMeta(single.unfix, m))))
 
       case multiple =>
         val presentVersions = multiple.map(_._1)
         val decls           = multiple.map(_._2)
 
-        val allTypeDecls = decls.collect { case td: Decl.TypeDecl => td }
-        val allEnumDecls = decls.collect { case ed: Decl.EnumDecl => ed }
+        val allTypeDecls = decls.flatMap { d => d.unfix match {
+          case td: TypeDeclF[Fix[SemanticF] @unchecked] => Some(td)
+          case _ => None
+        }}
+        val allEnumDecls = decls.flatMap { d => d.unfix match {
+          case ed: EnumDeclF[Fix[SemanticF] @unchecked] => Some(ed)
+          case _ => None
+        }}
 
         if (allTypeDecls.size == decls.size) {
-          val typed = multiple.collect { case (v, td: Decl.TypeDecl) => (v, td) }
+          val typed = multiple.flatMap { case (v, d) => d.unfix match {
+            case td: TypeDeclF[Fix[SemanticF] @unchecked] => Some((v, td))
+            case _ => None
+          }}
           mergeTypeDecls(name, typed, allVersions, strategy).map(Some(_))
         } else if (allEnumDecls.size == decls.size) {
-          val typed = multiple.collect { case (v, ed: Decl.EnumDecl) => (v, ed) }
+          val typed = multiple.flatMap { case (v, d) => d.unfix match {
+            case ed: EnumDeclF[Fix[SemanticF] @unchecked] => Some((v, ed))
+            case _ => None
+          }}
           Outcome.ok(Some(mergeEnumDecls(typed, presentVersions)))
         } else {
           Outcome.warn(s"Mixed declaration kinds for '$name', using first", Some(decls.head))
@@ -121,10 +132,10 @@ object Merge {
 
   private def mergeTypeDecls[F[_]: Monad](
     name: String,
-    versioned: Vector[(String, Decl.TypeDecl)],
+    versioned: Vector[(String, TypeDeclF[Fix[SemanticF]])],
     allVersions: Vector[String],
     strategy: MergeStrategy[F]
-  ): IorT[F, Diags, Decl] = {
+  ): IorT[F, Diags, Fix[SemanticF]] = {
     val presentVersions = versioned.map(_._1)
     val first           = versioned.head._2
 
@@ -135,7 +146,7 @@ object Merge {
     val fieldsByName    = allFieldEntries.groupBy(_._2.name)
 
     val allNestedEntries = versioned.flatMap { case (v, td) => td.nested.map(d => (v, d)) }
-    val nestedByName     = allNestedEntries.groupBy { case (_, d) => d.name }
+    val nestedByName     = allNestedEntries.groupBy { case (_, d) => SemanticF.name(d.unfix) }
 
     for {
       mergedFuncs <- traverseIor(funcsByName.toVector) {
@@ -156,7 +167,7 @@ object Merge {
         .set(Keys.presentIn, presentVersions)
         .set(Keys.sources, allVersions)
 
-      Decl.TypeDecl(
+      Fix[SemanticF](TypeDeclF(
         name = name,
         kind = first.kind,
         fields = mergedFields.flatten,
@@ -167,7 +178,7 @@ object Merge {
         visibility = first.visibility,
         annotations = first.annotations,
         meta = meta
-      )
+      ))
     }
   }
 
@@ -240,13 +251,13 @@ object Merge {
 
   @scala.annotation.nowarn("msg=unused explicit parameter")
   private def mergeEnumDecls(
-    versioned: Vector[(String, Decl.EnumDecl)],
+    versioned: Vector[(String, EnumDeclF[Fix[SemanticF]])],
     presentVersions: Vector[String]
-  ): Decl = {
+  ): Fix[SemanticF] = {
     val first       = versioned.head._2
     val allVariants = versioned.flatMap(_._2.variants).distinctBy(_.name)
     val meta        = first.meta.set(Keys.presentIn, presentVersions)
-    first.copy(variants = allVariants, meta = meta)
+    Fix[SemanticF](first.copy(variants = allVariants, meta = meta))
   }
 
   /** Helper: traverse with IorT that works on Scala 2.12 (avoids type inference issues). */
