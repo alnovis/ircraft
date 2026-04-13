@@ -2,9 +2,10 @@ package io.alnovis.ircraft.dialects.proto
 
 import cats._
 import cats.syntax.all._
-import io.alnovis.ircraft.core.algebra.Fix
+import io.alnovis.ircraft.core.algebra.{ Coproduct, Fix, Inject }
 import io.alnovis.ircraft.core.ir._
 import io.alnovis.ircraft.core.ir.SemanticF._
+import io.alnovis.ircraft.dialects.proto.ProtoF._
 
 /** Well-known Meta keys for proto provenance. */
 object ProtoMeta {
@@ -26,6 +27,85 @@ object ProtoLowering {
 
   def lowerAll[F[_]: Applicative](files: Vector[ProtoFile]): F[Module[Fix[SemanticF]]] =
     files.toList.traverse(lowerFile[F](_)).map(_.toVector.combineAll)
+
+  /**
+    * Lower to mixed ProtoIR: proto-specific nodes stay as ProtoF, not converted to SemanticF.
+    * Use ProtoEliminate.eliminateProto to convert to pure SemanticF afterwards.
+    */
+  /**
+    * Lower to mixed IR: proto-specific nodes stay as ProtoF, injected into IR via Inject.
+    * IR is typically `ProtoF :+: SemanticF` (Scala 3) or `Coproduct[ProtoF, SemanticF, *]` (Scala 2).
+    * Use ProtoEliminate.eliminateProto to convert to pure SemanticF afterwards.
+    */
+  def lowerToMixed[F[_]: Applicative, IR[_]](file: ProtoFile)(implicit injP: Inject[ProtoF, IR]): F[Module[Fix[IR]]] = {
+    val pkg        = file.javaPackage.getOrElse(file.packageName)
+    val outerClass = file.javaOuterClassname.getOrElse(deriveOuterClass(file.name))
+    val syntaxStr = file.syntax match {
+      case ProtoSyntax.Proto2 => "proto2"
+      case ProtoSyntax.Proto3 => "proto3"
+    }
+
+    def mixedMessage(msg: ProtoMessage): Fix[IR] = {
+      val protoFqn = s"$pkg.$outerClass.${msg.name}"
+      val fields   = msg.fields.map(f => lowerField(f, file.syntax))
+      val getters = msg.fields.map { f =>
+        val getterName = s"get${capitalize(f.name)}"
+        val returnType = lowerType(f.fieldType, f.label)
+        val kind       = classifyFieldKind(f)
+        Func(
+          name = getterName,
+          returnType = returnType,
+          meta = Meta.empty
+            .set(ProtoMeta.fieldNumber, f.number)
+            .set(ProtoMeta.fieldKind, kind)
+            .set(ProtoMeta.originalType, f.typeName.getOrElse(""))
+        )
+      }
+      val hasMethods = msg.fields.filter(needsHasMethod(_, file.syntax)).map { f =>
+        Func(name = s"has${capitalize(f.name)}", returnType = TypeExpr.BOOL)
+      }
+      val nestedMessages = msg.nestedMessages.map(mixedMessage)
+      val nestedEnums    = msg.nestedEnums.map(mixedEnum)
+
+      Fix(
+        injP.inj(
+          MessageNodeF[Fix[IR]](
+            name = msg.name,
+            fields = fields,
+            functions = getters ++ hasMethods,
+            nested = nestedMessages ++ nestedEnums,
+            meta = Meta.empty
+              .set(ProtoMeta.sourceKind, "message")
+              .set(ProtoMeta.protoFqn, protoFqn)
+          )
+        )
+      )
+    }
+
+    def mixedEnum(e: ProtoEnum): Fix[IR] =
+      Fix(
+        injP.inj(
+          EnumNodeF[Fix[IR]](
+            name = e.name,
+            variants = e.values.map(v => EnumVariant(v.name, Vector(Expr.Lit(v.number.toString, TypeExpr.INT)))),
+            meta = Meta.empty.set(ProtoMeta.sourceKind, "enum")
+          )
+        )
+      )
+
+    val messageDecls = file.messages.map(mixedMessage)
+    val enumDecls    = file.enums.map(mixedEnum)
+
+    val unit = CompilationUnit(
+      namespace = pkg,
+      declarations = messageDecls ++ enumDecls,
+      meta = Meta.empty
+        .set(ProtoMeta.protoPackage, file.packageName)
+        .set(ProtoMeta.outerClass, outerClass)
+        .set(ProtoMeta.syntax, syntaxStr)
+    )
+    Applicative[F].pure(Module(file.name, Vector(unit)))
+  }
 
   private def lowerFile[F[_]: Applicative](file: ProtoFile): F[Module[Fix[SemanticF]]] = {
     val pkg        = file.javaPackage.getOrElse(file.packageName)

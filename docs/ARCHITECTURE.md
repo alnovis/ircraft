@@ -63,7 +63,7 @@ ircraft/
   ircraft-emit/          CodeNode tree, Renderer, LanguageSyntax, BaseEmitter
   ircraft-io/            Cats-effect. CodeWriter, IncrementalWriter (atomic writes)
   dialects/
-    proto/               Proto source dialect ADT + ProtoLowering
+    proto/               Proto source dialect ADT + ProtoLowering + ProtoF functor
   emitters/
     java/                JavaEmitter + JavaSyntax + JavaTypeMapping
     scala/               ScalaEmitter + ScalaSyntax + ScalaTypeMapping
@@ -243,6 +243,37 @@ def collectAllNames[F[_]: Traverse: HasName]: Fix[F] => Vector[String] =
 ### Creating Custom Dialects
 
 Users define dialect functors and provide `Functor[F]` + `Traverse[F]` instances manually, following a simple 3-rule template. See [DIALECTS.md](DIALECTS.md#extensible-dialect-functors-fp-mlir) for the full guide.
+
+### Proto Dialect (Reference Implementation)
+
+The `dialects/proto` module provides `ProtoF[+A]` as a reference extensible dialect:
+
+```mermaid
+flowchart LR
+    PF["ProtoFile<br/><i>(source ADT)</i>"]
+    Direct["Module[Fix[SemanticF]]<br/><i>direct path</i>"]
+    Mixed["Module[Fix[ProtoIR]]<br/><i>ProtoF :+: SemanticF</i>"]
+    Clean["Module[Fix[SemanticF]]<br/><i>after eliminate</i>"]
+
+    PF -->|"ProtoLowering.lower"| Direct
+    PF -->|"ProtoLowering.lowerToMixed"| Mixed -->|"eliminateProto"| Clean
+
+    style Mixed fill:#5c3400,stroke:#e65100,color:#ffcc80
+    style Direct fill:#1b4d2e,stroke:#2e7d32,color:#a5d6a7
+    style Clean fill:#1b4d2e,stroke:#2e7d32,color:#a5d6a7
+```
+
+Two lowering paths:
+- **Direct** (`lower`): ProtoFile -> SemanticF immediately. Simple, sufficient for most use cases.
+- **Mixed** (`lowerToMixed`): ProtoFile -> `ProtoF :+: SemanticF`. Proto-specific nodes preserved as `MessageNodeF`, `EnumNodeF`, `OneofNodeF`. Enables custom passes that understand proto semantics before elimination.
+
+`ProtoF` variants:
+
+| Variant | Maps to | Semantics |
+|---------|---------|-----------|
+| `MessageNodeF` | `TypeDeclF(Protocol)` | Proto message with fields, getters, nested |
+| `EnumNodeF` | `EnumDeclF` | Proto enum with values |
+| `OneofNodeF` | `TypeDeclF(Sum)` | Proto oneof as sealed union |
 
 ## Two-Phase Emission
 
