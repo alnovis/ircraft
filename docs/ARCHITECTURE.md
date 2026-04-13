@@ -194,12 +194,14 @@ flowchart TD
         Sch["scheme.cata / ana / hylo<br/><i>Stack-safe recursion schemes</i>"]
         Elim["eliminate.dialect<br/><i>Type-safe coproduct shrinking</i>"]
         DI["DialectInfo[F]<br/><i>Dialect metadata</i>"]
+        Con["Constraint + ConstraintVerify<br/><i>Type-safe verification</i>"]
     end
 
     Fix --> Sch
     Cop --> Inj
     Cop --> Elim
     Sch --> Elim
+    Sch --> Con
 
     style algebra fill:#2a3a4a,stroke:#5588aa,color:#ccddee
 ```
@@ -214,6 +216,7 @@ flowchart TD
 | `scheme.hylo` | Hylomorphism: unfold then fold without intermediate tree |
 | `eliminate.dialect` | Remove a dialect from a coproduct via algebra (type-safe lowering) |
 | `DialectInfo[F]` | Metadata: dialect name and operation count |
+| `Constraint` | Marker trait + `ConstraintVerify[C, A]` typeclass + `Constrained[A, C]` wrapper |
 
 ### Trait Mixins
 
@@ -238,6 +241,61 @@ def collectAllNames[F[_]: Traverse: HasName]: Fix[F] => Vector[String] =
   scheme.cata[F, Vector[String]] { fa =>
     Vector(HasName[F].name(fa)) ++ Traverse[F].foldLeft(fa, Vector.empty[String])(_ ++ _)
   }
+```
+
+### Constraint System
+
+Type-safe constraint verification for IR trees. Cross-compiled (core API in shared code, `!>` syntax sugar in Scala 3).
+
+```mermaid
+classDiagram
+    class Constraint {
+        <<trait>>
+    }
+    class ConstraintVerify~C, A~ {
+        <<typeclass>>
+        +verify(a: A): Vector[Diagnostic]
+    }
+    class Constrained~A, C~ {
+        +value: A
+        +verify(): Vector[Diagnostic]
+    }
+    class MustBeResolved {
+        <<constraint>>
+    }
+    class MustNotBeEmpty {
+        <<constraint>>
+    }
+
+    Constraint <|-- MustBeResolved
+    Constraint <|-- MustNotBeEmpty
+    ConstraintVerify ..> Constraint
+    Constrained ..> Constraint
+    Constrained ..> ConstraintVerify : uses
+
+    style Constraint fill:#2a3a4a,stroke:#5588aa,color:#ccddee
+    style MustBeResolved fill:#2a4a3a,stroke:#55aa88,color:#cceecc
+    style MustNotBeEmpty fill:#2a4a3a,stroke:#55aa88,color:#cceecc
+```
+
+| Component | Purpose |
+|-----------|---------|
+| `Constraint` | Marker trait for constraints |
+| `ConstraintVerify[C, A]` | Typeclass: how to verify constraint `C` on value `A` |
+| `MustBeResolved` | `TypeExpr` must not contain `Unresolved` references |
+| `MustNotBeEmpty` | `String` must not be empty or whitespace-only |
+| `Constrained[A, C]` | Wrapper tagging a value with a constraint. `.verify` checks it. |
+| `!>` (Scala 3) | Infix syntax: `TypeExpr !> MustBeResolved` = `Constrained[TypeExpr, MustBeResolved]` |
+| `ConstraintVerifier` | Cata-based tree verification: `verifyFieldTypes`, `verifyNames` |
+
+Users define custom constraints with zero core changes:
+
+```scala
+trait MustBePositive extends Constraint
+implicit val v: ConstraintVerify[MustBePositive, Int] =
+  ConstraintVerify.instance(n =>
+    if (n > 0) Vector.empty
+    else Vector(Diagnostic(Severity.Error, s"Must be positive: $n")))
 ```
 
 ### Creating Custom Dialects

@@ -535,6 +535,19 @@ def countNodes[F[_]: Traverse]: Fix[F] => Int =
 
 `scheme.cata` is stack-safe (trampolined via `cats.Eval`) and works with any `Traverse[F]` -- your dialect, `SemanticF`, or a coproduct of both.
 
+### Cross-Compilation Note
+
+The same dialect works on Scala 2.12, 2.13, and 3.x with syntactic differences only:
+
+| Aspect | Scala 3 | Scala 2 |
+|--------|---------|---------|
+| Dialect ADT | `enum SqlF[+A]` | `sealed trait SqlF[+A]` |
+| Instances | `given Traverse[SqlF] with` | `implicit val: Traverse[SqlF] = new Traverse[SqlF] { ... }` |
+| Coproduct type | `SqlF :+: SemanticF` | `Coproduct[SqlF, SemanticF, *]` (kind-projector) |
+| Constraint syntax | `TypeExpr !> MustBeResolved` | `Constrained[TypeExpr, MustBeResolved]` |
+
+See `examples/src/test/scala-3/` and `examples/src/test/scala-2/` for complete working examples on both versions.
+
 ### Generic Passes via Trait Mixins
 
 Trait mixins (`HasName`, `HasFields`, `HasMethods`, `HasNested`, `HasMeta`, `HasVisibility`) let you write passes that work on **any dialect** without knowing its concrete type.
@@ -588,3 +601,47 @@ val namesC: Vector[String] = collectAllNames[GraphQLF :+: SemanticF].apply(mixed
 ```
 
 Coproduct instances are auto-derived -- if both `F` and `G` have `HasName`, then `F :+: G` automatically has `HasName`.
+
+### Constraint Verification
+
+The constraint system lets you define and verify invariants on IR trees:
+
+```scala
+import io.alnovis.ircraft.core.algebra._
+
+// Built-in: verify all field types are resolved
+val diags = ConstraintVerifier.verifyFieldTypes[SemanticF, MustBeResolved].apply(tree)
+// Returns Vector.empty if all types resolved, or Vector[Diagnostic] with errors
+
+// Built-in: verify all names are non-empty
+val nameDiags = ConstraintVerifier.verifyNames[SemanticF, MustNotBeEmpty].apply(tree)
+```
+
+Both work on any dialect with the right trait instances (`HasFields` for field verification, `HasName` for name verification).
+
+**Constrained wrapper** tags values with constraints at the type level:
+
+```scala
+// Scala 3:
+val safeType: TypeExpr !> MustBeResolved = Constrained(TypeExpr.STR)
+safeType.verify  // Vector.empty -- constraint satisfied
+
+// Scala 2:
+val safeType: Constrained[TypeExpr, MustBeResolved] = Constrained(TypeExpr.STR)
+safeType.verify  // Vector.empty
+```
+
+**Custom constraints** -- define your own with zero core changes:
+
+```scala
+trait MustBeShort extends Constraint
+implicit val v: ConstraintVerify[MustBeShort, String] =
+  ConstraintVerify.instance { s =>
+    if (s.length <= 10) Vector.empty
+    else Vector(Diagnostic(Severity.Error, s"Too long: ${s.length} chars"))
+  }
+
+// Use it:
+val name: String !> MustBeShort = Constrained("ok")     // verify -> empty
+val bad: String !> MustBeShort = Constrained("way too long name")  // verify -> error
+```
