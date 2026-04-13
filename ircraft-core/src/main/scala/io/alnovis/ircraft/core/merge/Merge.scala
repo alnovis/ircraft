@@ -28,10 +28,10 @@ object ConflictKind {
 sealed trait Resolution
 
 object Resolution {
-  case class UseType(typeExpr: TypeExpr)                        extends Resolution
-  case class DualAccessor(types: Map[String, TypeExpr])         extends Resolution
-  case class Custom(decls: Vector[Fix[SemanticF]])              extends Resolution
-  case object Skip                                              extends Resolution
+  case class UseType(typeExpr: TypeExpr)                extends Resolution
+  case class DualAccessor(types: Map[String, TypeExpr]) extends Resolution
+  case class Custom(decls: Vector[Fix[SemanticF]])      extends Resolution
+  case object Skip                                      extends Resolution
 }
 
 trait MergeStrategy[F[_]] {
@@ -103,26 +103,36 @@ object Merge {
         val presentVersions = multiple.map(_._1)
         val decls           = multiple.map(_._2)
 
-        val allTypeDecls = decls.flatMap { d => d.unfix match {
-          case td: TypeDeclF[Fix[SemanticF] @unchecked] => Some(td)
-          case _ => None
-        }}
-        val allEnumDecls = decls.flatMap { d => d.unfix match {
-          case ed: EnumDeclF[Fix[SemanticF] @unchecked] => Some(ed)
-          case _ => None
-        }}
+        val allTypeDecls = decls.flatMap { d =>
+          d.unfix match {
+            case td: TypeDeclF[Fix[SemanticF] @unchecked] => Some(td)
+            case _                                        => None
+          }
+        }
+        val allEnumDecls = decls.flatMap { d =>
+          d.unfix match {
+            case ed: EnumDeclF[Fix[SemanticF] @unchecked] => Some(ed)
+            case _                                        => None
+          }
+        }
 
         if (allTypeDecls.size == decls.size) {
-          val typed = multiple.flatMap { case (v, d) => d.unfix match {
-            case td: TypeDeclF[Fix[SemanticF] @unchecked] => Some((v, td))
-            case _ => None
-          }}
+          val typed = multiple.flatMap {
+            case (v, d) =>
+              d.unfix match {
+                case td: TypeDeclF[Fix[SemanticF] @unchecked] => Some((v, td))
+                case _                                        => None
+              }
+          }
           mergeTypeDecls(name, typed, allVersions, strategy).map(Some(_))
         } else if (allEnumDecls.size == decls.size) {
-          val typed = multiple.flatMap { case (v, d) => d.unfix match {
-            case ed: EnumDeclF[Fix[SemanticF] @unchecked] => Some((v, ed))
-            case _ => None
-          }}
+          val typed = multiple.flatMap {
+            case (v, d) =>
+              d.unfix match {
+                case ed: EnumDeclF[Fix[SemanticF] @unchecked] => Some((v, ed))
+                case _                                        => None
+              }
+          }
           Outcome.ok(Some(mergeEnumDecls(typed, presentVersions)))
         } else {
           Outcome.warn(s"Mixed declaration kinds for '$name', using first", Some(decls.head))
@@ -167,18 +177,20 @@ object Merge {
         .set(Keys.presentIn, presentVersions)
         .set(Keys.sources, allVersions)
 
-      Fix[SemanticF](TypeDeclF(
-        name = name,
-        kind = first.kind,
-        fields = mergedFields.flatten,
-        functions = mergedFuncs.flatten,
-        nested = mergedNested.flatten,
-        supertypes = mergedSupertypes,
-        typeParams = first.typeParams,
-        visibility = first.visibility,
-        annotations = first.annotations,
-        meta = meta
-      ))
+      Fix[SemanticF](
+        TypeDeclF(
+          name = name,
+          kind = first.kind,
+          fields = mergedFields.flatten,
+          functions = mergedFuncs.flatten,
+          nested = mergedNested.flatten,
+          supertypes = mergedSupertypes,
+          typeParams = first.typeParams,
+          visibility = first.visibility,
+          annotations = first.annotations,
+          meta = meta
+        )
+      )
     }
   }
 

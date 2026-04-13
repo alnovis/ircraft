@@ -1,6 +1,6 @@
 package io.alnovis.ircraft.core.algebra
 
-import cats.{Applicative, Eval, Functor, Id, Traverse}
+import cats.{ Applicative, Eval, Functor, Id, Traverse }
 import cats.syntax.all._
 import io.alnovis.ircraft.core.algebra.Algebra._
 import io.alnovis.ircraft.core.algebra.TestDialectF._
@@ -17,10 +17,10 @@ class TestDialectSuite extends FunSuite {
 
   test("map composition law") {
     val branch: TestDialectF[Int] = BranchF("x", Vector(1, 2, 3))
-    val f: Int => String = _.toString
-    val g: String => Int = _.length
-    val mapFG = Functor[TestDialectF].map(Functor[TestDialectF].map(branch)(f))(g)
-    val mapGF = Functor[TestDialectF].map(branch)(f andThen g)
+    val f: Int => String          = _.toString
+    val g: String => Int          = _.length
+    val mapFG                     = Functor[TestDialectF].map(Functor[TestDialectF].map(branch)(f))(g)
+    val mapGF                     = Functor[TestDialectF].map(branch)(f andThen g)
     assertEquals(mapFG, mapGF)
   }
 
@@ -60,9 +60,8 @@ class TestDialectSuite extends FunSuite {
   }
 
   test("traverse BranchF short-circuits on None") {
-    val result = Traverse[TestDialectF].traverse(BranchF("r", Vector(1, 2, 3)))(x =>
-      if (x == 2) None else Some(x.toString)
-    )
+    val result =
+      Traverse[TestDialectF].traverse(BranchF("r", Vector(1, 2, 3)))(x => if (x == 2) None else Some(x.toString))
     assertEquals(result, None)
   }
 
@@ -115,12 +114,22 @@ class TestDialectSuite extends FunSuite {
   // ---- Integration with scheme.cata ----
 
   test("cata counts nodes in TestDialectF tree") {
-    val tree: Fix[TestDialectF] = Fix(BranchF("root", Vector(
-      Fix(LeafF("a")),
-      Fix(BranchF("child", Vector(
-        Fix(LeafF("b"))
-      )))
-    )))
+    val tree: Fix[TestDialectF] = Fix(
+      BranchF(
+        "root",
+        Vector(
+          Fix(LeafF("a")),
+          Fix(
+            BranchF(
+              "child",
+              Vector(
+                Fix(LeafF("b"))
+              )
+            )
+          )
+        )
+      )
+    )
 
     val countAlg: Algebra[TestDialectF, Int] = {
       case LeafF(_)             => 1
@@ -133,10 +142,15 @@ class TestDialectSuite extends FunSuite {
   }
 
   test("cata collects labels from TestDialectF tree") {
-    val tree: Fix[TestDialectF] = Fix(BranchF("root", Vector(
-      Fix(LeafF("x")),
-      Fix(PairF(Fix(LeafF("y")), Fix(LeafF("z"))))
-    )))
+    val tree: Fix[TestDialectF] = Fix(
+      BranchF(
+        "root",
+        Vector(
+          Fix(LeafF("x")),
+          Fix(PairF(Fix(LeafF("y")), Fix(LeafF("z"))))
+        )
+      )
+    )
 
     val collectAlg: Algebra[TestDialectF, Vector[String]] = {
       case LeafF(v)             => Vector(v)

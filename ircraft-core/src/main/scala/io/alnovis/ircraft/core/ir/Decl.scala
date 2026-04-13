@@ -3,7 +3,8 @@ package io.alnovis.ircraft.core.ir
 import io.alnovis.ircraft.core.algebra.Fix
 import io.alnovis.ircraft.core.ir.SemanticF._
 
-/** Smart constructors and extractors for Fix[SemanticF] (declaration trees).
+/**
+  * Smart constructors and extractors for Fix[SemanticF] (declaration trees).
   *
   * Provides ergonomic API: Decl.typeDecl(...) creates a Fix[SemanticF],
   * and Decl.TypeDecl.unapply enables pattern matching.
@@ -63,37 +64,42 @@ object Decl {
   // ---- Extractors for pattern matching ----
 
   object TypeDecl {
+
     def unapply(fix: Fix[SemanticF]): Option[TypeDeclF[Fix[SemanticF]]] = fix.unfix match {
       case td: TypeDeclF[Fix[SemanticF] @unchecked] => Some(td)
-      case _ => None
+      case _                                        => None
     }
   }
 
   object EnumDecl {
+
     def unapply(fix: Fix[SemanticF]): Option[EnumDeclF[Fix[SemanticF]]] = fix.unfix match {
       case ed: EnumDeclF[Fix[SemanticF] @unchecked] => Some(ed)
-      case _ => None
+      case _                                        => None
     }
   }
 
   object FuncDecl {
+
     def unapply(fix: Fix[SemanticF]): Option[FuncDeclF[Fix[SemanticF]]] = fix.unfix match {
       case fd: FuncDeclF[Fix[SemanticF] @unchecked] => Some(fd)
-      case _ => None
+      case _                                        => None
     }
   }
 
   object AliasDecl {
+
     def unapply(fix: Fix[SemanticF]): Option[AliasDeclF[Fix[SemanticF]]] = fix.unfix match {
       case ad: AliasDeclF[Fix[SemanticF] @unchecked] => Some(ad)
-      case _ => None
+      case _                                         => None
     }
   }
 
   object ConstDecl {
+
     def unapply(fix: Fix[SemanticF]): Option[ConstDeclF[Fix[SemanticF]]] = fix.unfix match {
       case cd: ConstDeclF[Fix[SemanticF] @unchecked] => Some(cd)
-      case _ => None
+      case _                                         => None
     }
   }
 }

@@ -62,12 +62,14 @@ class SqlDialectExample extends munit.FunSuite {
             val hasCreatedAt = td.fields.exists(_.name == "created_at")
             if (hasCreatedAt) fix
             else
-              Fix[SemanticF](td.copy(fields =
-                td.fields ++ Vector(
-                  Field("created_at", TypeExpr.Named("java.time.Instant"), mutability = Mutability.Immutable),
-                  Field("updated_at", TypeExpr.Named("java.time.Instant"), mutability = Mutability.Immutable)
+              Fix[SemanticF](
+                td.copy(fields =
+                  td.fields ++ Vector(
+                    Field("created_at", TypeExpr.Named("java.time.Instant"), mutability = Mutability.Immutable),
+                    Field("updated_at", TypeExpr.Named("java.time.Instant"), mutability = Mutability.Immutable)
+                  )
                 )
-              ))
+              )
           case _ => fix
         }
       })
@@ -118,14 +120,14 @@ class SqlDialectExample extends munit.FunSuite {
       )
     )
 
-    val module   = sqlLowering(tables)
+    val module = sqlLowering(tables)
     assertEquals(module.units.size, 2)
 
     val enriched = Pipeline.run(pipeline, module)
 
     val userDecl = enriched.units.head.declarations.head.unfix match {
       case td: TypeDeclF[Fix[SemanticF] @unchecked] => td
-      case other => fail(s"expected TypeDeclF, got $other")
+      case other                                    => fail(s"expected TypeDeclF, got $other")
     }
     assert(userDecl.fields.exists(_.name == "created_at"))
     assert(userDecl.fields.exists(_.name == "updated_at"))

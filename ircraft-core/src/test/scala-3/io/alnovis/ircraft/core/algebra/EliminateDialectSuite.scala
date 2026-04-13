@@ -37,29 +37,31 @@ class EliminateDialectSuite extends FunSuite {
   // ---- Type safety ----
 
   test("eliminate returns Fix[SemanticF], not Fix[MixedIR]") {
-    val mixed: Fix[MixedIR] = Fix(injTest.inj(LeafF("x")))
+    val mixed: Fix[MixedIR]    = Fix(injTest.inj(LeafF("x")))
     val result: Fix[SemanticF] = doEliminate(mixed)
     // Compiles = type safe. Check value:
     result.unfix match
       case ConstDeclF(name, _, _, _, _) => assertEquals(name, "x")
-      case other => fail(s"expected ConstDeclF, got $other")
+      case other                        => fail(s"expected ConstDeclF, got $other")
   }
 
   // ---- Correctness ----
 
   test("eliminate converts TestDialectF leaves to SemanticF") {
     val mixed: Fix[MixedIR] = Fix(injTest.inj(LeafF("hello")))
-    val result = doEliminate(mixed)
+    val result              = doEliminate(mixed)
     result.unfix match
       case ConstDeclF(name, _, _, _, _) => assertEquals(name, "hello")
-      case other => fail(s"expected ConstDeclF, got $other")
+      case other                        => fail(s"expected ConstDeclF, got $other")
   }
 
   test("eliminate preserves SemanticF nodes unchanged") {
     // Create SemanticF node directly in MixedIR context
-    val mixed: Fix[MixedIR] = Fix(injSem.inj(
-      TypeDeclF[Fix[MixedIR]]("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG)))
-    ))
+    val mixed: Fix[MixedIR] = Fix(
+      injSem.inj(
+        TypeDeclF[Fix[MixedIR]]("User", TypeKind.Product, fields = Vector(Field("id", TypeExpr.LONG)))
+      )
+    )
     val result = doEliminate(mixed)
     result.unfix match
       case TypeDeclF(name, _, fields, _, _, _, _, _, _, _) =>
@@ -71,9 +73,11 @@ class EliminateDialectSuite extends FunSuite {
   test("eliminate handles mixed tree with both dialects") {
     // Branch("root", [Leaf("a"), SemanticF.TypeDecl("B")])
     val leaf = Fix[MixedIR](injTest.inj(LeafF("a")))
-    val semNode = Fix[MixedIR](injSem.inj(
-      TypeDeclF[Fix[MixedIR]]("B", TypeKind.Product)
-    ))
+    val semNode = Fix[MixedIR](
+      injSem.inj(
+        TypeDeclF[Fix[MixedIR]]("B", TypeKind.Product)
+      )
+    )
     val root = Fix[MixedIR](injTest.inj(BranchF("root", Vector(leaf, semNode))))
 
     val result = doEliminate(root)
@@ -88,17 +92,24 @@ class EliminateDialectSuite extends FunSuite {
   }
 
   test("eliminate result works with cata") {
-    val tree = Fix[MixedIR](injTest.inj(BranchF("top", Vector(
-      Fix[MixedIR](injTest.inj(LeafF("x"))),
-      Fix[MixedIR](injTest.inj(LeafF("y")))
-    ))))
+    val tree = Fix[MixedIR](
+      injTest.inj(
+        BranchF(
+          "top",
+          Vector(
+            Fix[MixedIR](injTest.inj(LeafF("x"))),
+            Fix[MixedIR](injTest.inj(LeafF("y")))
+          )
+        )
+      )
+    )
 
     val clean: Fix[SemanticF] = doEliminate(tree)
 
     // Count nodes via cata
     val countAlg: Algebra[SemanticF, Int] = {
       case TypeDeclF(_, _, _, _, nested, _, _, _, _, _) => 1 + nested.sum
-      case _ => 1
+      case _                                            => 1
     }
     assertEquals(scheme.cata(countAlg).apply(clean), 3)
   }

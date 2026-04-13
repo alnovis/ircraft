@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.core.algebra
 
-/** Metadata about a dialect functor.
+/**
+  * Metadata about a dialect functor.
   *
   * Provides human-readable name and number of operations (case classes) in the dialect.
   * This is a lightweight typeclass -- no macro derivation needed, just 2 fields.

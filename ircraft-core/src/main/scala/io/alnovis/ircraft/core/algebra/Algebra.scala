@@ -1,6 +1,7 @@
 package io.alnovis.ircraft.core.algebra
 
 object Algebra {
+
   /** F-algebra: one-level fold. */
   type Algebra[F[_], A] = F[A] => A
 

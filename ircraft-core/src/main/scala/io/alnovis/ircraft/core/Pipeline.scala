@@ -3,7 +3,7 @@ package io.alnovis.ircraft.core
 import cats._
 import cats.data._
 import io.alnovis.ircraft.core.algebra.Fix
-import io.alnovis.ircraft.core.ir.{Module, SemanticF}
+import io.alnovis.ircraft.core.ir.{ Module, SemanticF }
 
 object Pipeline {
 

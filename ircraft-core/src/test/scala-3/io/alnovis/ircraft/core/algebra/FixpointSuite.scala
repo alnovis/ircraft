@@ -1,6 +1,6 @@
 package io.alnovis.ircraft.core.algebra
 
-import cats.{Applicative, Eval, Functor, Traverse}
+import cats.{ Applicative, Eval, Functor, Traverse }
 import io.alnovis.ircraft.core.algebra.Algebra._
 import munit.FunSuite
 
@@ -8,7 +8,7 @@ import munit.FunSuite
 sealed trait ExprF[+A]
 
 object ExprF {
-  final case class LitF(value: Int) extends ExprF[Nothing]
+  final case class LitF(value: Int)            extends ExprF[Nothing]
   final case class AddF[+A](left: A, right: A) extends ExprF[A]
   final case class MulF[+A](left: A, right: A) extends ExprF[A]
 
@@ -43,8 +43,8 @@ object ExprF {
 sealed trait BoolF[+A]
 
 object BoolF {
-  final case class TrueF() extends BoolF[Nothing]
-  final case class FalseF() extends BoolF[Nothing]
+  final case class TrueF()                     extends BoolF[Nothing]
+  final case class FalseF()                    extends BoolF[Nothing]
   final case class AndF[+A](left: A, right: A) extends BoolF[A]
 
   implicit val functor: Functor[BoolF] = new Functor[BoolF] {
@@ -88,10 +88,12 @@ class FixpointSuite extends FunSuite {
 
   test("Fix builds recursive trees") {
     // (1 + 2) * 3
-    val tree = Fix[ExprF](MulF(
-      Fix[ExprF](AddF(Fix[ExprF](LitF(1)), Fix[ExprF](LitF(2)))),
-      Fix[ExprF](LitF(3))
-    ))
+    val tree = Fix[ExprF](
+      MulF(
+        Fix[ExprF](AddF(Fix[ExprF](LitF(1)), Fix[ExprF](LitF(2)))),
+        Fix[ExprF](LitF(3))
+      )
+    )
     assert(tree.unfix.isInstanceOf[MulF[_]])
   }
 
@@ -105,10 +107,12 @@ class FixpointSuite extends FunSuite {
 
   test("cata evaluates arithmetic tree") {
     // (1 + 2) * 3 = 9
-    val tree = Fix[ExprF](MulF(
-      Fix[ExprF](AddF(Fix[ExprF](LitF(1)), Fix[ExprF](LitF(2)))),
-      Fix[ExprF](LitF(3))
-    ))
+    val tree = Fix[ExprF](
+      MulF(
+        Fix[ExprF](AddF(Fix[ExprF](LitF(1)), Fix[ExprF](LitF(2)))),
+        Fix[ExprF](LitF(3))
+      )
+    )
     assertEquals(scheme.cata(eval).apply(tree), 9)
   }
 
@@ -120,10 +124,12 @@ class FixpointSuite extends FunSuite {
 
   test("cata counts nodes") {
     // (1 + 2) * 3 = 5 nodes
-    val tree = Fix[ExprF](MulF(
-      Fix[ExprF](AddF(Fix[ExprF](LitF(1)), Fix[ExprF](LitF(2)))),
-      Fix[ExprF](LitF(3))
-    ))
+    val tree = Fix[ExprF](
+      MulF(
+        Fix[ExprF](AddF(Fix[ExprF](LitF(1)), Fix[ExprF](LitF(2)))),
+        Fix[ExprF](LitF(3))
+      )
+    )
     assertEquals(scheme.cata(countNodes).apply(tree), 5)
   }
 
@@ -140,7 +146,7 @@ class FixpointSuite extends FunSuite {
 
   test("ana unfolds a value into a tree") {
     val buildLit: Coalgebra[ExprF, Int] = { n => LitF(n) }
-    val tree = scheme.ana(buildLit).apply(42)
+    val tree                            = scheme.ana(buildLit).apply(42)
     assertEquals(scheme.cata(eval).apply(tree), 42)
   }
 
@@ -149,7 +155,7 @@ class FixpointSuite extends FunSuite {
   test("hylo folds without building intermediate tree") {
     // Trivial hylo: unfold into Lit, then fold back
     val unfold: Coalgebra[ExprF, Int] = { n => LitF(n) }
-    val result = scheme.hylo(eval, unfold).apply(42)
+    val result                        = scheme.hylo(eval, unfold).apply(42)
     assertEquals(result, 42)
   }
 
@@ -157,7 +163,7 @@ class FixpointSuite extends FunSuite {
     // ListF for linear chain test
     sealed trait ListF[+A]
     case class ConsF[+A](head: Int, tail: A) extends ListF[A]
-    case class NilF() extends ListF[Nothing]
+    case class NilF()                        extends ListF[Nothing]
 
     implicit val listTraverse: Traverse[ListF] = new Traverse[ListF] {
       def traverse[G[_], A, B](fa: ListF[A])(f: A => G[B])(implicit G: Applicative[G]): G[ListF[B]] = fa match {
@@ -199,40 +205,40 @@ class FixpointSuite extends FunSuite {
   }
 
   test("Coproduct Functor maps over both sides") {
-    val f = Functor[ExprF :+: BoolF]
+    val f                            = Functor[ExprF :+: BoolF]
     val left: (ExprF :+: BoolF)[Int] = Coproduct.Inl(AddF(1, 2))
-    val mapped = f.map(left)(_ * 10)
+    val mapped                       = f.map(left)(_ * 10)
     assertEquals(mapped, Coproduct.Inl(AddF(10, 20)))
   }
 
   // ---- Inject ----
 
   test("Inject refl injects identity") {
-    val inj = Inject[ExprF, ExprF]
+    val inj             = Inject[ExprF, ExprF]
     val lit: ExprF[Int] = LitF(42)
     assertEquals(inj.inj(lit), lit)
     assertEquals(inj.prj(lit), Some(lit))
   }
 
   test("Inject left injects into coproduct left") {
-    val inj = Inject[ExprF, ExprF :+: BoolF]
+    val inj             = Inject[ExprF, ExprF :+: BoolF]
     val lit: ExprF[Int] = LitF(42)
-    val injected = inj.inj(lit)
+    val injected        = inj.inj(lit)
     assertEquals(injected, Coproduct.Inl(lit))
     assertEquals(inj.prj(injected), Some(lit))
   }
 
   test("Inject right injects into coproduct right") {
-    val inj = Inject[BoolF, ExprF :+: BoolF]
+    val inj           = Inject[BoolF, ExprF :+: BoolF]
     val t: BoolF[Int] = TrueF()
-    val injected = inj.inj(t)
+    val injected      = inj.inj(t)
     assertEquals(injected, Coproduct.Inr(t))
     assertEquals(inj.prj(injected), Some(t))
   }
 
   test("Inject prj returns None for wrong side") {
-    val injExpr = Inject[ExprF, ExprF :+: BoolF]
-    val injBool = Inject[BoolF, ExprF :+: BoolF]
+    val injExpr                         = Inject[ExprF, ExprF :+: BoolF]
+    val injBool                         = Inject[BoolF, ExprF :+: BoolF]
     val boolVal: (ExprF :+: BoolF)[Int] = Coproduct.Inr(TrueF())
     assertEquals(injExpr.prj(boolVal), None)
     assertEquals(injBool.prj(boolVal), Some(TrueF()))
@@ -245,10 +251,14 @@ class FixpointSuite extends FunSuite {
     val injBool = Inject[BoolF, BoolF :+: ExprF]
 
     // Build: And(True, False)
-    val mixed: Fix[BoolF :+: ExprF] = Fix(injBool.inj(AndF(
-      Fix(injBool.inj(TrueF())),
-      Fix(injBool.inj(FalseF()))
-    )))
+    val mixed: Fix[BoolF :+: ExprF] = Fix(
+      injBool.inj(
+        AndF(
+          Fix(injBool.inj(TrueF())),
+          Fix(injBool.inj(FalseF()))
+        )
+      )
+    )
 
     // Algebra: BoolF -> ExprF (True=1, False=0, And=Mul)
     val boolToExpr: Algebra[BoolF, Fix[ExprF]] = {
@@ -264,10 +274,14 @@ class FixpointSuite extends FunSuite {
 
   test("eliminate preserves target dialect nodes") {
     val injExpr = Inject[ExprF, BoolF :+: ExprF]
-    val tree: Fix[BoolF :+: ExprF] = Fix(injExpr.inj(AddF(
-      Fix(injExpr.inj(LitF(10))),
-      Fix(injExpr.inj(LitF(20)))
-    )))
+    val tree: Fix[BoolF :+: ExprF] = Fix(
+      injExpr.inj(
+        AddF(
+          Fix(injExpr.inj(LitF(10))),
+          Fix(injExpr.inj(LitF(20)))
+        )
+      )
+    )
 
     val boolToExpr: Algebra[BoolF, Fix[ExprF]] = {
       case TrueF()    => Fix[ExprF](LitF(1))

@@ -1,6 +1,6 @@
 package io.alnovis.ircraft.core.algebra
 
-import cats.{Applicative, Eval, Functor, Traverse}
+import cats.{ Applicative, Eval, Functor, Traverse }
 import io.alnovis.ircraft.core.algebra.DialectInfo
 import cats.syntax.all._
 
@@ -15,11 +15,13 @@ type :+:[F[_], G[_]] = [A] =>> Coproduct[F, G, A]
 object Coproduct:
 
   given coproductFunctor[F[_], G[_]](using F: Functor[F], G: Functor[G]): Functor[F :+: G] with
+
     def map[A, B](fa: (F :+: G)[A])(f: A => B): (F :+: G)[B] = fa match
       case Coproduct.Inl(a) => Coproduct.Inl(F.map(a)(f))
       case Coproduct.Inr(a) => Coproduct.Inr(G.map(a)(f))
 
   given coproductTraverse[F[_], G[_]](using F: Traverse[F], G: Traverse[G]): Traverse[F :+: G] with
+
     def traverse[H[_]: Applicative, A, B](fa: (F :+: G)[A])(f: A => H[B]): H[(F :+: G)[B]] = fa match
       case Coproduct.Inl(a) => F.traverse(a)(f).map(Coproduct.Inl(_))
       case Coproduct.Inr(a) => G.traverse(a)(f).map(Coproduct.Inr(_))

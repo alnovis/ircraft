@@ -4,7 +4,7 @@ import cats._
 import cats.data._
 import cats.syntax.all._
 import io.alnovis.ircraft.core.algebra.Fix
-import io.alnovis.ircraft.core.ir.{Meta, Module, SemanticF}
+import io.alnovis.ircraft.core.ir.{ Meta, Module, SemanticF }
 
 // Pass type alias defined in package.scala: Kleisli[F, Module[Fix[SemanticF]], Module[Fix[SemanticF]]]
 

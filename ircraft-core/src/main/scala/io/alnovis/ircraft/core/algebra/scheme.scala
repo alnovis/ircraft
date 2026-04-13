@@ -1,12 +1,13 @@
 package io.alnovis.ircraft.core.algebra
 
-import cats.{Eval, Functor, Traverse}
+import cats.{ Eval, Functor, Traverse }
 import io.alnovis.ircraft.core.algebra.Algebra._
 
 /** Stack-safe recursion schemes over Fix[F]. */
 object scheme {
 
-  /** Catamorphism: fold a Fix[F] bottom-up using an algebra.
+  /**
+    * Catamorphism: fold a Fix[F] bottom-up using an algebra.
     * Stack-safe via cats.Eval trampolining.
     */
   def cata[F[_], A](alg: Algebra[F, A])(implicit T: Traverse[F]): Fix[F] => A = {

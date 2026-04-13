@@ -2,7 +2,7 @@ package io.alnovis.ircraft
 
 import cats.data._
 import io.alnovis.ircraft.core.algebra.Fix
-import io.alnovis.ircraft.core.ir.{Module, SemanticF}
+import io.alnovis.ircraft.core.ir.{ Module, SemanticF }
 
 package object core {
   type Pass[F[_]]             = Kleisli[F, Module[Fix[SemanticF]], Module[Fix[SemanticF]]]

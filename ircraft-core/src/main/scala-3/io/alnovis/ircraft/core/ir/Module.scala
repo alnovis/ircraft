@@ -8,6 +8,7 @@ case class Module[D](
   units: Vector[CompilationUnit[D]],
   meta: Meta = Meta.empty
 ):
+
   def mapDecls[E](f: D => E): Module[E] =
     Module(name, units.map(_.mapDecls(f)), meta)
 
@@ -29,6 +30,7 @@ case class CompilationUnit[D](
   declarations: Vector[D],
   meta: Meta = Meta.empty
 ):
+
   def mapDecls[E](f: D => E): CompilationUnit[E] =
     CompilationUnit(namespace, declarations.map(f), meta)
 

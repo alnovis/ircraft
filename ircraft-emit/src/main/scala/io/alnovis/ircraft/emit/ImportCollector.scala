@@ -10,7 +10,7 @@ object ImportCollector {
     case td: TypeDeclF[Fix[SemanticF] @unchecked]  => collectTypeDecl(td, tm)
     case ed: EnumDeclF[Fix[SemanticF] @unchecked]  => collectEnumDecl(ed, tm)
     case fd: FuncDeclF[Fix[SemanticF] @unchecked]  => collectFunc(fd.func, tm)
-    case ad: AliasDeclF[Fix[SemanticF] @unchecked]  => tm.imports(ad.target)
+    case ad: AliasDeclF[Fix[SemanticF] @unchecked] => tm.imports(ad.target)
     case cd: ConstDeclF[Fix[SemanticF] @unchecked] => tm.imports(cd.constType) ++ collectExpr(cd.value, tm)
   }
 

@@ -1,16 +1,18 @@
 package io.alnovis.ircraft.core.ir
 
-import cats.{Applicative, Eval, Functor, Traverse}
+import cats.{ Applicative, Eval, Functor, Traverse }
 import cats.syntax.all._
 import io.alnovis.ircraft.core.algebra.DialectInfo
 
-/** SemanticF -- the standard dialect functor for ircraft.
+/**
+  * SemanticF -- the standard dialect functor for ircraft.
   *
   * This is the functorized form of the original Decl ADT.
   * The type parameter A replaces recursive references (nested declarations).
   * All non-recursive children (Field, Func, Expr, Stmt, TypeExpr) remain concrete.
   */
 enum SemanticF[+A]:
+
   case TypeDeclF(
     name: String,
     kind: TypeKind,
@@ -81,16 +83,18 @@ object SemanticF:
     case cd: ConstDeclF[A] => cd.copy(meta = m)
 
   given Functor[SemanticF] with
+
     def map[A, B](fa: SemanticF[A])(f: A => B): SemanticF[B] = fa match
       case TypeDeclF(n, k, flds, fns, nested, st, tp, v, ann, m) =>
         TypeDeclF(n, k, flds, fns, nested.map(f), st, tp, v, ann, m)
       case EnumDeclF(n, vs, fns, st, v, ann, m) =>
         EnumDeclF(n, vs, fns, st, v, ann, m)
-      case FuncDeclF(fn, m)       => FuncDeclF(fn, m)
-      case AliasDeclF(n, t, v, m) => AliasDeclF(n, t, v, m)
+      case FuncDeclF(fn, m)          => FuncDeclF(fn, m)
+      case AliasDeclF(n, t, v, m)    => AliasDeclF(n, t, v, m)
       case ConstDeclF(n, t, e, v, m) => ConstDeclF(n, t, e, v, m)
 
   given Traverse[SemanticF] with
+
     def traverse[G[_]: Applicative, A, B](fa: SemanticF[A])(f: A => G[B]): G[SemanticF[B]] = fa match
       case TypeDeclF(n, k, flds, fns, nested, st, tp, v, ann, m) =>
         nested.traverse(f).map(ns => TypeDeclF(n, k, flds, fns, ns, st, tp, v, ann, m))
@@ -105,11 +109,10 @@ object SemanticF:
 
     def foldLeft[A, B](fa: SemanticF[A], b: B)(f: (B, A) => B): B = fa match
       case TypeDeclF(_, _, _, _, nested, _, _, _, _, _) => nested.foldLeft(b)(f)
-      case _ => b
+      case _                                            => b
 
     def foldRight[A, B](fa: SemanticF[A], lb: Eval[B])(f: (A, Eval[B]) => Eval[B]): Eval[B] = fa match
       case TypeDeclF(_, _, _, _, nested, _, _, _, _, _) => nested.foldRight(lb)(f)
-      case _ => lb
+      case _                                            => lb
 
   given DialectInfo[SemanticF] = DialectInfo("SemanticF", 5)
-

@@ -15,13 +15,13 @@ class ProtoLoweringSuite extends munit.FunSuite {
   /** Extract TypeDeclF from Fix[SemanticF] or fail. */
   private def asTypeDecl(fix: Fix[SemanticF]): TypeDeclF[Fix[SemanticF]] = fix match {
     case Decl.TypeDecl(td) => td
-    case other => fail(s"expected TypeDeclF but got: $other")
+    case other             => fail(s"expected TypeDeclF but got: $other")
   }
 
   /** Extract EnumDeclF from Fix[SemanticF] or fail. */
   private def asEnumDecl(fix: Fix[SemanticF]): EnumDeclF[Fix[SemanticF]] = fix match {
     case Decl.EnumDecl(ed) => ed
-    case other => fail(s"expected EnumDeclF but got: $other")
+    case other             => fail(s"expected EnumDeclF but got: $other")
   }
 
   private val simpleProto = ProtoFile(

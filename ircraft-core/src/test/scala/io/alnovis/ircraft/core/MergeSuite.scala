@@ -43,13 +43,13 @@ class MergeSuite extends munit.FunSuite {
   private def extractTypeDecl(fix: Fix[SemanticF]): TypeDeclF[Fix[SemanticF]] =
     fix.unfix match {
       case td: TypeDeclF[Fix[SemanticF] @unchecked] => td
-      case other => fail(s"expected TypeDeclF, got $other")
+      case other                                    => fail(s"expected TypeDeclF, got $other")
     }
 
   private def extractEnumDecl(fix: Fix[SemanticF]): EnumDeclF[Fix[SemanticF]] =
     fix.unfix match {
       case ed: EnumDeclF[Fix[SemanticF] @unchecked] => ed
-      case other => fail(s"expected EnumDeclF, got $other")
+      case other                                    => fail(s"expected EnumDeclF, got $other")
     }
 
   test("merge identical types from 2 versions") {
