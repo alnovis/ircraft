@@ -215,6 +215,31 @@ flowchart TD
 | `eliminate.dialect` | Remove a dialect from a coproduct via algebra (type-safe lowering) |
 | `DialectInfo[F]` | Metadata: dialect name and operation count |
 
+### Trait Mixins
+
+Structural typeclasses that allow generic passes to work across any dialect without knowing its concrete type:
+
+| Trait | Extracts | Example |
+|-------|----------|---------|
+| `HasName[F]` | `name[A](fa: F[A]): String` | Declaration/node name |
+| `HasMeta[F]` | `meta[A](fa: F[A]): Meta` + `withMeta` | Typed metadata |
+| `HasFields[F]` | `fields[A](fa: F[A]): Vector[Field]` | Struct/class fields |
+| `HasMethods[F]` | `functions[A](fa: F[A]): Vector[Func]` | Methods/functions |
+| `HasNested[F]` | `nested[A](fa: F[A]): Vector[A]` | Recursive children |
+| `HasVisibility[F]` | `visibility[A](fa: F[A]): Visibility` | Access modifier |
+
+Instances are provided for `SemanticF`. Coproduct instances are auto-derived: if both `F` and `G` have `HasName`, then `F :+: G` automatically has `HasName`.
+
+This enables **generic passes** -- one function that works on any dialect tree:
+
+```scala
+// Works on Fix[SemanticF], Fix[MyDialectF], Fix[MyDialectF :+: SemanticF]
+def collectAllNames[F[_]: Traverse: HasName]: Fix[F] => Vector[String] =
+  scheme.cata[F, Vector[String]] { fa =>
+    Vector(HasName[F].name(fa)) ++ Traverse[F].foldLeft(fa, Vector.empty[String])(_ ++ _)
+  }
+```
+
 ### Creating Custom Dialects
 
 Users define dialect functors and provide `Functor[F]` + `Traverse[F]` instances manually, following a simple 3-rule template. See [DIALECTS.md](DIALECTS.md#extensible-dialect-functors-fp-mlir) for the full guide.

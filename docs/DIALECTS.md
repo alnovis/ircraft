@@ -534,3 +534,57 @@ def countNodes[F[_]: Traverse]: Fix[F] => Int =
 ```
 
 `scheme.cata` is stack-safe (trampolined via `cats.Eval`) and works with any `Traverse[F]` -- your dialect, `SemanticF`, or a coproduct of both.
+
+### Generic Passes via Trait Mixins
+
+Trait mixins (`HasName`, `HasFields`, `HasMethods`, `HasNested`, `HasMeta`, `HasVisibility`) let you write passes that work on **any dialect** without knowing its concrete type.
+
+Provide instances for your dialect:
+
+```scala
+// In your dialect companion object:
+given HasName[GraphQLF] with
+  def name[A](fa: GraphQLF[A]): String = fa match
+    case SchemaNodeF(_, _)       => "schema"
+    case DirectiveNodeF(n, _, _) => n
+    case FragmentNodeF(n, _, _)  => n
+
+given HasNested[GraphQLF] with
+  def nested[A](fa: GraphQLF[A]): Vector[A] = fa match
+    case SchemaNodeF(q, m)       => q ++ m
+    case DirectiveNodeF(_, _, t) => Vector(t)
+    case FragmentNodeF(_, _, s)  => s
+```
+
+Then write generic passes using trait constraints:
+
+```scala
+import io.alnovis.ircraft.core.algebra._
+
+// Collects all names from any dialect tree
+def collectAllNames[F[_]: Traverse: HasName]: Fix[F] => Vector[String] =
+  scheme.cata[F, Vector[String]] { fa =>
+    Vector(HasName[F].name(fa)) ++ Traverse[F].foldLeft(fa, Vector.empty[String])(_ ++ _)
+  }
+
+// Validates that no node has an empty name
+def validateNoEmptyNames[F[_]: Traverse: HasName]: Fix[F] => Vector[Diagnostic] =
+  scheme.cata[F, Vector[Diagnostic]] { fa =>
+    val name = HasName[F].name(fa)
+    val childDiags = Traverse[F].foldLeft(fa, Vector.empty[Diagnostic])(_ ++ _)
+    if (name.trim.isEmpty)
+      childDiags :+ Diagnostic(Severity.Error, "Empty name found in dialect node")
+    else childDiags
+  }
+```
+
+These passes work **unchanged** on `Fix[SemanticF]`, `Fix[GraphQLF]`, or `Fix[GraphQLF :+: SemanticF]`:
+
+```scala
+// Same function, three different tree types:
+val namesA: Vector[String] = collectAllNames[SemanticF].apply(semanticTree)
+val namesB: Vector[String] = collectAllNames[GraphQLF].apply(graphqlTree)
+val namesC: Vector[String] = collectAllNames[GraphQLF :+: SemanticF].apply(mixedTree)
+```
+
+Coproduct instances are auto-derived -- if both `F` and `G` have `HasName`, then `F :+: G` automatically has `HasName`.

@@ -64,3 +64,19 @@ object TestDialectF:
       case OptionalF(_, child)  => child.foldRight(lb)(f)
 
   given DialectInfo[TestDialectF] = DialectInfo("TestDialectF", 4)
+
+  given HasName[TestDialectF] with
+
+    def name[A](fa: TestDialectF[A]): String = fa match
+      case LeafF(v)        => v
+      case BranchF(l, _)   => l
+      case PairF(_, _)     => "pair"
+      case OptionalF(n, _) => n
+
+  given HasNested[TestDialectF] with
+
+    def nested[A](fa: TestDialectF[A]): Vector[A] = fa match
+      case LeafF(_)             => Vector.empty
+      case BranchF(_, children) => children
+      case PairF(l, r)          => Vector(l, r)
+      case OptionalF(_, child)  => child.toVector
