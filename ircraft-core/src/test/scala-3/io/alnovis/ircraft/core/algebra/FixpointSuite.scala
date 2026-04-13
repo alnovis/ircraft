@@ -94,7 +94,9 @@ class FixpointSuite extends FunSuite {
         Fix[ExprF](LitF(3))
       )
     )
-    assert(tree.unfix.isInstanceOf[MulF[_]])
+    tree.unfix match
+      case MulF(_, _) => () // ok
+      case other      => fail(s"expected MulF, got $other")
   }
 
   // ---- cata ----
@@ -196,12 +198,16 @@ class FixpointSuite extends FunSuite {
 
   test("Coproduct.Inl wraps left functor") {
     val cp: Coproduct[ExprF, BoolF, Fix[ExprF]] = Coproduct.Inl(LitF(42))
-    assert(cp.isInstanceOf[Coproduct.Inl[_, _, _]])
+    cp match
+      case Coproduct.Inl(LitF(42)) => () // ok
+      case other                   => fail(s"expected Inl(LitF(42)), got $other")
   }
 
   test("Coproduct.Inr wraps right functor") {
     val cp: Coproduct[ExprF, BoolF, Nothing] = Coproduct.Inr(TrueF())
-    assert(cp.isInstanceOf[Coproduct.Inr[_, _, _]])
+    cp match
+      case Coproduct.Inr(TrueF()) => () // ok
+      case other                  => fail(s"expected Inr(TrueF()), got $other")
   }
 
   test("Coproduct Functor maps over both sides") {

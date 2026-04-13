@@ -1,7 +1,6 @@
 package io.alnovis.ircraft.core.algebra
 
 import cats.{Applicative, Eval, Functor, Traverse}
-import io.alnovis.ircraft.core.algebra.DialectInfo
 
 /** Coproduct (disjoint union) of two functors. */
 sealed trait Coproduct[F[_], G[_], A]

@@ -82,17 +82,7 @@ object SemanticF:
     case ad: AliasDeclF[A] => ad.copy(meta = m)
     case cd: ConstDeclF[A] => cd.copy(meta = m)
 
-  given Functor[SemanticF] with
-
-    def map[A, B](fa: SemanticF[A])(f: A => B): SemanticF[B] = fa match
-      case TypeDeclF(n, k, flds, fns, nested, st, tp, v, ann, m) =>
-        TypeDeclF(n, k, flds, fns, nested.map(f), st, tp, v, ann, m)
-      case EnumDeclF(n, vs, fns, st, v, ann, m) =>
-        EnumDeclF(n, vs, fns, st, v, ann, m)
-      case FuncDeclF(fn, m)          => FuncDeclF(fn, m)
-      case AliasDeclF(n, t, v, m)    => AliasDeclF(n, t, v, m)
-      case ConstDeclF(n, t, e, v, m) => ConstDeclF(n, t, e, v, m)
-
+  // Traverse extends Functor, so no separate Functor instance needed
   given Traverse[SemanticF] with
 
     def traverse[G[_]: Applicative, A, B](fa: SemanticF[A])(f: A => G[B]): G[SemanticF[B]] = fa match

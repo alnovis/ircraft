@@ -29,7 +29,7 @@ abstract class BaseEmitter[F[_]: Monad] {
       .map { pairs =>
         val filtered                         = pairs.filter { case (_, source) => source.trim.nonEmpty }
         implicit val pathOrd: Ordering[Path] = Ordering.by(_.toString)
-        SortedMap(filtered: _*)
+        (SortedMap.newBuilder[Path, String] ++= filtered).result()
       }
   }
 

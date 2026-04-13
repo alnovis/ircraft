@@ -29,14 +29,7 @@ object TestDialectF:
   //   Vector[A]    -> vec.map(f)
   //   Option[A]    -> opt.map(f)
 
-  given Functor[TestDialectF] with
-
-    def map[A, B](fa: TestDialectF[A])(f: A => B): TestDialectF[B] = fa match
-      case LeafF(v)             => LeafF(v)
-      case BranchF(l, children) => BranchF(l, children.map(f))
-      case PairF(left, right)   => PairF(f(left), f(right))
-      case OptionalF(n, child)  => OptionalF(n, child.map(f))
-
+  // Traverse extends Functor, so only Traverse instance is needed.
   // ---- Template Rule 2: Traverse ----
   // traverse: data-only -> pure(copy), A -> f(x), Vector[A] -> vec.traverse(f), Option[A] -> opt.traverse(f)
   // Then reconstruct with .map / .mapN

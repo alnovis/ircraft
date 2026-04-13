@@ -37,13 +37,7 @@ enum ProtoF[+A]:
 object ProtoF:
   import ProtoF._
 
-  given Functor[ProtoF] with
-
-    def map[A, B](fa: ProtoF[A])(f: A => B): ProtoF[B] = fa match
-      case MessageNodeF(n, flds, fns, nested, m) => MessageNodeF(n, flds, fns, nested.map(f), m)
-      case EnumNodeF(n, vs, m)                   => EnumNodeF(n, vs, m)
-      case OneofNodeF(n, flds, m)                => OneofNodeF(n, flds, m)
-
+  // Traverse extends Functor, so no separate Functor instance needed
   given Traverse[ProtoF] with
 
     def traverse[G[_]: Applicative, A, B](fa: ProtoF[A])(f: A => G[B]): G[ProtoF[B]] = fa match
