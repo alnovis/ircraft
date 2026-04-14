@@ -4,15 +4,51 @@ import cats.{Applicative, Eval, Traverse}
 import cats.syntax.all._
 import io.alnovis.ircraft.core.algebra.DialectInfo
 
-/** SemanticF -- the standard dialect functor for ircraft.
+/**
+  * SemanticF -- the standard (core) dialect functor for ircraft.
   *
-  * This is the functorized form of the original Decl ADT.
-  * The type parameter A replaces recursive references (nested declarations).
+  * This is the functorized form of the original Decl ADT, following the
+  * "Data Types a la Carte" approach. The type parameter `A` replaces
+  * recursive references (nested declarations), enabling composition via
+  * [[io.alnovis.ircraft.core.algebra.Coproduct]] and folding via
+  * [[io.alnovis.ircraft.core.algebra.scheme]].
+  *
+  * SemanticF represents language-agnostic semantic constructs: type declarations,
+  * enums, functions, type aliases, and constants. Domain-specific dialects
+  * (e.g., [[io.alnovis.ircraft.dialects.proto.ProtoF]]) extend the IR by forming
+  * coproducts with SemanticF.
+  *
+  * @tparam A the recursive carrier type, replaced by [[io.alnovis.ircraft.core.algebra.Fix]]
+  *           in the fixed-point representation
+  * @see [[io.alnovis.ircraft.core.algebra.Fix]]
+  * @see [[io.alnovis.ircraft.core.algebra.Coproduct]]
   */
 sealed trait SemanticF[+A]
 
+/**
+  * Companion object for [[SemanticF]] providing case class variants, utility
+  * methods, and implicit typeclass instances.
+  */
 object SemanticF {
 
+  /**
+    * A type declaration node (class, struct, record, interface, etc.).
+    *
+    * @param name        the declared type name
+    * @param kind        the kind of type (class, interface, struct, etc.)
+    * @param fields      the fields (properties) of the type
+    * @param functions   methods or functions declared within the type
+    * @param nested      nested (inner) declarations, parameterized by the carrier type
+    * @param supertypes  supertypes that this type extends or implements
+    * @param typeParams  generic type parameters
+    * @param visibility  access visibility (public, private, etc.)
+    * @param annotations annotations attached to this type
+    * @param meta        extensible metadata map
+    * @tparam A the recursive carrier type
+    * @see [[TypeKind]]
+    * @see [[Field]]
+    * @see [[Func]]
+    */
   final case class TypeDeclF[+A](
     name: String,
     kind: TypeKind,
@@ -26,6 +62,19 @@ object SemanticF {
     meta: Meta = Meta.empty
   ) extends SemanticF[A]
 
+  /**
+    * An enumeration declaration node.
+    *
+    * @param name        the enum name
+    * @param variants    the enum variants (cases)
+    * @param functions   methods declared within the enum
+    * @param supertypes  supertypes that this enum extends
+    * @param visibility  access visibility (public, private, etc.)
+    * @param annotations annotations attached to this enum
+    * @param meta        extensible metadata map
+    * @tparam A the recursive carrier type
+    * @see [[EnumVariant]]
+    */
   final case class EnumDeclF[+A](
     name: String,
     variants: Vector[EnumVariant] = Vector.empty,
@@ -36,11 +85,29 @@ object SemanticF {
     meta: Meta = Meta.empty
   ) extends SemanticF[A]
 
+  /**
+    * A standalone function declaration node.
+    *
+    * @param func the function definition
+    * @param meta extensible metadata map
+    * @tparam A the recursive carrier type
+    * @see [[Func]]
+    */
   final case class FuncDeclF[+A](
     func: Func,
     meta: Meta = Meta.empty
   ) extends SemanticF[A]
 
+  /**
+    * A type alias declaration node.
+    *
+    * @param name       the alias name
+    * @param target     the target type expression that this alias refers to
+    * @param visibility access visibility (public, private, etc.)
+    * @param meta       extensible metadata map
+    * @tparam A the recursive carrier type
+    * @see [[TypeExpr]]
+    */
   final case class AliasDeclF[+A](
     name: String,
     target: TypeExpr,
@@ -48,6 +115,18 @@ object SemanticF {
     meta: Meta = Meta.empty
   ) extends SemanticF[A]
 
+  /**
+    * A constant declaration node.
+    *
+    * @param name       the constant name
+    * @param constType  the type of the constant
+    * @param value      the constant value expression
+    * @param visibility access visibility (public, private, etc.)
+    * @param meta       extensible metadata map
+    * @tparam A the recursive carrier type
+    * @see [[TypeExpr]]
+    * @see [[Expr]]
+    */
   final case class ConstDeclF[+A](
     name: String,
     constType: TypeExpr,
@@ -56,6 +135,13 @@ object SemanticF {
     meta: Meta = Meta.empty
   ) extends SemanticF[A]
 
+  /**
+    * Extracts the declaration name from any [[SemanticF]] variant.
+    *
+    * @param fa the semantic node to extract the name from
+    * @tparam A the recursive carrier type
+    * @return the name of the declaration
+    */
   def name[A](fa: SemanticF[A]): String = fa match {
     case TypeDeclF(n, _, _, _, _, _, _, _, _, _) => n
     case EnumDeclF(n, _, _, _, _, _, _)          => n
@@ -64,6 +150,13 @@ object SemanticF {
     case ConstDeclF(n, _, _, _, _)               => n
   }
 
+  /**
+    * Extracts the [[Meta]] from any [[SemanticF]] variant.
+    *
+    * @param fa the semantic node to extract metadata from
+    * @tparam A the recursive carrier type
+    * @return the metadata map attached to the node
+    */
   def meta[A](fa: SemanticF[A]): Meta = fa match {
     case TypeDeclF(_, _, _, _, _, _, _, _, _, m) => m
     case EnumDeclF(_, _, _, _, _, _, m)          => m
@@ -72,6 +165,14 @@ object SemanticF {
     case ConstDeclF(_, _, _, _, m)               => m
   }
 
+  /**
+    * Returns a copy of the given [[SemanticF]] node with updated [[Meta]].
+    *
+    * @param fa the semantic node to update
+    * @param m  the new metadata to set
+    * @tparam A the recursive carrier type
+    * @return a new node identical to `fa` but with metadata replaced by `m`
+    */
   def withMeta[A](fa: SemanticF[A], m: Meta): SemanticF[A] = fa match {
     case td: TypeDeclF[A @unchecked]  => td.copy(meta = m)
     case ed: EnumDeclF[A @unchecked]  => ed.copy(meta = m)
@@ -80,6 +181,12 @@ object SemanticF {
     case cd: ConstDeclF[A @unchecked] => cd.copy(meta = m)
   }
 
+  /**
+    * Implicit [[cats.Traverse]] instance for [[SemanticF]].
+    *
+    * Only [[TypeDeclF]] has recursive children (via the `nested` field);
+    * all other variants are leaves and are traversed as pure values.
+    */
   implicit val semanticTraverse: Traverse[SemanticF] = new Traverse[SemanticF] {
     def traverse[G[_], A, B](fa: SemanticF[A])(f: A => G[B])(implicit G: Applicative[G]): G[SemanticF[B]] = fa match {
       case TypeDeclF(n, k, flds, fns, nested, st, tp, v, ann, m) =>
@@ -106,5 +213,9 @@ object SemanticF {
     }
   }
 
+  /**
+    * Implicit [[DialectInfo]] instance for [[SemanticF]], providing
+    * the dialect name ("SemanticF") and operation count (5 variants).
+    */
   implicit val semanticDialectInfo: DialectInfo[SemanticF] = DialectInfo("SemanticF", 5)
 }

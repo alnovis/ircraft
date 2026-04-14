@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        # Scala 3.6.4 compiler requires JDK 21+; bytecode targets Java 17 via javacOptions
         java: [21]
     steps:
       - uses: actions/checkout@v4
@@ -30,6 +31,9 @@ jobs:
 
       - name: Run tests (all Scala versions)
         run: sbt +test
+
+      - name: Generate Scaladoc (all Scala versions)
+        run: sbt +doc
 
       - name: Check formatting
         run: sbt scalafmtCheckAll

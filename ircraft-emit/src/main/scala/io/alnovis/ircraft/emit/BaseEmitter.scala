@@ -9,11 +9,63 @@ import io.alnovis.ircraft.core.algebra.Fix
 import io.alnovis.ircraft.core.ir._
 import io.alnovis.ircraft.core.ir.SemanticF._
 
+/**
+  * Abstract base class for language-specific code emitters.
+  *
+  * A [[BaseEmitter]] converts a `Module[Fix[SemanticF]]` (the semantic IR tree produced
+  * by the IRCraft pipeline) into a map of file paths to rendered source code strings.
+  * It orchestrates the traversal of the IR tree, delegating language-specific decisions
+  * to a [[LanguageSyntax]] (for structural syntax) and a [[TypeMapping]] (for type names
+  * and imports).
+  *
+  * To create a new language emitter, extend this class and provide concrete implementations
+  * of [[syntax]] and [[tm]].
+  *
+  * The emitter is effectful in `F[_]`, allowing for pure (e.g., `cats.Id`) or monadic
+  * (e.g., `IO`, `Either[Error, *]`) execution contexts.
+  *
+  * @tparam F the effect type, constrained to `Monad`
+  *
+  * @see [[io.alnovis.ircraft.emitters.java.JavaEmitter]] for a Java implementation
+  * @see [[io.alnovis.ircraft.emitters.scala.ScalaEmitter]] for a Scala implementation
+  * @see [[LanguageSyntax]] for language-specific syntax rules
+  * @see [[TypeMapping]] for type name and import resolution
+  */
 abstract class BaseEmitter[F[_]: Monad] {
 
+  /**
+    * The language-specific syntax rules used by this emitter.
+    *
+    * Determines how types, functions, fields, expressions, and control flow
+    * constructs are formatted in the target language.
+    */
   protected def syntax: LanguageSyntax
+
+  /**
+    * The type mapping used by this emitter.
+    *
+    * Converts IR `TypeExpr` nodes to target-language type name strings
+    * and determines the required imports.
+    */
   protected def tm: TypeMapping
 
+  /**
+    * Emits source code for an entire module.
+    *
+    * Traverses all compilation units and declarations in the module, producing one
+    * source file per top-level declaration. Files are keyed by their relative path
+    * (derived from the namespace and declaration name) and sorted lexicographically.
+    *
+    * Declarations that produce only whitespace are filtered out.
+    *
+    * @param module the semantic IR module to emit
+    * @return a sorted map from relative file paths to rendered source code strings
+    *
+    * @example {{{
+    * val emitter = JavaEmitter[cats.Id]
+    * val files: Map[Path, String] = emitter(myModule)
+    * }}}
+    */
   final def apply(module: Module[Fix[SemanticF]]): F[Map[Path, String]] = {
     module.units
       .flatTraverse { unit =>
@@ -33,9 +85,38 @@ abstract class BaseEmitter[F[_]: Monad] {
       }
   }
 
+  /**
+    * Emits a complete file tree for a single declaration, including package header and imports.
+    *
+    * This is a public convenience method that delegates to [[emitFileTree]].
+    *
+    * @param namespace the package/namespace for the file
+    * @param decl      the top-level declaration to emit
+    * @return a [[CodeNode.File]] tree containing the package header, imports, and declaration body
+    */
   def toFileTree(namespace: String, decl: Fix[SemanticF]): F[CodeNode] = emitFileTree(namespace, decl)
-  def toDeclTree(decl: Fix[SemanticF]): F[CodeNode]                    = emitDeclTree(decl)
 
+  /**
+    * Emits only the declaration body tree, without file-level wrapping.
+    *
+    * This is a public convenience method that delegates to [[emitDeclTree]].
+    * Useful for embedding a declaration inside a larger tree or for testing.
+    *
+    * @param decl the declaration to emit
+    * @return a [[CodeNode]] tree for the declaration body (type block, enum block, etc.)
+    */
+  def toDeclTree(decl: Fix[SemanticF]): F[CodeNode] = emitDeclTree(decl)
+
+  /**
+    * Emits a complete file tree for a declaration, including package header and imports.
+    *
+    * Collects imports via [[ImportCollector]], emits the declaration body via
+    * [[emitDeclTree]], and wraps everything in a [[CodeNode.File]].
+    *
+    * @param namespace the package/namespace for the file header
+    * @param decl      the declaration to emit
+    * @return a [[CodeNode.File]] containing header, imports, and the declaration body
+    */
   protected def emitFileTree(namespace: String, decl: Fix[SemanticF]): F[CodeNode] = {
     emitDeclTree(decl).map { declTree =>
       val imports = ImportCollector.collect(decl, tm)
@@ -43,6 +124,15 @@ abstract class BaseEmitter[F[_]: Monad] {
     }
   }
 
+  /**
+    * Emits a [[CodeNode]] tree for a single declaration.
+    *
+    * Dispatches to specialized methods based on the declaration kind:
+    * `TypeDeclF`, `EnumDeclF`, `FuncDeclF`, `ConstDeclF`, or `AliasDeclF`.
+    *
+    * @param decl the declaration to emit
+    * @return the appropriate [[CodeNode]] tree for the declaration
+    */
   protected def emitDeclTree(decl: Fix[SemanticF]): F[CodeNode] = decl.unfix match {
     case td: TypeDeclF[Fix[SemanticF] @unchecked]  => emitTypeDecl(td)
     case ed: EnumDeclF[Fix[SemanticF] @unchecked]  => emitEnumDecl(ed)
@@ -180,6 +270,16 @@ abstract class BaseEmitter[F[_]: Monad] {
       } yield CodeNode.TryCatch(tryNodes, catchNodes, finallyNodes)
   }
 
+  /**
+    * Converts an IR expression to its target-language text representation.
+    *
+    * Recursively converts the expression tree to a string using the
+    * [[LanguageSyntax]] for language-specific constructs (operators, casts,
+    * lambdas, etc.) and [[TypeMapping]] for type names.
+    *
+    * @param expr the IR expression to convert
+    * @return the target-language expression text
+    */
   protected def emitExprText(expr: Expr): String = expr match {
     case Expr.Lit(v, _)    => v
     case Expr.Ref(n)       => n

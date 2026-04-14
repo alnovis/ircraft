@@ -7,35 +7,109 @@ import io.alnovis.ircraft.core.ir._
 import io.alnovis.ircraft.core.ir.SemanticF._
 import io.alnovis.ircraft.dialects.proto.ProtoF._
 
-/** Well-known Meta keys for proto provenance. */
+/**
+  * Well-known `Meta` keys for protobuf provenance information.
+  *
+  * These keys are attached to IR nodes during proto lowering to preserve
+  * information about the original `.proto` source. Downstream passes and
+  * emitters can use these keys to make decisions based on proto semantics.
+  *
+  * @see [[ProtoLowering]] for where these keys are set
+  */
 object ProtoMeta {
-  val sourceKind: Meta.Key[String]   = Meta.Key("proto.sourceKind")
-  val fieldNumber: Meta.Key[Int]     = Meta.Key("proto.fieldNumber")
-  val protoFqn: Meta.Key[String]     = Meta.Key("proto.fqn")
+
+  /** The kind of proto source node (`"message"` or `"enum"`). */
+  val sourceKind: Meta.Key[String] = Meta.Key("proto.sourceKind")
+
+  /** The proto field number, attached to getter functions and fields. */
+  val fieldNumber: Meta.Key[Int] = Meta.Key("proto.fieldNumber")
+
+  /** The fully qualified proto name (e.g., `"com.example.OuterClass.MessageName"`). */
+  val protoFqn: Meta.Key[String] = Meta.Key("proto.fqn")
+
+  /** The proto package name (from the `package` directive). */
   val protoPackage: Meta.Key[String] = Meta.Key("proto.package")
-  val outerClass: Meta.Key[String]   = Meta.Key("proto.outerClass")
-  val syntax: Meta.Key[String]       = Meta.Key("proto.syntax")
-  val fieldKind: Meta.Key[String]    = Meta.Key("proto.fieldKind")
+
+  /** The outer class name (from `java_outer_classname` or derived from the file name). */
+  val outerClass: Meta.Key[String] = Meta.Key("proto.outerClass")
+
+  /** The proto syntax version (`"proto2"` or `"proto3"`). */
+  val syntax: Meta.Key[String] = Meta.Key("proto.syntax")
+
+  /**
+    * The field kind classification string.
+    *
+    * Possible values: `"SCALAR"`, `"MESSAGE"`, `"ENUM"`, `"MAP"`,
+    * `"REPEATED_SCALAR"`, `"REPEATED_MESSAGE"`, `"REPEATED_ENUM"`.
+    */
+  val fieldKind: Meta.Key[String] = Meta.Key("proto.fieldKind")
+
+  /** The original proto type name from the `.proto` file. */
   val originalType: Meta.Key[String] = Meta.Key("proto.originalType")
 }
 
-/** Lowering: ProtoFile -> F[Module[Fix[SemanticF]]]. */
+/**
+  * Lowers [[ProtoFile]] instances into the semantic IR (`Module[Fix[SemanticF]]`).
+  *
+  * Provides two lowering paths:
+  *  - '''Pure lowering''' via [[lower]] / [[lowerAll]]: converts proto constructs directly
+  *    to `SemanticF` nodes. Messages become `TypeDeclF(Protocol)`, enums become `EnumDeclF`.
+  *  - '''Mixed lowering''' via [[lowerToMixed]]: preserves proto-specific nodes as `ProtoF`
+  *    within a coproduct IR (`ProtoF :+: SemanticF`), allowing dialect-specific passes
+  *    before final elimination.
+  *
+  * Both paths attach [[ProtoMeta]] keys to IR nodes for provenance tracking.
+  *
+  * @see [[ProtoMeta]] for the metadata keys attached during lowering
+  * @see [[ProtoDialect]] for the algebra-based elimination of `ProtoF` nodes
+  */
 object ProtoLowering {
 
+  /**
+    * Lowers a single [[ProtoFile]] to a pure semantic IR module.
+    *
+    * Each message is lowered to a `TypeDeclF(Protocol)` with getter functions for fields.
+    * Each enum is lowered to an `EnumDeclF` with numeric-valued variants.
+    * The resulting module contains one compilation unit with the file's Java package
+    * as namespace.
+    *
+    * @tparam F the effect type (only `Applicative` is required)
+    * @param file the proto file to lower
+    * @return a module containing the lowered declarations
+    */
   def lower[F[_]: Applicative](file: ProtoFile): F[Module[Fix[SemanticF]]] =
     lowerFile(file)
 
+  /**
+    * Lowers multiple [[ProtoFile]] instances and combines them into a single module.
+    *
+    * Each file is lowered independently via [[lower]], and the resulting modules are
+    * combined using the `Module` monoid (merging compilation units).
+    *
+    * @tparam F the effect type (only `Applicative` is required)
+    * @param files the proto files to lower
+    * @return a combined module containing all lowered declarations
+    */
   def lowerAll[F[_]: Applicative](files: Vector[ProtoFile]): F[Module[Fix[SemanticF]]] =
     files.toList.traverse(lowerFile[F](_)).map(_.toVector.combineAll)
 
   /**
-    * Lower to mixed ProtoIR: proto-specific nodes stay as ProtoF, not converted to SemanticF.
-    * Use ProtoEliminate.eliminateProto to convert to pure SemanticF afterwards.
-    */
-  /**
-    * Lower to mixed IR: proto-specific nodes stay as ProtoF, injected into IR via Inject.
-    * IR is typically `ProtoF :+: SemanticF` (Scala 3) or `Coproduct[ProtoF, SemanticF, *]` (Scala 2).
-    * Use ProtoEliminate.eliminateProto to convert to pure SemanticF afterwards.
+    * Lowers a [[ProtoFile]] to a mixed IR that preserves proto-specific `ProtoF` nodes.
+    *
+    * Proto constructs are injected into the IR via the `Inject[ProtoF, IR]` type class,
+    * producing an IR that is typically `ProtoF :+: SemanticF` (Scala 3) or
+    * `Coproduct[ProtoF, SemanticF, *]` (Scala 2).
+    *
+    * Use `ProtoEliminate.eliminateProto` to convert the mixed IR to pure `SemanticF`
+    * after any proto-specific passes.
+    *
+    * @tparam F  the effect type (only `Applicative` is required)
+    * @tparam IR the coproduct IR functor (e.g., `ProtoF :+: SemanticF`)
+    * @param file the proto file to lower
+    * @param injP the injection evidence for `ProtoF` into `IR`
+    * @return a module with proto-specific nodes preserved in the coproduct IR
+    *
+    * @see [[ProtoDialect.protoToSemantic]] for the elimination algebra
     */
   def lowerToMixed[F[_]: Applicative, IR[_]](file: ProtoFile)(implicit injP: Inject[ProtoF, IR]): F[Module[Fix[IR]]] = {
     val pkg        = file.javaPackage.getOrElse(file.packageName)

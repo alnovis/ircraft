@@ -1,6 +1,6 @@
 # ircraft
 
-Pure functional framework for building code generators. Scala 3 + Cats.
+Pure functional framework for building code generators with open-world extensible IR. Scala 3 + Cats.
 
 > Design background: [Compiler Ideas for Code Generation](https://alnovis.io/blog/compiler-ideas-for-code-generation)
 
@@ -8,10 +8,13 @@ Pure functional framework for building code generators. Scala 3 + Cats.
 
 ```
 Source Schema (Proto, OpenAPI, SQL, your DSL)
-  |  Lowering (your function)
+  |  Define as functor F[+A]
   v
-Language-Agnostic IR (Module, TypeDecl, Func, Field)
-  |  Passes (composable transformations)
+Dialect IR: Fix[F :+: SemanticF]
+  |  eliminate.dialect -- type-safe coproduct shrinking
+  v
+Semantic IR: Fix[SemanticF]
+  |  Passes (Kleisli, composable via andThen)
   v
 Enriched IR
   |  Emitter (Java, Scala 3, Scala 2, your language)
@@ -19,7 +22,9 @@ Enriched IR
 Generated Source Code
 ```
 
-ircraft provides the IR, passes, pipeline composition, and emitters. You provide the source dialect and business logic.
+ircraft provides the algebra (Fix, Coproduct, Inject), recursion schemes (cata, ana, hylo), semantic IR, trait mixins for generic passes, constraint system, and multi-language emitters. You provide the source dialect and business logic.
+
+**Adding a new dialect requires zero changes to ircraft core.**
 
 ## Quick Start
 
@@ -35,7 +40,7 @@ case class SqlTable(name: String, columns: Vector[(String, String)])
 // 2. Define lowering
 val lowering: Lowering[Id, Vector[SqlTable]] = Lowering.pure { tables =>
   Module("sql", tables.map { t =>
-    CompilationUnit("com.example.model", Vector(Decl.TypeDecl(
+    CompilationUnit("com.example.model", Vector(Decl.typeDecl(
       name = t.name,
       kind = TypeKind.Product,
       fields = t.columns.map((name, typ) => Field(name, sqlType(typ)))
@@ -53,35 +58,80 @@ val pipeline = Pipeline.of(addGetters)
 val module = lowering(Vector(SqlTable("User", Vector("id" -> "BIGINT", "name" -> "VARCHAR"))))
 val enriched = Pipeline.run(pipeline, module)
 val files = ScalaEmitter.scala3[Id].apply(enriched)
-// files: Map[Path, String] with User.scala containing:
-//   class User {
-//     val id: Long
-//     val name: String
-//   }
 ```
 
 ## Core Concepts
 
 | Concept | Type | Description |
 |---------|------|-------------|
-| **Module** | `case class` | IR tree root. Contains CompilationUnits with Decls |
+| **Fix[F]** | `case class` | Fixpoint -- recursive IR tree from functor F |
+| **Coproduct[F, G, A]** | `:+:` | Disjoint union of dialect functors |
+| **Inject[F, G]** | typeclass | Type-safe injection into coproducts |
+| **SemanticF[+A]** | functor | Core language-agnostic IR (TypeDeclF, EnumDeclF, FuncDeclF, AliasDeclF, ConstDeclF) |
+| **Module[D]** | `case class` | IR tree root, parameterized over declaration type |
 | **Pass** | `Kleisli[F, Module, Module]` | Composable transformation. `Pipeline.of(a, b, c)` |
-| **Lowering** | `Kleisli[F, Source, Module]` | Your source -> IR conversion |
-| **Emitter** | `Kleisli[F, Module, Map[Path, String]]` | IR -> source files |
-| **Outcome** | `IorT[F, NonEmptyChain[Diagnostic], A]` | Success / Warnings+Success / Error (Scala 3 alias; Scala 2 uses IorT directly) |
+| **scheme.cata/ana/hylo** | functions | Stack-safe recursion schemes via Eval |
+| **eliminate.dialect** | function | Type-safe coproduct shrinking (ProtoF :+: SemanticF -> SemanticF) |
+| **Outcome** | `IorT[F, NonEmptyChain[Diagnostic], A]` | Success / Warnings+Success / Error |
 | **LanguageSyntax** | `trait` | Parameterizes emitter for any target language |
 
 `F[_]` is tagless final: `Id` for tests, `IO` for production.
+
+## Extensible Dialects
+
+New dialect = enum F[+A] + Traverse + DialectInfo + trait mixins + lowering algebra. Zero core changes.
+
+```scala
+// Define dialect functor
+enum SqlF[+A]:
+  case TableNodeF(name: String, columns: Vector[Field], nested: Vector[A])
+  case ViewNodeF(name: String, query: String)
+
+// Provide Traverse instance (3-rule template)
+// Provide trait mixin instances (HasName, HasNested, ...)
+// Write lowering algebra: SqlF -> SemanticF
+// Done -- use with cata, ana, eliminate, generic passes
+```
+
+See [Dialects Guide](docs/DIALECTS.md) and `examples/` for full SQL dialect implementation.
+
+### Trait Mixins
+
+Generic passes work across ANY dialect via structural typeclasses:
+
+| Trait | Extracts |
+|-------|----------|
+| `HasName[F]` | declaration name |
+| `HasFields[F]` | fields vector |
+| `HasMethods[F]` | functions vector |
+| `HasNested[F]` | nested declarations |
+| `HasMeta[F]` | typed metadata |
+| `HasVisibility[F]` | visibility modifier |
+
+Coproduct instances auto-derived. Write `collectAllNames` once -- works on ProtoF, SqlF, any future dialect.
+
+### Constraint System
+
+```scala
+// Define constraints
+val resolved: Fix[SemanticF] !> MustBeResolved = ???
+
+// Verify via cata
+ConstraintVerifier.verifyFieldTypes[F, SemanticF, MustBeResolved](tree)
+```
+
+Custom constraints with zero core changes. `Constrained[A, C]` wrapper + `!>` infix type (Scala 3).
 
 ## Semantic IR
 
 Language-agnostic. Describes **what**, not **how**.
 
 ```
-TypeDecl(Product)    -> Java class, Scala class, Rust struct, Go struct
-TypeDecl(Protocol)   -> Java interface, Scala trait, Rust trait
-TypeDecl(Abstract)   -> abstract class
-EnumDecl             -> Java enum, Scala 3 enum, Scala 2 sealed trait
+TypeDeclF(Product)   -> Java class, Scala class, Rust struct, Go struct
+TypeDeclF(Protocol)  -> Java interface, Scala trait, Rust trait
+TypeDeclF(Abstract)  -> abstract class
+EnumDeclF            -> Java enum, Scala 3 enum, Scala 2 sealed trait
+AliasDeclF           -> Scala type alias (Java: skipped)
 Func                 -> method / def / fn
 Field                -> field / val / property
 Stmt.Match           -> Java if-chain, Scala match, Rust match
@@ -92,13 +142,8 @@ Types: `Primitive` (Bool, Int32, Str, ...), `ListOf`, `MapOf`, `Optional`, `SetO
 ## Multi-Language Emitters
 
 ```scala
-// Java
 JavaEmitter[IO]          // .java, public class, interface, ;, new, <T>
-
-// Scala 3
-ScalaEmitter.scala3[IO]  // .scala, trait, enum, def, val, Option[T], match, =>
-
-// Scala 2
+ScalaEmitter.scala3[IO]  // .scala, trait, enum, def, val, type X = Y, match
 ScalaEmitter.scala2[IO]  // .scala, sealed trait, new, if (cond)
 ```
 
@@ -116,26 +161,28 @@ Outcome.warn("deprecated", m)   // Ior.Both  -- success with warning
 Outcome.fail("unresolved type") // Ior.Left  -- error, pipeline stops
 ```
 
-On Scala 3, a convenience type alias `Outcome[F, A]` is available. On Scala 2, use `IorT[F, NonEmptyChain[Diagnostic], A]` directly.
-
 ## Modules
 
 | Module | Description | Dependencies |
 |--------|-------------|-------------|
-| `ircraft-core` | IR ADTs, Pass, Pipeline, Outcome, Merge | cats-core |
+| `ircraft-core` | Fix, Coproduct, Inject, scheme.*, SemanticF, Pass, Pipeline, Merge, trait mixins, constraints | cats-core |
 | `ircraft-emit` | CodeNode, Renderer, LanguageSyntax, BaseEmitter | ircraft-core |
 | `ircraft-io` | CodeWriter, IncrementalWriter (atomic writes) | cats-effect |
-| `ircraft-dialect-proto` | Proto source ADT + ProtoLowering | ircraft-core |
+| `ircraft-dialect-proto` | ProtoF functor + ProtoLowering + trait mixin instances | ircraft-core |
 | `ircraft-emitter-java` | JavaEmitter + JavaSyntax + JavaTypeMapping | ircraft-emit |
 | `ircraft-emitter-scala` | ScalaEmitter + ScalaSyntax + ScalaTypeMapping | ircraft-emit |
+| `ircraft-java-api` | Java facade: Result, IrNode, IrModule, IrPass, IrVisitor, IrEmitter | all above |
 
 ## Documentation
 
 - **[User Guide](docs/GUIDE.md)** -- start here: step-by-step from schema to generated code
+- **[Scala 3 API Guide](docs/SCALA3_API.md)** -- full API with FP-MLIR, dialects, recursion schemes
+- **[Scala 2 API Guide](docs/SCALA2_API.md)** -- same, adapted for Scala 2.12/2.13
+- **[Java API Guide](docs/JAVA_API.md)** -- using ircraft from Java (Maven/Gradle)
 - [Passes Guide](docs/PASSES.md) -- how to write passes, compose pipelines, handle errors
-- [Dialects Guide](docs/DIALECTS.md) -- how to create source dialects, Lowering, Meta, Doc, Merge
+- [Dialects Guide](docs/DIALECTS.md) -- how to create source dialects, extensible IR, trait mixins
 - [Emitters Guide](docs/EMITTERS.md) -- how emitters work, LanguageSyntax, create your own
-- [Architecture](docs/ARCHITECTURE.md) -- internal architecture and design decisions
+- [Architecture](docs/ARCHITECTURE.md) -- FP-MLIR architecture, Fix/Coproduct, recursion schemes
 
 ## Cross-Compilation
 
@@ -143,7 +190,7 @@ ircraft is cross-compiled for **Scala 2.12**, **2.13**, and **3.x**:
 
 ```scala
 // build.sbt
-libraryDependencies += "io.alnovis" %% "ircraft-core" % "2.0.0-alpha.1"
+libraryDependencies += "io.alnovis" %% "ircraft-core" % "2.0.0-alpha.2"
 // works with Scala 2.12.20, 2.13.16, 3.6.4
 ```
 

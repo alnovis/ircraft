@@ -5,8 +5,42 @@ import io.alnovis.ircraft.core.ir.TypeExpr
 import io.alnovis.ircraft.core.ir.TypeExpr._
 import io.alnovis.ircraft.emit.TypeMapping
 
+/**
+  * Type mapping for Scala code emission.
+  *
+  * Converts IR `TypeExpr` nodes to Scala type name strings and determines the
+  * required import statements. Unlike Java, Scala has no distinction between
+  * primitive and boxed types, so [[boxedName]] simply delegates to [[typeName]].
+  *
+  * Notable mappings:
+  *  - `Primitive.Int32` -> `"Int"`
+  *  - `Primitive.Void` -> `"Unit"`
+  *  - `ListOf(elem)` -> `"List[Elem]"`
+  *  - `Optional(inner)` -> `"Option[Inner]"`
+  *  - `TupleOf(elems)` -> `"(A, B, C)"` (up to 22 elements)
+  *  - `FuncType(params, ret)` -> `"(A, B) => C"`
+  *  - `Union(alts)` -> `"A | B"` (Scala 3 union types)
+  *  - `Intersection(cs)` -> `"A & B"` (Scala 3 intersection types)
+  *
+  * Most common Scala types (`List`, `Map`, `Set`, `Option`) are in `scala.Predef` and
+  * require no imports.
+  *
+  * @see [[TypeMapping]] for the base contract
+  * @see [[io.alnovis.ircraft.emitters.java.JavaTypeMapping]] for the Java counterpart
+  */
 object ScalaTypeMapping extends TypeMapping {
 
+  /**
+    * Returns the Scala type name for the given IR type expression.
+    *
+    * All primitive types map to Scala's value types (`Int`, `Long`, `Boolean`, etc.).
+    * Container types use Scala's bracket syntax. `Unresolved` types cause an
+    * assertion error.
+    *
+    * @param t the IR type expression
+    * @return the Scala type name string
+    * @throws AssertionError if the type is `Unresolved`
+    */
   def typeName(t: TypeExpr): String = t match {
     case Primitive.Bool    => "Boolean"
     case Primitive.Int8    => "Byte"
@@ -47,9 +81,27 @@ object ScalaTypeMapping extends TypeMapping {
     case Intersection(cs) => cs.map(typeName).mkString(" & ")
   }
 
-  // Scala doesn't need boxed names -- no primitive/object distinction in generics
+  /**
+    * Returns the boxed type name for Scala.
+    *
+    * Since Scala has no primitive/boxed distinction, this simply delegates
+    * to [[typeName]].
+    *
+    * @param t the IR type expression
+    * @return the Scala type name (same as [[typeName]])
+    */
   override def boxedName(t: TypeExpr): String = typeName(t)
 
+  /**
+    * Returns the set of import paths required for the given type expression.
+    *
+    * `Named` types with a package qualifier require an import. `Imported` types
+    * contribute their import path. Standard Scala collections (`List`, `Map`, `Set`,
+    * `Option`) are in `scala.Predef` and require no explicit imports.
+    *
+    * @param t the IR type expression
+    * @return the set of required import paths
+    */
   def imports(t: TypeExpr): Set[String] =
     t.foldMap {
       case Named(fqn) if fqn.contains(".") => Set(fqn)

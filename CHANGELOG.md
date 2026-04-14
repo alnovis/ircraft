@@ -7,21 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### FP-MLIR Architecture -- Open-world extensible IR
+
+Functor-based IR with Data Types a la Carte. New dialect = enum F[+A] + Traverse + DialectInfo + trait mixins + lowering algebra. Zero core changes required.
+
 ### Added
+- **Fix[F]** -- fixpoint type for recursive IR trees
+- **Coproduct[F, G, A]** / **:+:** -- disjoint union of dialect functors (split scala-2/3)
+- **Inject[F, G]** -- type-safe injection into coproducts (split scala-2/3)
+- **scheme.cata / ana / hylo** -- stack-safe recursion schemes via Eval
+- **eliminate.dialect[F, G]** -- type-safe coproduct shrinking (e.g., ProtoF :+: SemanticF -> SemanticF)
+- **SemanticF[+A]** -- core IR refactored to a functor (TypeDeclF, EnumDeclF, FuncDeclF, AliasDeclF, ConstDeclF)
+- **Module[D]** -- parameterized over declaration type
+- **Trait mixins** -- HasName, HasFields, HasMethods, HasNested, HasMeta, HasVisibility
+- **Coproduct auto-derivation** for all trait mixins (split scala-2/3)
+- **Generic passes** via cata + trait constraints (collectAllNames, validateNoEmptyNames)
+- **DialectInfo[F]** typeclass -- dialect name + operation count
+- **Traverse[F]** / **Functor[F]** infrastructure (Traverse extends Functor)
+- **ProtoF[+A]** -- proto dialect as functor (MessageNodeF, EnumNodeF, OneofNodeF) with all 6 trait mixins
+- **ProtoLowering.lowerToMixed** -- generic over IR via Inject
+- **Constraint system** -- Constraint, ConstraintVerify[C, A], Constrained[A, C] wrapper, !> infix type (Scala 3)
+- **MustBeResolved**, **MustNotBeEmpty** built-in constraints
+- **ConstraintVerifier** -- verification via cata (verifyFieldTypes, verifyNames)
+- SQL community dialect example (SqlF[+A]) proving zero-core-change extensibility
 - Cross-compilation: Scala 2.12.20, 2.13.16, 3.6.4
-- `scala-collection-compat` for 2.12 compatibility
-- `kind-projector` compiler plugin for 2.12/2.13
+- `scala-collection-compat` for 2.12, `kind-projector` for 2.12/2.13
 - `Outcome` type alias on Scala 3 (OutcomeAlias.scala)
 - Version-specific source dirs: `scala-2/` and `scala-3/`
+- `LanguageSyntax.aliasDecl` -- type alias emission (Scala: `type X = Y`, Java: skip)
+- **ircraft-java-api** module -- Java facade hiding Fix/Kleisli/IorT behind idiomatic Java API:
+  - `Result<T>` -- three-state result (ok / withWarnings / error), map/flatMap
+  - `IrMeta` -- wrapper over opaque Meta with get/set/remove
+  - `IrNode` -- Fix[SemanticF] wrapper with static factories and typed views
+  - `IrModule` / `IrCompilationUnit` -- Module wrappers
+  - `IrPass` / `IrPipeline` -- FunctionalInterface pass composition
+  - `IrVisitor<T>` -- bottom-up tree visitor (replaces scheme.cata)
+  - `IrLowering<S>` / `ProtoLoweringFacade` -- source-to-IR conversion
+  - `IrEmitter` -- java/scala3/scala2 emission facades
+  - `IrMerge` / `IrMergeStrategy` -- multi-version merging with built-in strategies
+- Documentation: Scala 3 API Guide, Scala 2 API Guide, Java API Guide
+- Comprehensive Scaladoc on all 61+ source files across all modules
 
 ### Changed
+- `Decl` sealed trait -> `SemanticF[+A]` functor with smart constructors + extractors
+- `Module[D]` parameterized (was `Module` with fixed `Decl`)
+- All consumers updated: Pass, Pipeline, Lowering, Merge, BaseEmitter, ImportCollector, ProtoLowering, emitters
+- `scheme.ana` now stack-safe via Eval (constraint: Traverse instead of Functor)
+- `emitMatchAsIfChain` delegates to `emitStmtNode` (handles all statement types)
 - All enums replaced with sealed abstract class + case objects (cross-compatible)
 - Shared code uses `IorT` directly instead of `Outcome` type alias
 - `MergeStrategy.onConflict` returns `IorT[F, NonEmptyChain[Diagnostic], Resolution]`
-- `traverseIor` helper in Merge replaces `.traverse` (2.12 type inference)
-- Package object for type aliases (`Pass`, `Lowering`)
-- All shared files use brace syntax (2.12 compatible)
 - CI/Release workflows: `sbt +compile`, `sbt +test` (cross-build)
+
+### Fixed
+- `scheme.ana` stack overflow on deep trees (>5k levels) -- added Eval trampolining
+- `AliasDeclF` silently dropped during emission -- now emits `type X = Y` for Scala
+- `emitMatchAsIfChain` dropped Let/Assign/If/ForEach statements -- now handles all via emitStmtNode
+- Redundant `Functor` instances in Scala 2 (Coproduct, SemanticF, ProtoF) -- removed, Traverse provides Functor
+
+### Removed
+- Redundant `coproductFunctor`, `semanticFunctor`, `protoFunctor` implicit instances (Scala 2)
 
 ## [2.0.0-alpha.1] - 2026-04-04
 

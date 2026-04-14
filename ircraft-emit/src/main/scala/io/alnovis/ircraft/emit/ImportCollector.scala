@@ -4,8 +4,39 @@ import io.alnovis.ircraft.core.algebra.Fix
 import io.alnovis.ircraft.core.ir._
 import io.alnovis.ircraft.core.ir.SemanticF._
 
+/**
+  * Recursively collects all import statements required by a declaration and its subtree.
+  *
+  * Walks the entire `Fix[SemanticF]` tree -- including fields, function signatures,
+  * function bodies, statements, expressions, patterns, nested declarations, and
+  * type parameters -- delegating to the provided [[TypeMapping]] to determine which
+  * imports each `TypeExpr` requires.
+  *
+  * This collector is used by [[BaseEmitter]] to populate the imports section of a
+  * [[CodeNode.File]] node.
+  *
+  * @see [[TypeMapping.imports]] for the per-type import resolution
+  * @see [[BaseEmitter.emitFileTree]] where this collector is invoked
+  */
 object ImportCollector {
 
+  /**
+    * Collects all import paths required by the given declaration tree.
+    *
+    * Traverses the declaration recursively, visiting fields, functions (including
+    * their bodies), nested declarations, type parameters, expressions, and patterns.
+    * Each encountered `TypeExpr` is passed to `tm.imports` to gather the required
+    * import paths.
+    *
+    * @param decl the root declaration to analyze, as a fixed-point `SemanticF` tree
+    * @param tm   the [[TypeMapping]] that provides import resolution for each type
+    * @return the union of all import paths required by the declaration and its children
+    *
+    * @example {{{
+    * val imports = ImportCollector.collect(myDecl, JavaTypeMapping)
+    * // Set("java.util.List", "java.util.Map", "com.example.MyType")
+    * }}}
+    */
   def collect(decl: Fix[SemanticF], tm: TypeMapping): Set[String] = decl.unfix match {
     case td: TypeDeclF[Fix[SemanticF] @unchecked]  => collectTypeDecl(td, tm)
     case ed: EnumDeclF[Fix[SemanticF] @unchecked]  => collectEnumDecl(ed, tm)

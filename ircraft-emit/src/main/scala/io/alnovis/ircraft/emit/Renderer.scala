@@ -3,8 +3,37 @@ package io.alnovis.ircraft.emit
 import cats.Eval
 import cats.syntax.all._
 
+/**
+  * Renders a [[CodeNode]] tree into a formatted source code string.
+  *
+  * The renderer traverses the tree recursively, applying indentation (4 spaces per level)
+  * and structural formatting (braces, blank-line separation, etc.). It uses `cats.Eval`
+  * for stack-safe recursion on deeply nested trees.
+  *
+  * This object is stateless and thread-safe. All language-specific decisions (keywords,
+  * terminators, etc.) are captured in the [[CodeNode]] tree itself, except for the
+  * statement terminator which is passed as a parameter.
+  *
+  * @see [[CodeNode]] for the tree structure
+  * @see [[BaseEmitter]] for constructing [[CodeNode]] trees from semantic IR
+  */
 object Renderer {
 
+  /**
+    * Renders a [[CodeNode]] tree to a formatted source code string.
+    *
+    * @param node       the root [[CodeNode]] to render
+    * @param terminator the statement terminator to append to certain constructs
+    *                   (e.g., `";"` for Java, `""` for Scala). Defaults to `";"`.
+    * @return the rendered source code as a string
+    *
+    * @example {{{
+    * val tree = CodeNode.File("package com.example", Vector.empty, Vector(
+    *   CodeNode.Line("public class Foo {}")
+    * ))
+    * val source = Renderer.render(tree, ";")
+    * }}}
+    */
   def render(node: CodeNode, terminator: String = ";"): String =
     renderAt(node, 0, terminator).value
 
