@@ -48,7 +48,7 @@ abstract class BaseEmitter[F[_]: Monad] {
     case ed: EnumDeclF[Fix[SemanticF] @unchecked]  => emitEnumDecl(ed)
     case fd: FuncDeclF[Fix[SemanticF] @unchecked]  => emitFuncNode(fd.func, TypeKind.Product)
     case cd: ConstDeclF[Fix[SemanticF] @unchecked] => Monad[F].pure(emitConstDecl(cd))
-    case _: AliasDeclF[Fix[SemanticF] @unchecked]  => Monad[F].pure(CodeNode.Line(""))
+    case ad: AliasDeclF[Fix[SemanticF] @unchecked] => emitAliasDecl(ad)
   }
 
   private def emitTypeDecl(td: TypeDeclF[Fix[SemanticF]]): F[CodeNode] = {
@@ -156,8 +156,9 @@ abstract class BaseEmitter[F[_]: Monad] {
             (header, bodyNodes)
           }
         }
-        .map { renderedCases =>
-          if (syntax.supportsNativeMatch) CodeNode.MatchBlock(syntax.matchHeader(emitExprText(expr)), renderedCases)
+        .flatMap { renderedCases =>
+          if (syntax.supportsNativeMatch)
+            Monad[F].pure(CodeNode.MatchBlock(syntax.matchHeader(emitExprText(expr)), renderedCases))
           else emitMatchAsIfChain(expr, cases)
         }
     case Stmt.Switch(expr, cases, default) =>
@@ -234,6 +235,15 @@ abstract class BaseEmitter[F[_]: Monad] {
     wrapWithDocAndAnnotations(f.meta, f.annotations, fieldLine)
   }
 
+  private def emitAliasDecl(ad: AliasDeclF[Fix[SemanticF]]): F[CodeNode] = {
+    val vis    = syntax.visibility(ad.visibility)
+    val target = tm.typeName(ad.target)
+    syntax.aliasDecl(vis, ad.name, target) match {
+      case Some(line) => Monad[F].pure(CodeNode.Line(line))
+      case None       => Monad[F].pure(CodeNode.Line("")) // unsupported -- filtered out
+    }
+  }
+
   private def emitConstDecl(cd: ConstDeclF[Fix[SemanticF]]): CodeNode = {
     val vis = syntax.visibility(cd.visibility)
     CodeNode.Line(syntax.constDecl(vis, tm.typeName(cd.constType), cd.name, emitExprText(cd.value)))
@@ -258,9 +268,9 @@ abstract class BaseEmitter[F[_]: Monad] {
     case Pattern.Wildcard                 => syntax.patternWildcard
   }
 
-  private def emitMatchAsIfChain(expr: Expr, cases: Vector[MatchCase]): CodeNode = {
-    val nodes = cases.zipWithIndex.map {
-      case (mc, idx) =>
+  private def emitMatchAsIfChain(expr: Expr, cases: Vector[MatchCase]): F[CodeNode] = {
+    cases
+      .traverse { mc =>
         val cond = mc.pattern match {
           case Pattern.TypeTest(name, typeExpr) =>
             s"${emitExprText(expr)} instanceof ${tm.typeName(typeExpr)}"
@@ -270,13 +280,10 @@ abstract class BaseEmitter[F[_]: Monad] {
             "true"
         }
         val guardStr = mc.guard.map(g => s" && ${emitExprText(g)}").getOrElse("")
-        val bodyNodes = mc.body.stmts.map {
-          case Stmt.Return(Some(e)) => CodeNode.Line(syntax.returnStmt(emitExprText(e)))
-          case Stmt.Eval(e)         => CodeNode.Line(s"${emitExprText(e)}${syntax.statementTerminator}")
-          case _                    => CodeNode.Line(s"/* match case $idx */")
+        mc.body.stmts.traverse(emitStmtNode).map { bodyNodes =>
+          CodeNode.IfElse(s"$cond$guardStr", bodyNodes, None)
         }
-        CodeNode.IfElse(s"$cond$guardStr", bodyNodes, None)
-    }
-    CodeNode.Block(nodes)
+      }
+      .map(CodeNode.Block(_))
   }
 }

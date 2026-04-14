@@ -42,7 +42,7 @@ object TypeExpr:
   case class Intersection(components: Vector[TypeExpr]) extends TypeExpr
 
   /**
-    * Stack-safe recursive fold over a TypeExpr tree.
+    * ytStack-safe recursive fold over a TypeExpr tree.
     * Visits the node itself and all children, combining via Monoid.
     */
   extension (t: TypeExpr)

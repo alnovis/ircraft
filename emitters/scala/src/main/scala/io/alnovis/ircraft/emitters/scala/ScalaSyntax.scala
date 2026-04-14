@@ -64,6 +64,9 @@ class ScalaSyntax(config: ScalaEmitterConfig) extends LanguageSyntax {
   def constDecl(vis: String, typeName: String, name: String, value: String): String =
     s"${vis}val $name: $typeName = $value"
 
+  override def aliasDecl(vis: String, name: String, target: String): Option[String] =
+    Some(s"${vis}type $name = $target")
+
   def funcSignature(
     vis: String,
     modifiers: Set[FuncModifier],

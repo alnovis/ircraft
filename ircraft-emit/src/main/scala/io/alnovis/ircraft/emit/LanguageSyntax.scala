@@ -19,6 +19,10 @@ trait LanguageSyntax {
   def fieldDecl(vis: String, mutable: Boolean, typeName: String, name: String, init: Option[String]): String
   def constDecl(vis: String, typeName: String, name: String, value: String): String
 
+  // -- Type aliases --
+  /** None = language does not support type aliases (emitter will skip with a diagnostic) */
+  def aliasDecl(vis: String, name: String, target: String): Option[String] = None
+
   // -- Functions --
   def funcSignature(
     vis: String,

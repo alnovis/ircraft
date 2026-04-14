@@ -1,6 +1,6 @@
 package io.alnovis.ircraft.core.ir
 
-import cats.{Applicative, Eval, Functor, Traverse}
+import cats.{Applicative, Eval, Traverse}
 import cats.syntax.all._
 import io.alnovis.ircraft.core.algebra.DialectInfo
 
@@ -78,18 +78,6 @@ object SemanticF {
     case fd: FuncDeclF[A @unchecked]  => fd.copy(meta = m)
     case ad: AliasDeclF[A @unchecked] => ad.copy(meta = m)
     case cd: ConstDeclF[A @unchecked] => cd.copy(meta = m)
-  }
-
-  implicit val semanticFunctor: Functor[SemanticF] = new Functor[SemanticF] {
-    def map[A, B](fa: SemanticF[A])(f: A => B): SemanticF[B] = fa match {
-      case TypeDeclF(n, k, flds, fns, nested, st, tp, v, ann, m) =>
-        TypeDeclF(n, k, flds, fns, nested.map(f), st, tp, v, ann, m)
-      case EnumDeclF(n, vs, fns, st, v, ann, m) =>
-        EnumDeclF(n, vs, fns, st, v, ann, m)
-      case FuncDeclF(fn, m)          => FuncDeclF(fn, m)
-      case AliasDeclF(n, t, v, m)    => AliasDeclF(n, t, v, m)
-      case ConstDeclF(n, t, e, v, m) => ConstDeclF(n, t, e, v, m)
-    }
   }
 
   implicit val semanticTraverse: Traverse[SemanticF] = new Traverse[SemanticF] {

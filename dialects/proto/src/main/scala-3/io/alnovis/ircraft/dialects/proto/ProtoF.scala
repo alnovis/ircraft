@@ -2,7 +2,7 @@ package io.alnovis.ircraft.dialects.proto
 
 import cats.{ Applicative, Eval, Functor, Traverse }
 import cats.syntax.all._
-import io.alnovis.ircraft.core.algebra.{ DialectInfo, HasName, HasNested }
+import io.alnovis.ircraft.core.algebra.{ DialectInfo, HasFields, HasMeta, HasMethods, HasName, HasNested, HasVisibility }
 import io.alnovis.ircraft.core.ir.{ EnumVariant, Field, Func, Meta, Visibility }
 
 /**
@@ -70,3 +70,32 @@ object ProtoF:
     def nested[A](fa: ProtoF[A]): Vector[A] = fa match
       case MessageNodeF(_, _, _, nested, _) => nested
       case _                                => Vector.empty
+
+  given HasMeta[ProtoF] with
+
+    def meta[A](fa: ProtoF[A]): Meta = fa match
+      case MessageNodeF(_, _, _, _, m) => m
+      case EnumNodeF(_, _, m)          => m
+      case OneofNodeF(_, _, m)         => m
+
+    def withMeta[A](fa: ProtoF[A], m: Meta): ProtoF[A] = fa match
+      case msg: MessageNodeF[A @unchecked] => msg.copy(meta = m)
+      case enm: EnumNodeF[A @unchecked]    => enm.copy(meta = m)
+      case onf: OneofNodeF[A @unchecked]   => onf.copy(meta = m)
+
+  given HasFields[ProtoF] with
+
+    def fields[A](fa: ProtoF[A]): Vector[Field] = fa match
+      case MessageNodeF(_, flds, _, _, _) => flds
+      case OneofNodeF(_, flds, _)         => flds
+      case _                              => Vector.empty
+
+  given HasMethods[ProtoF] with
+
+    def functions[A](fa: ProtoF[A]): Vector[Func] = fa match
+      case MessageNodeF(_, _, fns, _, _) => fns
+      case _                             => Vector.empty
+
+  given HasVisibility[ProtoF] with
+
+    def visibility[A](fa: ProtoF[A]): Visibility = Visibility.Public

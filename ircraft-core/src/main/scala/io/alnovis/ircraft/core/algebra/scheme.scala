@@ -1,6 +1,6 @@
 package io.alnovis.ircraft.core.algebra
 
-import cats.{ Eval, Functor, Traverse }
+import cats.{ Eval, Traverse }
 import io.alnovis.ircraft.core.algebra.Algebra._
 
 /** Stack-safe recursion schemes over Fix[F]. */
@@ -17,10 +17,15 @@ object scheme {
     fix => go(fix).value
   }
 
-  /** Anamorphism: unfold a value into Fix[F] using a coalgebra. */
-  def ana[F[_], A](coalg: Coalgebra[F, A])(implicit F: Functor[F]): A => Fix[F] = {
-    def go(a: A): Fix[F] = Fix(F.map(coalg(a))(go))
-    a => go(a)
+  /**
+    * Anamorphism: unfold a value into Fix[F] using a coalgebra.
+    * Stack-safe via cats.Eval trampolining.
+    */
+  def ana[F[_], A](coalg: Coalgebra[F, A])(implicit T: Traverse[F]): A => Fix[F] = {
+    def go(a: A): Eval[Fix[F]] = Eval.defer {
+      T.traverse(coalg(a))(child => go(child)).map(Fix(_))
+    }
+    a => go(a).value
   }
 
   /** Hylomorphism: unfold then fold without building the intermediate tree. */

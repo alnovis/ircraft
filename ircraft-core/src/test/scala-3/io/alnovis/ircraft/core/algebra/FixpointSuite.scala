@@ -152,6 +152,22 @@ class FixpointSuite extends FunSuite {
     assertEquals(scheme.cata(eval).apply(tree), 42)
   }
 
+  test("ana is stack-safe on deep trees") {
+    // Unfold into a left-leaning Add chain of depth 10000: Add(Add(Add(...Lit(0)..., Lit(1)), Lit(1)), Lit(1))
+    val unfold: Coalgebra[ExprF, Int] = { n =>
+      if (n <= 0) LitF(0)
+      else AddF(n - 1, -1)
+    }
+    // -1 is a sentinel that maps to Lit(1)
+    val unfoldWithSentinel: Coalgebra[ExprF, Int] = { n =>
+      if (n == -1) LitF(1)
+      else if (n <= 0) LitF(0)
+      else AddF(n - 1, -1)
+    }
+    val tree = scheme.ana(unfoldWithSentinel).apply(10000)
+    assertEquals(scheme.cata(eval).apply(tree), 10000)
+  }
+
   // ---- hylo ----
 
   test("hylo folds without building intermediate tree") {

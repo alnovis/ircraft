@@ -1,6 +1,6 @@
 package io.alnovis.ircraft.core.algebra
 
-import cats.{Applicative, Eval, Functor, Traverse}
+import cats.{Applicative, Eval, Traverse}
 
 /** Coproduct (disjoint union) of two functors. */
 sealed trait Coproduct[F[_], G[_], A]
@@ -11,14 +11,6 @@ object Coproduct {
 
   // kind-projector: Coproduct[F, G, *] is the partially-applied type
   // Users can define:  type :+:[F[_], G[_]] = Coproduct[F, G, *]
-
-  implicit def coproductFunctor[F[_], G[_]](implicit F: Functor[F], G: Functor[G]): Functor[Coproduct[F, G, *]] =
-    new Functor[Coproduct[F, G, *]] {
-      def map[A, B](fa: Coproduct[F, G, A])(f: A => B): Coproduct[F, G, B] = fa match {
-        case Inl(a) => Inl(F.map(a)(f))
-        case Inr(a) => Inr(G.map(a)(f))
-      }
-    }
 
   implicit def coproductTraverse[F[_], G[_]](implicit F: Traverse[F], G: Traverse[G]): Traverse[Coproduct[F, G, *]] =
     new Traverse[Coproduct[F, G, *]] {
