@@ -1,4 +1,4 @@
-# ircraft
+![ircraft](docs/images/cover.png)
 
 Pure functional framework for building code generators with open-world extensible IR. Scala 3 + Cats.
 

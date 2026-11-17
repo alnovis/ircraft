@@ -82,4 +82,52 @@ trait TypeMapping {
     */
   protected def unreachable(msg: String): Nothing =
     throw new AssertionError(s"IRCraft pipeline assertion failed: $msg")
+
+  /**
+    * Creates a collision-aware wrapper that uses fully-qualified names for types
+    * whose simple names collide with other imported types.
+    *
+    * @param collidingSimpleNames the set of simple type names that have multiple FQN mappings
+    * @return a new [[TypeMapping]] that uses FQN for colliding types and delegates the rest
+    */
+  def withCollisions(collidingSimpleNames: Set[String]): TypeMapping =
+    if (collidingSimpleNames.isEmpty) this
+    else new CollisionAwareTypeMapping(this, collidingSimpleNames)
+}
+
+/**
+  * TypeMapping wrapper that uses fully-qualified names for types whose simple names
+  * collide with other imported types in the same file.
+  *
+  * For colliding `Named(fqn)` types, this wrapper:
+  *  - Returns the FQN as the type name (instead of the simple name)
+  *  - Returns an empty import set (FQN references don't need imports)
+  *
+  * All non-colliding types delegate to the wrapped [[TypeMapping]].
+  */
+private[emit] class CollisionAwareTypeMapping(
+  delegate: TypeMapping,
+  collisions: Set[String]
+) extends TypeMapping {
+
+  def typeName(t: TypeExpr): String = t match {
+    case TypeExpr.Named(fqn) if fqn.contains(".") && collisions.contains(simpleName(fqn)) => fqn
+    // Handle composite types to ensure collision check on children
+    case TypeExpr.Applied(base, args) =>
+      s"${typeName(base)}<${args.map(boxedName).mkString(", ")}>"
+    case TypeExpr.ListOf(elem)  => s"List<${boxedName(elem)}>"
+    case TypeExpr.MapOf(k, v)   => s"Map<${boxedName(k)}, ${boxedName(v)}>"
+    case TypeExpr.SetOf(elem)   => s"Set<${boxedName(elem)}>"
+    case _ => delegate.typeName(t)
+  }
+
+  override def boxedName(t: TypeExpr): String = t match {
+    case TypeExpr.Named(fqn) if fqn.contains(".") && collisions.contains(simpleName(fqn)) => fqn
+    case TypeExpr.Applied(base, args) =>
+      s"${typeName(base)}<${args.map(boxedName).mkString(", ")}>"
+    case _ => delegate.boxedName(t)
+  }
+
+  def imports(t: TypeExpr): Set[String] =
+    delegate.imports(t).filterNot(fqn => collisions.contains(simpleName(fqn)))
 }

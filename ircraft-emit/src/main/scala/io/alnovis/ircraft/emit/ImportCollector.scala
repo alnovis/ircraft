@@ -37,6 +37,24 @@ object ImportCollector {
     * // Set("java.util.List", "java.util.Map", "com.example.MyType")
     * }}}
     */
+  /**
+    * Detects simple name collisions in a set of fully-qualified import paths.
+    *
+    * A collision occurs when two or more distinct FQN imports share the same
+    * simple (unqualified) name. For example, `com.a.Foo` and `com.b.Foo`
+    * both have simple name `Foo` and would cause a compilation error if both
+    * were imported.
+    *
+    * @param imports the set of fully-qualified import paths
+    * @return the set of simple names that have multiple FQN mappings
+    */
+  def detectCollisions(imports: Set[String]): Set[String] = {
+    val bySimple = imports
+      .filter(_.contains("."))
+      .groupBy(fqn => fqn.substring(fqn.lastIndexOf('.') + 1))
+    bySimple.collect { case (simple, fqns) if fqns.size > 1 => simple }.toSet
+  }
+
   def collect(decl: Fix[SemanticF], tm: TypeMapping): Set[String] = decl.unfix match {
     case td: TypeDeclF[Fix[SemanticF] @unchecked]  => collectTypeDecl(td, tm)
     case ed: EnumDeclF[Fix[SemanticF] @unchecked]  => collectEnumDecl(ed, tm)

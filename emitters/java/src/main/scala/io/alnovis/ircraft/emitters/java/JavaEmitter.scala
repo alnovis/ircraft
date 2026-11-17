@@ -24,9 +24,14 @@ import io.alnovis.ircraft.emit.{ BaseEmitter, LanguageSyntax, TypeMapping }
   * @see [[JavaTypeMapping]] for Java type name resolution
   * @see [[BaseEmitter]] for the base emitter API
   */
-class JavaEmitter[F[_]: Monad] extends BaseEmitter[F] {
+class JavaEmitter[F[_]: Monad](collisionSet: Set[String] = Set.empty) extends BaseEmitter[F] {
   protected val syntax: LanguageSyntax = JavaSyntax
-  protected val tm: TypeMapping        = JavaTypeMapping
+  protected val tm: TypeMapping =
+    if (collisionSet.isEmpty) JavaTypeMapping
+    else JavaTypeMapping.withCollisions(collisionSet)
+
+  override protected def withCollisions(collisions: Set[String]): JavaEmitter[F] =
+    new JavaEmitter[F](collisions)
 }
 
 /**

@@ -76,6 +76,32 @@ object JavaSyntax extends LanguageSyntax {
     s"${vis}${kindMod}$keyword $name$typeParams$ext"
   }
 
+  override def typeSignatureWithImpl(
+    vis: String,
+    kind: TypeKind,
+    name: String,
+    typeParams: String,
+    extendsTypes: Vector[String],
+    implementsTypes: Vector[String]
+  ): String = {
+    val (keyword, kindMod) = kind match {
+      case TypeKind.Protocol  => ("interface", "")
+      case TypeKind.Abstract  => ("class", "abstract ")
+      case TypeKind.Singleton => ("class", "final ")
+      case _                  => ("class", "")
+    }
+    val ext = kind match {
+      case TypeKind.Protocol =>
+        val all = extendsTypes ++ implementsTypes
+        if (all.nonEmpty) s" extends ${all.mkString(", ")}" else ""
+      case _ =>
+        val extStr  = if (extendsTypes.nonEmpty) s" extends ${extendsTypes.mkString(", ")}" else ""
+        val implStr = if (implementsTypes.nonEmpty) s" implements ${implementsTypes.mkString(", ")}" else ""
+        extStr + implStr
+    }
+    s"${vis}${kindMod}$keyword $name$typeParams$ext"
+  }
+
   /**
     * Constructs a Java enum signature.
     *

@@ -25,9 +25,17 @@ import io.alnovis.ircraft.emit.{ BaseEmitter, LanguageSyntax, TypeMapping }
   * @see [[ScalaTypeMapping]] for Scala type name resolution
   * @see [[BaseEmitter]] for the base emitter API
   */
-class ScalaEmitter[F[_]: Monad](config: ScalaEmitterConfig = ScalaEmitterConfig()) extends BaseEmitter[F] {
+class ScalaEmitter[F[_]: Monad](
+  config: ScalaEmitterConfig = ScalaEmitterConfig(),
+  collisionSet: Set[String] = Set.empty
+) extends BaseEmitter[F] {
   protected val syntax: LanguageSyntax = new ScalaSyntax(config)
-  protected val tm: TypeMapping        = ScalaTypeMapping
+  protected val tm: TypeMapping =
+    if (collisionSet.isEmpty) ScalaTypeMapping
+    else ScalaTypeMapping.withCollisions(collisionSet)
+
+  override protected def withCollisions(collisions: Set[String]): ScalaEmitter[F] =
+    new ScalaEmitter[F](config, collisions)
 }
 
 /**

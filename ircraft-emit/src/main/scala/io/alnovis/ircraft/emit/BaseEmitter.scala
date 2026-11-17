@@ -31,6 +31,22 @@ import io.alnovis.ircraft.core.ir.SemanticF._
   * @see [[LanguageSyntax]] for language-specific syntax rules
   * @see [[TypeMapping]] for type name and import resolution
   */
+object BaseEmitter {
+
+  /**
+    * Meta key to mark supertype indices that should use `implements` instead of `extends`.
+    * Value is `Set[Int]` where each int is an index into the supertypes vector.
+    */
+  val ImplementsIndicesKey: Meta.Key[scala.collection.immutable.Set[Int]] =
+    Meta.Key[scala.collection.immutable.Set[Int]]("emit.implementsIndices")
+
+  /** Meta key to mark a Func as a constructor (no return type emitted). */
+  val ConstructorKey: Meta.Key[Boolean] = Meta.Key[Boolean]("emit.constructor")
+
+  /** Meta key to add class-level fields to an enum declaration. */
+  val EnumFieldsKey: Meta.Key[Vector[Field]] = Meta.Key[Vector[Field]]("emit.enumFields")
+}
+
 abstract class BaseEmitter[F[_]: Monad] {
 
   /**
@@ -117,10 +133,41 @@ abstract class BaseEmitter[F[_]: Monad] {
     * @param decl      the declaration to emit
     * @return a [[CodeNode.File]] containing header, imports, and the declaration body
     */
+  /**
+    * Creates a new emitter instance with a collision-aware type mapping.
+    *
+    * Override in concrete emitters to return a properly-typed instance.
+    * Default returns `this` (no collision handling).
+    *
+    * @param collisions the set of colliding simple type names
+    * @return a new emitter that uses FQN for colliding types
+    */
+  protected def withCollisions(collisions: Set[String]): BaseEmitter[F] = this
+
   protected def emitFileTree(namespace: String, decl: Fix[SemanticF]): F[CodeNode] = {
-    emitDeclTree(decl).map { declTree =>
-      val imports = ImportCollector.collect(decl, tm)
-      CodeNode.File(syntax.packageDecl(namespace), imports.toVector, Vector(declTree))
+    // Phase 1: detect import collisions
+    val rawImports = ImportCollector.collect(decl, tm)
+    val collisions = ImportCollector.detectCollisions(rawImports)
+
+    // Also treat the declared type's own name as a collision source
+    val declName = SemanticF.name(decl.unfix)
+    val selfCollisions = rawImports
+      .filter(_.contains("."))
+      .filter(fqn => fqn.substring(fqn.lastIndexOf('.') + 1) == declName)
+    val allCollisions = collisions ++ (if (selfCollisions.nonEmpty) Set(declName) else Set.empty)
+
+    if (allCollisions.isEmpty) {
+      // Fast path: no collisions
+      emitDeclTree(decl).map { declTree =>
+        CodeNode.File(syntax.packageDecl(namespace), rawImports.toVector, Vector(declTree))
+      }
+    } else {
+      // Re-emit with collision-aware type mapping
+      val safeEmitter = withCollisions(allCollisions)
+      safeEmitter.emitDeclTree(decl).map { declTree =>
+        val safeImports = ImportCollector.collect(decl, safeEmitter.tm)
+        CodeNode.File(syntax.packageDecl(namespace), safeImports.toVector, Vector(declTree))
+      }
     }
   }
 
@@ -150,7 +197,19 @@ abstract class BaseEmitter[F[_]: Monad] {
       val vis            = syntax.visibility(td.visibility)
       val typeParams     = syntax.typeParamList(td.typeParams, tm)
       val supertypeNames = td.supertypes.map(tm.typeName)
-      val sig            = syntax.typeSignature(vis, td.kind, td.name, typeParams, supertypeNames)
+
+      // Check meta for explicit implements separation
+      val implementsIndices = td.meta.get(BaseEmitter.ImplementsIndicesKey)
+        .map(_.asInstanceOf[scala.collection.immutable.Set[Int]])
+      val sig = implementsIndices match {
+        case Some(indices) =>
+          val indexed = supertypeNames.zipWithIndex
+          val extendsTypes     = indexed.filterNot(t => indices.contains(t._2)).map(_._1)
+          val implementsTypes  = indexed.filter(t => indices.contains(t._2)).map(_._1)
+          syntax.typeSignatureWithImpl(vis, td.kind, td.name, typeParams, extendsTypes, implementsTypes)
+        case None =>
+          syntax.typeSignature(vis, td.kind, td.name, typeParams, supertypeNames)
+      }
       val sections       = Vector(fieldNodes, funcNodes, nestedNodes).filter(_.nonEmpty)
       val typeBlock      = CodeNode.TypeBlock(sig, sections)
       wrapWithDocAndAnnotations(td.meta, td.annotations, typeBlock)
@@ -177,7 +236,11 @@ abstract class BaseEmitter[F[_]: Monad] {
           }
         }
 
-      val sections  = Vector(constantSection, funcNodes).filter(_.nonEmpty)
+      // Emit class-level fields if present in meta
+      val enumFields = ed.meta.get(BaseEmitter.EnumFieldsKey).getOrElse(Vector.empty)
+      val fieldNodes = enumFields.map(emitField)
+
+      val sections  = Vector(constantSection, fieldNodes, funcNodes).filter(_.nonEmpty)
       val enumBlock = CodeNode.TypeBlock(sig, sections)
       wrapWithDocAndAnnotations(ed.meta, ed.annotations, enumBlock)
     }
@@ -190,10 +253,17 @@ abstract class BaseEmitter[F[_]: Monad] {
       else f.name
     val vis        = syntax.visibility(f.visibility)
     val typeParams = syntax.typeParamList(f.typeParams, tm)
-    val ret        = tm.typeName(f.returnType)
     val params     = f.params.map(p => syntax.paramDecl(p.name, tm.typeName(p.paramType))).mkString(", ")
     val isAbstract = f.body.isEmpty && !f.modifiers.contains(FuncModifier.Default)
-    val sig        = syntax.funcSignature(vis, f.modifiers, typeParams, ret, name, params, isAbstract, parentKind)
+
+    // Constructor support: if meta contains ConstructorKey, omit return type
+    val isConstructor = f.meta.get(BaseEmitter.ConstructorKey).getOrElse(false)
+    val sig = if (isConstructor) {
+      s"${vis}$name($params)"
+    } else {
+      val ret = tm.typeName(f.returnType)
+      syntax.funcSignature(vis, f.modifiers, typeParams, ret, name, params, isAbstract, parentKind)
+    }
 
     f.body match {
       case None =>

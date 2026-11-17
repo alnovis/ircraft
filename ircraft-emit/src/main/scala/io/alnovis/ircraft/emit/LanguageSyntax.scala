@@ -59,6 +59,21 @@ trait LanguageSyntax {
   def typeSignature(vis: String, kind: TypeKind, name: String, typeParams: String, supertypes: Vector[String]): String
 
   /**
+    * Constructs the full signature with explicit extends/implements separation.
+    *
+    * Default delegates to [[typeSignature]] concatenating both lists.
+    * Override in language-specific syntax for proper handling.
+    */
+  def typeSignatureWithImpl(
+    vis: String,
+    kind: TypeKind,
+    name: String,
+    typeParams: String,
+    extendsTypes: Vector[String],
+    implementsTypes: Vector[String]
+  ): String = typeSignature(vis, kind, name, typeParams, extendsTypes ++ implementsTypes)
+
+  /**
     * Constructs the signature line for an enum declaration.
     *
     * @param vis        the visibility modifier string
